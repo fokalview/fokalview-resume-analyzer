@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FokalView Job Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="dashboard-shell">
+      <header class="dashboard-header">
+        <div>
+          <p>FokalView Job Tracker</p>
+          <h1>Application dashboard</h1>
+        </div>
+        <div class="header-actions">
+          <button id="resume" class="secondary-button">Resume analyzer</button>
+          <button id="export" class="secondary-button">Export JSON</button>
+          <label class="import-button">
+            Import JSON
+            <input id="import" type="file" accept="application/json,.json" />
+          </label>
+        </div>
+      </header>
+
+      <section class="metrics-grid">
+        <article>
+          <span id="total">0</span>
+          <p>Total applications</p>
+        </article>
+        <article>
+          <span id="weekly">0</span>
+          <p>This week</p>
+        </article>
+        <article>
+          <span id="interviews">0</span>
+          <p>Interviewing</p>
+        </article>
+        <article>
+          <span id="goalText">0 / 10</span>
+          <p>Weekly goal</p>
+        </article>
+      </section>
+
+      <section class="goal-panel">
+        <label>
+          Weekly application goal
+          <input id="goal" type="number" min="1" max="100" />
+        </label>
+        <div class="progress-track">
+          <div id="progressBar"></div>
+        </div>
+      </section>
+
+      <section class="table-shell">
+        <div class="table-toolbar">
+          <h2>Saved jobs</h2>
+          <select id="statusFilter">
+            <option value="">All statuses</option>
+            <option>Interested</option>
+            <option>Applied</option>
+            <option>Interviewing</option>
+            <option>Offer</option>
+            <option>Rejected</option>
+          </select>
+        </div>
+        <div id="table" class="applications-table"></div>
+      </section>
+    </main>
+
+    <script src="dashboard.js"></script>
+  </body>
+</html>

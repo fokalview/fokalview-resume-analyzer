@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "FokalView Job Tracker",
+  "version": "0.2.0",
+  "description": "Track job applications, weekly goals, and resume-tailoring next steps from job boards.",
+  "permissions": ["activeTab", "storage", "alarms", "notifications", "tabs"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_icon": "icon.svg",
+    "default_title": "Save job application",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

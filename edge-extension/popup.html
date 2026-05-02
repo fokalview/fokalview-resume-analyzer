@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FokalView Job Tracker</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="popup">
+    <header class="popup-header">
+      <p>FokalView</p>
+      <h1>Save application</h1>
+    </header>
+
+    <main>
+      <label>
+        Job title
+        <input id="title" type="text" placeholder="Product Analyst" />
+      </label>
+
+      <label>
+        Company
+        <input id="company" type="text" placeholder="Company name" />
+      </label>
+
+      <label>
+        Location
+        <input id="location" type="text" placeholder="Remote, Rochester, NY..." />
+      </label>
+
+      <label>
+        Status
+        <select id="status">
+          <option>Interested</option>
+          <option>Applied</option>
+          <option>Interviewing</option>
+          <option>Offer</option>
+          <option>Rejected</option>
+        </select>
+      </label>
+
+      <label>
+        Notes
+        <textarea id="notes" placeholder="Referral, resume version, follow-up reminder..."></textarea>
+      </label>
+
+      <div id="message" class="message" hidden></div>
+
+      <button id="save" class="primary-button">Save job</button>
+      <button id="resume" class="secondary-button">Open resume analyzer</button>
+      <button id="dashboard" class="ghost-button">Open dashboard</button>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
