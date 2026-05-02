@@ -1,7 +1,14 @@
 import { useRef, useState } from "react";
 import { ClipboardPaste, Loader2, Upload } from "lucide-react";
+import JSZip from "jszip";
+import * as pdfjsLib from "pdfjs-dist";
 import { analyzeResume } from "../services/api";
 import type { ResumeAnalysis } from "../types";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  "pdfjs-dist/build/pdf.worker.mjs",
+  import.meta.url
+).toString();
 
 type Props = {
   resumeText: string;
@@ -25,16 +32,29 @@ export default function UploadScreen({
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [fileStatus, setFileStatus] = useState("");
 
   async function handleFile(file: File) {
     setError("");
-    if (!isTextLike(file)) {
-      setError(
-        "This build can read pasted text and plain-text files. Standard document uploads are planned next; for now, open the document and paste the resume text here."
-      );
-      return;
+    setFileStatus(`Reading ${file.name}...`);
+
+    try {
+      const extractedText = await extractTextFromFile(file);
+
+      if (extractedText.trim().length < 50) {
+        setError(
+          "The file opened, but I could not find enough readable text. If it is scanned or image-based, paste the resume text or export it as a text-based PDF/DOCX."
+        );
+        setFileStatus(`Could not read enough text from ${file.name}`);
+        return;
+      }
+
+      onResumeTextChange(extractedText);
+      setFileStatus(`Loaded ${file.name}`);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "That file could not be read.");
+      setFileStatus(`Could not load ${file.name}`);
     }
-    onResumeTextChange(await file.text());
   }
 
   async function submit() {
@@ -62,9 +82,8 @@ export default function UploadScreen({
           automatically and included in the artificial intelligence review.
         </p>
         <p className="format-note">
-          Best resume formats are Pages, Word documents, RTF, or other standard document files. Text-based PDFs
-          are acceptable, but scanned/image PDFs may not parse correctly. This local test build currently reads
-          pasted text and plain-text uploads.
+          Supported uploads: PDF, DOCX, ODT, RTF, TXT, MD, and CSV. Scanned/image PDFs may not parse correctly.
+          Legacy DOC and Apple Pages files should be saved as DOCX, PDF, or RTF first.
         </p>
       </div>
 
@@ -101,15 +120,17 @@ export default function UploadScreen({
           tabIndex={0}
         >
           <Upload size={24} />
-          <strong>Drop a text resume here</strong>
-          <span>Best: Pages, Word, RTF, or standard document files. PDF is okay if text-based.</span>
+          <strong>Drop a resume file here</strong>
+          <span>PDF, DOCX, ODT, RTF, TXT, MD, and CSV are supported.</span>
+          {fileStatus && <small className="file-status">{fileStatus}</small>}
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pages,.doc,.docx,.rtf,.odt,.pdf,.txt,.md,.csv,application/pdf,application/rtf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv"
+            accept=".pdf,.docx,.odt,.rtf,.txt,.md,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.oasis.opendocument.text,application/rtf,text/rtf,text/plain,text/markdown,text/csv"
             onChange={(event) => {
               const file = event.target.files?.[0];
               if (file) void handleFile(file);
+              event.target.value = "";
             }}
           />
         </div>
@@ -145,4 +166,92 @@ function isTextLike(file: File) {
     file.type.startsWith("text/") ||
     [".txt", ".md", ".csv"].some((extension) => file.name.toLowerCase().endsWith(extension))
   );
+}
+
+async function extractTextFromFile(file: File) {
+  const name = file.name.toLowerCase();
+
+  if (isTextLike(file)) return file.text();
+  if (isRtf(file)) return stripRtf(await file.text());
+  if (name.endsWith(".pdf") || file.type === "application/pdf") return extractPdfText(file);
+  if (name.endsWith(".docx")) return extractDocxText(file);
+  if (name.endsWith(".odt")) return extractOdtText(file);
+
+  if (name.endsWith(".doc")) {
+    throw new Error(
+      "Legacy .doc files are not browser-readable in this beta. Save the document as .docx, PDF, or RTF and upload again."
+    );
+  }
+
+  if (name.endsWith(".pages")) {
+    throw new Error(
+      "Apple Pages files need to be exported as PDF, DOCX, or RTF before upload."
+    );
+  }
+
+  throw new Error("Please upload a PDF, DOCX, ODT, RTF, TXT, MD, or CSV file.");
+}
+
+async function extractPdfText(file: File) {
+  const data = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data }).promise;
+  const pages: string[] = [];
+
+  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+    const page = await pdf.getPage(pageNumber);
+    const content = await page.getTextContent();
+    pages.push(
+      content.items
+        .map((item) => ("str" in item ? item.str : ""))
+        .join(" ")
+    );
+  }
+
+  return pages.join("\n\n").trim();
+}
+
+async function extractDocxText(file: File) {
+  const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  const documentXml = await zip.file("word/document.xml")?.async("text");
+  if (!documentXml) throw new Error("This DOCX file did not contain readable document text.");
+  return textFromXml(documentXml, "w:t");
+}
+
+async function extractOdtText(file: File) {
+  const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  const documentXml = await zip.file("content.xml")?.async("text");
+  if (!documentXml) throw new Error("This ODT file did not contain readable document text.");
+  return textFromXml(documentXml, "text:p");
+}
+
+function isRtf(file: File) {
+  return (
+    file.type === "application/rtf" ||
+    file.type === "text/rtf" ||
+    file.name.toLowerCase().endsWith(".rtf")
+  );
+}
+
+function stripRtf(value: string) {
+  return value
+    .replace(/\\'[0-9a-fA-F]{2}/g, " ")
+    .replace(/\\par[d]?/g, "\n")
+    .replace(/\\tab/g, " ")
+    .replace(/[{}]/g, "")
+    .replace(/\\[a-zA-Z]+-?\d* ?/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function textFromXml(xml: string, tagName: string) {
+  const parser = new DOMParser();
+  const document = parser.parseFromString(xml, "application/xml");
+  const nodes = Array.from(document.getElementsByTagName(tagName));
+  return nodes
+    .map((node) => node.textContent || "")
+    .join(tagName === "text:p" ? "\n" : " ")
+    .replace(/\s+\n/g, "\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }

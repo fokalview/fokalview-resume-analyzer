@@ -342,6 +342,20 @@ textarea:focus {
   color: #18202a;
 }
 
+.dropzone span {
+  max-width: 320px;
+  line-height: 1.45;
+}
+
+.file-status {
+  margin-top: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #e6f4f1;
+  color: #0f766e;
+  font-weight: 750;
+}
+
 .dropzone input {
   display: none;
 }

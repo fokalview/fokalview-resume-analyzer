@@ -17,7 +17,9 @@
     "typescript": "latest",
     "react": "latest",
     "react-dom": "latest",
-    "lucide-react": "latest"
+    "lucide-react": "latest",
+    "jszip": "latest",
+    "pdfjs-dist": "latest"
   },
   "devDependencies": {
     "@types/node": "latest",
