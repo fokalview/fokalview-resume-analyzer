@@ -4,7 +4,8 @@ export async function onRequestGet({ env }) {
     ok: true,
     provider: config.provider,
     model: config.model,
-    hasArtificialIntelligenceApiKey: Boolean(config.apiKey)
+    hasArtificialIntelligenceApiKey: Boolean(config.apiKey),
+    betaAccessEnabled: Boolean(env.BETA_ACCESS_CODE)
   });
 }
 

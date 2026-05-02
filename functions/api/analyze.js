@@ -50,6 +50,11 @@ const responseSchema = {
 
 export async function onRequestPost({ request, env }) {
   const config = readAiConfig(env);
+  const betaAccessCode = env.BETA_ACCESS_CODE || "";
+
+  if (betaAccessCode && request.headers.get("X-Beta-Access-Code") !== betaAccessCode) {
+    return json({ error: "Invalid beta access code." }, 401);
+  }
 
   if (!config.apiKey) {
     return json(

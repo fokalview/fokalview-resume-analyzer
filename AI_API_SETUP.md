@@ -16,6 +16,7 @@ Create a `.env` file in this project root:
 ARTIFICIAL_INTELLIGENCE_PROVIDER=openai
 ARTIFICIAL_INTELLIGENCE_API_KEY=your-real-key-here
 ARTIFICIAL_INTELLIGENCE_MODEL=gpt-5.4-mini
+BETA_ACCESS_CODE=choose-a-private-beta-code
 API_PORT=8787
 ```
 
@@ -53,3 +54,5 @@ http://localhost:8787/api/health
 ```
 
 You should see `hasArtificialIntelligenceApiKey: true` after adding `.env` and restarting the API server.
+
+If `BETA_ACCESS_CODE` is set, users must enter that code before using the analyzer, and `/api/analyze` will reject requests that do not include the matching access code.

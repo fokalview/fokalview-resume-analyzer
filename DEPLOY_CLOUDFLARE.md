@@ -23,9 +23,10 @@ Root directory: /
 ARTIFICIAL_INTELLIGENCE_PROVIDER = openai
 ARTIFICIAL_INTELLIGENCE_MODEL = gpt-5.4-mini
 ARTIFICIAL_INTELLIGENCE_API_KEY = your real key, encrypted as a secret
+BETA_ACCESS_CODE = your private beta invite code, encrypted as a secret
 ```
 
-For the key, choose the encrypted/secret option. Do not add it as a normal plaintext variable.
+For the API key and beta code, choose the encrypted/secret option. Do not add them as normal plaintext variables.
 
 7. Redeploy after adding secrets.
 8. Test:
@@ -41,7 +42,8 @@ You want:
   "ok": true,
   "provider": "openai",
   "model": "gpt-5.4-mini",
-  "hasArtificialIntelligenceApiKey": true
+  "hasArtificialIntelligenceApiKey": true,
+  "betaAccessEnabled": true
 }
 ```
 
@@ -56,6 +58,10 @@ npm run build
 ```
 
 Then upload the generated `dist` folder. Confirm the `functions` folder is deployed with the Pages project.
+
+## Docker Note
+
+This repo includes a `Dockerfile`, but Docker is mainly for container hosts like Render, Fly.io, Railway, or a VPS. For Cloudflare Pages, use the Vite build plus the `functions/api` Pages Functions.
 
 ## Edge Extension After Deploy
 

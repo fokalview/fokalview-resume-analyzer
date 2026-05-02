@@ -1,4 +1,5 @@
 import type { ResumeAnalysis } from "../types";
+import { getStoredAccessCode } from "./access";
 
 export async function analyzeResume(input: {
   resumeText: string;
@@ -7,7 +8,10 @@ export async function analyzeResume(input: {
 }): Promise<ResumeAnalysis> {
   const response = await fetch("/api/analyze", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "X-Beta-Access-Code": getStoredAccessCode()
+    },
     body: JSON.stringify(input)
   });
 

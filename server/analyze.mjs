@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
-import { readFileSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync, existsSync, statSync } from "node:fs";
+import { resolve, extname, normalize } from "node:path";
 
 loadDotEnv();
 
@@ -23,6 +23,7 @@ const AI_BASE_URL =
   process.env.ARTIFICIAL_INTELLIGENCE_BASE_URL ||
   process.env.AI_BASE_URL ||
   "https://api.openai.com/v1";
+const BETA_ACCESS_CODE = process.env.BETA_ACCESS_CODE || "";
 
 const responseSchema = {
   type: "object",
@@ -98,13 +99,34 @@ const server = createServer(async (req, res) => {
       ok: true,
       provider: AI_PROVIDER,
       model: AI_MODEL,
-      hasArtificialIntelligenceApiKey: Boolean(AI_API_KEY)
+      hasArtificialIntelligenceApiKey: Boolean(AI_API_KEY),
+      betaAccessEnabled: Boolean(BETA_ACCESS_CODE)
     });
     return;
   }
 
+  if (req.url === "/api/access" && req.method === "POST") {
+    const body = await readJson(req);
+    const code = String(body.code || "").trim();
+    if (!isBetaAccessAllowed(code)) {
+      sendJson(res, 401, { error: "Invalid beta access code." });
+      return;
+    }
+    sendJson(res, 200, { ok: true });
+    return;
+  }
+
   if (req.url !== "/api/analyze" || req.method !== "POST") {
+    if (req.method === "GET") {
+      serveStaticAsset(req, res);
+      return;
+    }
     sendJson(res, 404, { error: "Not found" });
+    return;
+  }
+
+  if (!isBetaAccessAllowed(req.headers["x-beta-access-code"])) {
+    sendJson(res, 401, { error: "Invalid beta access code." });
     return;
   }
 
@@ -256,6 +278,11 @@ function trimTrailingSlash(value) {
   return value.replace(/\/+$/, "");
 }
 
+function isBetaAccessAllowed(value) {
+  if (!BETA_ACCESS_CODE) return true;
+  return String(value || "").trim() === BETA_ACCESS_CODE;
+}
+
 function readJson(req) {
   return new Promise((resolveBody, reject) => {
     let raw = "";
@@ -283,8 +310,48 @@ function sendJson(res, status, payload) {
 
 function setCors(res) {
   res.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Beta-Access-Code");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+}
+
+function serveStaticAsset(req, res) {
+  const distRoot = resolve(process.cwd(), "dist");
+  if (!existsSync(distRoot)) {
+    sendJson(res, 404, { error: "Frontend build not found. Run npm run build first." });
+    return;
+  }
+
+  const pathname = new URL(req.url, "http://localhost").pathname;
+  const requestedPath = pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "");
+  let filePath = normalize(resolve(distRoot, requestedPath));
+
+  if (!filePath.startsWith(distRoot)) {
+    sendJson(res, 403, { error: "Forbidden" });
+    return;
+  }
+
+  if (!existsSync(filePath) || statSync(filePath).isDirectory()) {
+    filePath = resolve(distRoot, "index.html");
+  }
+
+  const contentType = contentTypeFor(filePath);
+  res.writeHead(200, { "Content-Type": contentType });
+  res.end(readFileSync(filePath));
+}
+
+function contentTypeFor(filePath) {
+  const types = {
+    ".html": "text/html; charset=utf-8",
+    ".js": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".ico": "image/x-icon",
+    ".json": "application/json; charset=utf-8"
+  };
+  return types[extname(filePath)] || "application/octet-stream";
 }
 
 function loadDotEnv() {

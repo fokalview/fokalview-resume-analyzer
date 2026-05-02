@@ -3,15 +3,22 @@ import { FileText, MessageSquareText, Sparkles } from "lucide-react";
 import UploadScreen from "./screens/UploadScreen";
 import ResultsScreen from "./screens/ResultsScreen";
 import FeedbackScreen from "./screens/FeedbackScreen";
+import WelcomeScreen from "./screens/WelcomeScreen";
+import { getStoredAccessCode } from "./services/access";
 import type { ResumeAnalysis, Screen } from "./types";
 
 export default function App() {
   const handoff = readJobHandoff();
+  const [hasBetaAccess, setHasBetaAccess] = useState(Boolean(getStoredAccessCode()));
   const [screen, setScreen] = useState<Screen>("upload");
   const [analysis, setAnalysis] = useState<ResumeAnalysis | null>(null);
   const [resumeText, setResumeText] = useState("");
   const [targetRole, setTargetRole] = useState(handoff.targetRole);
   const [jobContext, setJobContext] = useState(handoff.jobContext);
+
+  if (!hasBetaAccess) {
+    return <WelcomeScreen onAccessGranted={() => setHasBetaAccess(true)} />;
+  }
 
   return (
     <main className="app-shell">

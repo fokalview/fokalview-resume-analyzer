@@ -16,6 +16,67 @@ body {
   min-height: 100vh;
 }
 
+.welcome-shell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 28px;
+  background:
+    linear-gradient(135deg, rgba(23, 33, 43, 0.72), rgba(15, 118, 110, 0.72)),
+    url("https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1800&q=80") center/cover;
+}
+
+.welcome-panel {
+  width: min(100%, 520px);
+  padding: 34px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 24px 80px rgba(10, 20, 30, 0.24);
+}
+
+.welcome-mark {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  margin-bottom: 18px;
+  place-items: center;
+  border-radius: 8px;
+  background: #17212b;
+  color: #7dd3fc;
+}
+
+.welcome-panel h1 {
+  margin: 8px 0 12px;
+  color: #18202a;
+  font-size: clamp(2rem, 7vw, 3.8rem);
+  line-height: 0.98;
+}
+
+.welcome-panel > p:not(.eyebrow) {
+  color: #50606f;
+  font-size: 1.02rem;
+  line-height: 1.6;
+}
+
+.access-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 24px;
+}
+
+.access-form label,
+.access-form label span {
+  display: grid;
+  gap: 8px;
+}
+
+.access-form label span {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  color: #344252;
+  font-weight: 800;
+}
+
 button,
 input,
 textarea {

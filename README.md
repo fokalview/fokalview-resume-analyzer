@@ -11,6 +11,7 @@ AI Resume Analyzer is a Vite/React app with a server-side artificial intelligenc
 - OpenAI Responses API support with strict JSON schema output
 - Cloudflare Pages Functions for deployable `/api/health` and `/api/analyze`
 - Edge extension source for saving jobs and sending them into the analyzer
+- Invite-only beta welcome screen backed by server-side access-code enforcement
 
 ## Local Setup
 
@@ -20,6 +21,7 @@ Create `.env` in the project root:
 ARTIFICIAL_INTELLIGENCE_PROVIDER=openai
 ARTIFICIAL_INTELLIGENCE_API_KEY=your-real-key
 ARTIFICIAL_INTELLIGENCE_MODEL=gpt-5.4-mini
+BETA_ACCESS_CODE=choose-a-private-beta-code
 API_PORT=8787
 ```
 
@@ -42,7 +44,18 @@ Build command: npm run build
 Build output directory: dist
 ```
 
-Add `ARTIFICIAL_INTELLIGENCE_API_KEY` as an encrypted secret in Cloudflare Pages. See `DEPLOY_CLOUDFLARE.md` for the full checklist.
+Add `ARTIFICIAL_INTELLIGENCE_API_KEY` and `BETA_ACCESS_CODE` as encrypted secrets in Cloudflare Pages. See `DEPLOY_CLOUDFLARE.md` for the full checklist.
+
+## Docker
+
+Docker is optional. It is useful for container hosts, but Cloudflare Pages should use the included Pages Functions instead.
+
+```bash
+docker build -t ai-resume-analyzer .
+docker run -p 8787:8787 --env-file .env ai-resume-analyzer
+```
+
+The container serves the built app and API from `http://localhost:8787`.
 
 ## Security
 
