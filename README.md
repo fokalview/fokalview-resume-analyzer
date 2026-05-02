@@ -12,6 +12,7 @@ AI Resume Analyzer is a Vite/React app with a server-side artificial intelligenc
 - Cloudflare Pages Functions for deployable `/api/health` and `/api/analyze`
 - Edge extension source for saving jobs and sending them into the analyzer
 - Invite-only beta welcome screen backed by server-side access-code enforcement
+- Beta terms and privacy notice with de-identified analytics disclosure
 
 ## Local Setup
 

@@ -77,6 +77,53 @@ body {
   font-weight: 800;
 }
 
+.terms-check {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  align-items: start;
+  gap: 10px;
+  color: #344252;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.terms-check input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+}
+
+.terms-panel {
+  border: 1px solid #d8e0e8;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.terms-panel summary {
+  cursor: pointer;
+  padding: 12px 14px;
+  color: #0f766e;
+  font-weight: 800;
+}
+
+.terms-panel div {
+  max-height: 260px;
+  overflow: auto;
+  padding: 0 14px 14px;
+  color: #50606f;
+  line-height: 1.5;
+}
+
+.terms-panel h2 {
+  margin: 14px 0 6px;
+  color: #18202a;
+  font-size: 0.98rem;
+}
+
+.terms-panel p {
+  margin: 0 0 10px;
+}
+
 button,
 input,
 textarea {
