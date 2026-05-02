@@ -18,7 +18,7 @@ const elements = {
 document.getElementById("export").addEventListener("click", exportData);
 document.getElementById("import").addEventListener("change", importData);
 document.getElementById("resume").addEventListener("click", () => {
-  chrome.tabs.create({ url: "http://localhost:5173" });
+  chrome.tabs.create({ url: RESUME_ANALYZER_URL });
 });
 
 elements.goal.addEventListener("change", async () => {
@@ -114,7 +114,7 @@ function buildResumeAnalyzerUrl(application) {
     jobUrl: application.url || "",
     source: application.source || ""
   });
-  return `http://localhost:5173/?${params.toString()}`;
+  return `${RESUME_ANALYZER_URL}/?${params.toString()}`;
 }
 
 async function updateStatus(event) {

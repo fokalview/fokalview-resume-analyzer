@@ -85,7 +85,7 @@ function buildResumeAnalyzerUrl(application) {
     jobUrl: application.url,
     source: application.source
   });
-  return `http://localhost:5173/?${params.toString()}`;
+  return `${RESUME_ANALYZER_URL}/?${params.toString()}`;
 }
 
 function showMessage(text, type) {

@@ -2,6 +2,8 @@
 
 AI Resume Analyzer is a Vite/React app with a server-side artificial intelligence API boundary. It analyzes resume text against a target role and optional job tracker context, then returns ATS-focused scoring, matched/missing keywords, section health, strengths, and prioritized improvements.
 
+Planned production URL: `https://resume.fokalview.com`
+
 ## Features
 
 - Resume analyzer UI with upload/paste workflow

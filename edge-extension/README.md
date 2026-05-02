@@ -16,11 +16,11 @@ This is a Manifest V3 extension source folder built from the uploaded FokalView 
 - Saves applications to local browser storage only.
 - Tracks total applications, applications this week, interview count, and weekly goal progress.
 - Exports/imports JSON backups.
-- Opens the local resume analyzer at `http://localhost:5173` for the companion workflow.
+- Opens the resume analyzer at `https://resume.fokalview.com` for the companion workflow.
 - Sends saved job details into the resume analyzer with the `Send to resume` dashboard button.
 
 ## Notes Before Store Submission
 
 - Replace `icon.svg` with 16, 48, and 128 pixel PNG icons before submitting to Edge Add-ons if the store requires PNG assets.
-- Replace the local resume analyzer link with the production URL after deployment.
+- Change `RESUME_ANALYZER_URL` in `config.js` if you need a staging URL before production.
 - Narrow `host_permissions` from `<all_urls>` to specific job boards if you want a stricter store review posture.
