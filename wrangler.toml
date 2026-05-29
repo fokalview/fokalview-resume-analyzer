@@ -5,5 +5,5 @@ pages_build_output_dir = "dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "fokalview-resume-analyzer"
-database_id = "replace-with-cloudflare-d1-database-id"
+database_id = "46d1ecde-8112-40fd-a9fc-0a3a1e147886"
 
