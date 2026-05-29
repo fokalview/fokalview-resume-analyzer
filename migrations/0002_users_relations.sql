@@ -2,6 +2,9 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   client_hash TEXT NOT NULL UNIQUE,
   identifier_type TEXT NOT NULL DEFAULT 'client',
+  email_domain TEXT,
+  email_domain_type TEXT,
+  country TEXT,
   created_at TEXT NOT NULL,
   last_seen_at TEXT NOT NULL
 );
@@ -42,3 +45,9 @@ ON application_captures (user_id, updated_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_resume_records_user_updated
 ON resume_records (user_id, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_users_email_domain_type
+ON users (email_domain_type);
+
+CREATE INDEX IF NOT EXISTS idx_users_country
+ON users (country);

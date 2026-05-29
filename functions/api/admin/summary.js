@@ -4,25 +4,38 @@ export async function onRequestGet({ request, env }) {
 
   if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
 
+  const query = new URL(request.url).searchParams.get("q") || "";
+  const hasUserMetadata = await hasUserMetadataColumns(env.DB);
+  const userSelect = hasUserMetadata
+    ? "u.email_domain AS emailDomain, u.email_domain_type AS emailDomainType, u.country AS country"
+    : "'' AS emailDomain, '' AS emailDomainType, '' AS country";
+  const userJoin = "LEFT JOIN users u ON u.id = r.user_id";
+  const appUserJoin = "LEFT JOIN users u ON u.id = a.user_id";
+
   const [resumeRows, applicationRows] = await Promise.all([
     env.DB.prepare(
-      `SELECT user_id AS userId, client_hash AS clientHash, target_role AS targetRole, profile_json AS profileJson,
-        analysis_json AS analysisJson, raw_resume_retained AS rawResumeRetained,
-        captured_at AS capturedAt
-       FROM resume_records
-       ORDER BY captured_at DESC
+      `SELECT r.user_id AS userId, r.client_hash AS clientHash, r.target_role AS targetRole, r.profile_json AS profileJson,
+        r.analysis_json AS analysisJson, r.raw_resume_retained AS rawResumeRetained, r.raw_resume_text AS rawResumeText,
+        r.captured_at AS capturedAt, ${userSelect}
+       FROM resume_records r
+       ${userJoin}
+       ORDER BY r.captured_at DESC
        LIMIT 1000`
     ).all(),
     env.DB.prepare(
-      `SELECT user_id AS userId, client_hash AS clientHash, title, company, status, source, captured_at AS capturedAt
-       FROM application_captures
-       ORDER BY captured_at DESC
+      `SELECT a.user_id AS userId, a.client_hash AS clientHash, a.title, a.company, a.status, a.source, a.captured_at AS capturedAt,
+        ${userSelect}
+       FROM application_captures a
+       ${appUserJoin}
+       ORDER BY a.captured_at DESC
        LIMIT 1000`
     ).all()
   ]);
 
-  const resumes = (resumeRows.results || []).map(parseResumeRow).filter(Boolean);
-  const applications = applicationRows.results || [];
+  const allResumes = (resumeRows.results || []).map(parseResumeRow).filter(Boolean);
+  const allApplications = applicationRows.results || [];
+  const resumes = filterResumes(allResumes, query);
+  const applications = filterApplications(allApplications, query);
   const readinessThreshold = Number(env.READINESS_THRESHOLD || 85);
   const averageReadinessScore = average(resumes.map((item) => item.analysis.score));
   const uniqueUsers = new Set([
@@ -34,7 +47,8 @@ export async function onRequestGet({ request, env }) {
   return json({
     meta: {
       readinessThreshold,
-      lastLoadedAt: new Date().toISOString()
+      lastLoadedAt: new Date().toISOString(),
+      query: query.trim()
     },
     totals: {
       resumeRecords: resumes.length,
@@ -58,6 +72,9 @@ export async function onRequestGet({ request, env }) {
     commonSkillGaps: groupSkillGaps(allGapItems, resumes.length),
     applicationStatuses: countBy(applications.map((item) => item.status || "Unknown")),
     applicationSources: topCounts(applications.map((item) => item.source).filter(Boolean), 12),
+    emailDomains: topCounts(resumes.map((item) => item.emailDomain).filter(Boolean), 12),
+    emailDomainTypes: countBy(resumes.map((item) => item.emailDomainType).filter(Boolean)),
+    countries: topCounts(resumes.map((item) => item.country).filter(Boolean), 12),
     readinessBands: {
       "0-49": resumes.filter((item) => item.analysis.score < 50).length,
       "50-69": resumes.filter((item) => item.analysis.score >= 50 && item.analysis.score < 70).length,
@@ -71,6 +88,10 @@ export async function onRequestGet({ request, env }) {
       currentTitle: item.profile.currentTitle,
       careerLevel: item.profile.careerLevel,
       score: item.analysis.score,
+      searchableText: item.searchableText,
+      emailDomain: item.emailDomain,
+      emailDomainType: item.emailDomainType,
+      country: item.country,
       capturedAt: item.capturedAt,
       rawResumeRetained: item.rawResumeRetained
     }))
@@ -106,18 +127,90 @@ function requireAdminAccess(request, env) {
 
 function parseResumeRow(row) {
   try {
-    return {
+    const parsed = {
       clientHash: row.clientHash,
       userId: row.userId,
       targetRole: row.targetRole || "",
       profile: JSON.parse(row.profileJson),
       analysis: JSON.parse(row.analysisJson),
       rawResumeRetained: Boolean(row.rawResumeRetained),
+      rawResumeText: row.rawResumeText || "",
+      emailDomain: row.emailDomain || "",
+      emailDomainType: row.emailDomainType || "",
+      country: row.country || "",
       capturedAt: row.capturedAt
     };
+    parsed.searchableText = searchableResumeText(parsed);
+    return parsed;
   } catch {
     return null;
   }
+}
+
+function filterResumes(resumes, query) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return resumes;
+  return resumes.filter((item) => item.searchableText.includes(needle));
+}
+
+function filterApplications(applications, query) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return applications;
+  return applications.filter((item) =>
+    [
+      item.userId,
+      item.clientHash,
+      item.title,
+      item.company,
+      item.status,
+      item.source,
+      item.emailDomain,
+      item.emailDomainType,
+      item.country
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(needle)
+  );
+}
+
+function searchableResumeText(item) {
+  const profile = item.profile || {};
+  const analysis = item.analysis || {};
+  return [
+    item.userId,
+    item.clientHash,
+    item.targetRole,
+    item.emailDomain,
+    item.emailDomainType,
+    item.country,
+    profile.currentTitle,
+    profile.careerLevel,
+    ...(profile.industries || []),
+    ...(profile.skills?.technical || []),
+    ...(profile.skills?.tools || []),
+    ...(profile.skills?.soft || []),
+    ...(profile.workHistory || []).flatMap((entry) => [
+      entry.title,
+      entry.company,
+      ...(entry.highlights || [])
+    ]),
+    ...(profile.education || []).flatMap((entry) => [entry.institution, entry.credential, entry.field]),
+    ...(profile.certifications || []),
+    ...(profile.projects || []),
+    ...(profile.languages || []),
+    ...(profile.locationSignals || []),
+    analysis.score,
+    analysis.summary,
+    ...(analysis.strengths || []),
+    ...(analysis.improvements || []).flatMap((entry) => [entry.title, entry.detail, entry.priority]),
+    ...(analysis.keywordAnalysis?.matched || []),
+    ...(analysis.keywordAnalysis?.missing || []),
+    ...(analysis.sections || []).flatMap((entry) => [entry.name, entry.score, entry.note]),
+    item.rawResumeText
+  ]
+    .join(" ")
+    .toLowerCase();
 }
 
 function buildUsageByDay(resumes, applications) {
@@ -237,6 +330,12 @@ function topCounts(values, limit) {
     .map(([label, count]) => ({ label, count }))
     .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))
     .slice(0, limit);
+}
+
+async function hasUserMetadataColumns(db) {
+  const columns = await db.prepare("PRAGMA table_info(users)").all();
+  const names = new Set((columns.results || []).map((column) => column.name));
+  return names.has("email_domain") && names.has("email_domain_type") && names.has("country");
 }
 
 function json(payload, status = 200) {

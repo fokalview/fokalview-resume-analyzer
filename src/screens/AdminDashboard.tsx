@@ -1,11 +1,11 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { BarChart3, Download, LockKeyhole, RefreshCw, Search, Settings2 } from "lucide-react";
 
 type CountItem = { label: string; count: number; percentAffected?: number };
 type UsageDay = { date: string; resumes: number; applications: number; uniqueUsers: number };
 
 type AdminSummary = {
-  meta: { readinessThreshold: number; lastLoadedAt: string };
+  meta: { readinessThreshold: number; lastLoadedAt: string; query?: string };
   totals: {
     resumeRecords: number;
     applicationCaptures: number;
@@ -22,6 +22,9 @@ type AdminSummary = {
   commonSkillGaps: Record<string, CountItem[]>;
   applicationStatuses: Record<string, number>;
   applicationSources: CountItem[];
+  emailDomains: CountItem[];
+  emailDomainTypes: Record<string, number>;
+  countries: CountItem[];
   readinessBands: Record<string, number>;
   recentResumeRecords: Array<{
     candidateId: string;
@@ -29,6 +32,10 @@ type AdminSummary = {
     currentTitle: string;
     careerLevel: string;
     score: number;
+    searchableText?: string;
+    emailDomain?: string;
+    emailDomainType?: string;
+    country?: string;
     capturedAt: string;
     rawResumeRetained: boolean;
   }>;
@@ -41,13 +48,23 @@ export default function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function loadSummary(event?: FormEvent) {
+  useEffect(() => {
+    if (!summary) return;
+    const timeout = window.setTimeout(() => {
+      void loadSummary(undefined, query);
+    }, 350);
+    return () => window.clearTimeout(timeout);
+  }, [query]);
+
+  async function loadSummary(event?: FormEvent, searchQuery = query) {
     event?.preventDefault();
     setIsLoading(true);
     setError("");
 
     try {
-      const response = await fetch("/api/admin/summary", {
+      const params = new URLSearchParams();
+      if (searchQuery.trim()) params.set("q", searchQuery.trim());
+      const response = await fetch(`/api/admin/summary${params.toString() ? `?${params}` : ""}`, {
         headers: { "X-Admin-Access-Code": code.trim() }
       });
       const payload = await response.json();
@@ -115,8 +132,9 @@ export default function AdminDashboard() {
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search by candidate, role, skill gap, score..."
+            placeholder="Search candidate, role, company, skill, score, country, domain..."
           />
+          {summary.meta.query && <span>Filtering: {summary.meta.query}</span>}
         </div>
       )}
 
@@ -139,6 +157,9 @@ export default function AdminDashboard() {
             <SortablePanel title="Top Skills" items={summary.topSkills} />
             <SortablePanel title="Top Tools" items={summary.topTools} />
             <ChartPanel title="Application Sources" items={summary.applicationSources} />
+            <ChartPanel title="Email Domains" items={summary.emailDomains} />
+            <ChartPanel title="Countries" items={summary.countries} />
+            <ChartPanel title="Email Domain Types" items={toCountItems(summary.emailDomainTypes)} />
           </section>
 
           <section className="admin-table-panel">
@@ -154,6 +175,9 @@ export default function AdminDashboard() {
                     <div>
                       <strong>{record.currentTitle || record.candidateId}</strong>
                       <span>{record.candidateId}</span>
+                      {(record.emailDomain || record.country) && (
+                        <small>{[record.emailDomain, record.country].filter(Boolean).join(" - ")}</small>
+                      )}
                     </div>
                   </div>
                   <span>{record.targetRole || "No target role"}</span>
