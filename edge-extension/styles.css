@@ -97,6 +97,30 @@ textarea {
   resize: vertical;
 }
 
+.cloud-sync-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: white;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--text-dark);
+  line-height: 1.35;
+}
+
+.checkbox-label input {
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  flex: 0 0 auto;
+}
+
 input:focus,
 select:focus,
 textarea:focus {
@@ -278,7 +302,18 @@ textarea:focus {
 .row-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 10px;
+}
+
+.sync-badge {
+  color: #24775e;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.sync-badge.error {
+  color: #a84925;
 }
 
 .application-row:last-child {

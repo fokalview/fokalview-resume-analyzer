@@ -4,7 +4,14 @@
   "version": "0.2.0",
   "description": "Track job applications, weekly goals, and resume-tailoring next steps from job boards.",
   "permissions": ["activeTab", "storage", "alarms", "notifications", "tabs"],
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": [
+    "https://www.linkedin.com/jobs/*",
+    "https://*.indeed.com/*",
+    "https://jobs.lever.co/*",
+    "https://boards.greenhouse.io/*",
+    "https://*.myworkdayjobs.com/*",
+    "https://resume.fokalview.com/*"
+  ],
   "action": {
     "default_icon": "icon.svg",
     "default_title": "Save job application",
@@ -15,7 +22,13 @@
   },
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
+      "matches": [
+        "https://www.linkedin.com/jobs/*",
+        "https://*.indeed.com/*",
+        "https://jobs.lever.co/*",
+        "https://boards.greenhouse.io/*",
+        "https://*.myworkdayjobs.com/*"
+      ],
       "js": ["content.js"],
       "run_at": "document_idle"
     }

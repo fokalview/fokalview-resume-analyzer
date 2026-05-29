@@ -2,3 +2,8 @@ name = "ai-resume-analyzer"
 compatibility_date = "2026-05-01"
 pages_build_output_dir = "dist"
 
+[[d1_databases]]
+binding = "DB"
+database_name = "fokalview-resume-analyzer"
+database_id = "replace-with-cloudflare-d1-database-id"
+

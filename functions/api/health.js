@@ -5,7 +5,10 @@ export async function onRequestGet({ env }) {
     provider: config.provider,
     model: config.model,
     hasArtificialIntelligenceApiKey: Boolean(config.apiKey),
-    betaAccessEnabled: Boolean(env.BETA_ACCESS_CODE)
+    betaAccessEnabled: Boolean(env.BETA_ACCESS_CODE),
+    adminAccessEnabled: Boolean(env.ADMIN_ACCESS_CODE || env.OWNER_ACCESS_CODE),
+    applicationStorageEnabled: Boolean(env.DB),
+    resumeStorageEnabled: Boolean(env.DB)
   });
 }
 

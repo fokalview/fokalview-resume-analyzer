@@ -30,9 +30,11 @@ ARTIFICIAL_INTELLIGENCE_PROVIDER = openai
 ARTIFICIAL_INTELLIGENCE_MODEL = gpt-5.4-mini
 ARTIFICIAL_INTELLIGENCE_API_KEY = your real key, encrypted as a secret
 BETA_ACCESS_CODE = your private beta invite code, encrypted as a secret
+ADMIN_ACCESS_CODE = your private admin dashboard code, encrypted as a secret
+OWNER_ACCESS_CODE = optional owner override code, encrypted as a secret
 ```
 
-For the API key and beta code, choose the encrypted/secret option. Do not add them as normal plaintext variables.
+For the API key and access codes, choose the encrypted/secret option. Do not add them as normal plaintext variables.
 
 7. Redeploy after adding secrets.
 8. Test:
@@ -49,9 +51,75 @@ You want:
   "provider": "openai",
   "model": "gpt-5.4-mini",
   "hasArtificialIntelligenceApiKey": true,
-  "betaAccessEnabled": true
+  "betaAccessEnabled": true,
+  "adminAccessEnabled": true
 }
 ```
+
+## Admin Dashboard
+
+The dashboard is available at:
+
+```text
+https://your-project.pages.dev/admin
+```
+
+It requires `ADMIN_ACCESS_CODE` or `OWNER_ACCESS_CODE`. The browser stores the entered admin code in session storage only, and the backend enforces the code before returning consolidated data from `/api/admin/summary`.
+
+This is a temporary second-level access model. For production student tracking, replace shared admin codes with named user accounts and role-based access control.
+
+## D1 Storage For Captured Job And Resume Context
+
+The app can optionally sync saved job/application context and structured resume workforce profiles to Cloudflare D1. This is off unless the user enables the relevant consent control and provides the private access code.
+
+1. Create a D1 database:
+
+```bash
+wrangler d1 create fokalview-resume-analyzer
+```
+
+2. Copy the returned database ID into `wrangler.toml`:
+
+```toml
+[[d1_databases]]
+binding = "DB"
+database_name = "fokalview-resume-analyzer"
+database_id = "your-real-d1-database-id"
+```
+
+3. Apply the migration:
+
+```bash
+wrangler d1 migrations apply fokalview-resume-analyzer --remote
+```
+
+4. Add an encrypted secret for a server-side hash salt:
+
+```text
+APPLICATION_SYNC_SALT = long random secret value
+```
+
+5. Redeploy the Pages project.
+
+The `/api/applications` and `/api/resume-records` endpoints require:
+
+- `X-Beta-Access-Code`
+- `X-FokalView-Client-ID`
+- `consent: true`
+
+Use `consentVersion: ferpa-minimum-necessary-v1` for `/api/applications`.
+Use `consentVersion: workforce-resume-profile-v1` for `/api/resume-records`.
+
+It stores job/application context only: title, company, location, status, notes, URL, source, timestamps, consent version, and a hashed client identifier. It does not store resume text.
+
+The `/api/resume-records` endpoint stores:
+
+- structured skills, tools, soft skills, industries, work history, education, certifications, projects, languages, and location signals
+- resume analysis score, summary, strengths, improvement actions, keyword matches/gaps, and section health
+- target role and job context
+- raw resume text only when `retainRawResumeText` is explicitly true
+
+Avoid collecting grades, GPAs, student IDs, birth dates, full mailing addresses, or other education-record details unless you have a reviewed FERPA policy and retention plan for that data.
 
 ## Direct Upload Trial
 

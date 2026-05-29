@@ -52,6 +52,19 @@
         </div>
       </section>
 
+      <section class="goal-panel">
+        <label class="checkbox-label">
+          <input id="cloudSyncConsent" type="checkbox" />
+          Save job context to FokalView cloud storage
+        </label>
+        <label>
+          Access code
+          <input id="cloudAccessCode" type="password" autocomplete="off" placeholder="Private beta code" />
+        </label>
+        <button id="syncCloud" class="secondary-button">Sync local jobs</button>
+        <div id="syncMessage" class="message" hidden></div>
+      </section>
+
       <section class="table-shell">
         <div class="table-toolbar">
           <h2>Saved jobs</h2>

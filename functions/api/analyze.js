@@ -1,10 +1,82 @@
 const responseSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["score", "summary", "strengths", "improvements", "keywordAnalysis", "sections"],
+  required: ["score", "summary", "profile", "strengths", "improvements", "keywordAnalysis", "sections"],
   properties: {
     score: { type: "integer", minimum: 0, maximum: 100 },
     summary: { type: "string" },
+    profile: {
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "currentTitle",
+        "careerLevel",
+        "yearsExperienceEstimate",
+        "industries",
+        "skills",
+        "workHistory",
+        "education",
+        "certifications",
+        "projects",
+        "languages",
+        "locationSignals"
+      ],
+      properties: {
+        currentTitle: { type: "string" },
+        careerLevel: {
+          type: "string",
+          enum: ["Entry", "Early Career", "Mid Career", "Senior", "Leadership", "Unknown"]
+        },
+        yearsExperienceEstimate: { type: "number", minimum: 0, maximum: 60 },
+        industries: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 12 },
+        skills: {
+          type: "object",
+          additionalProperties: false,
+          required: ["technical", "tools", "soft"],
+          properties: {
+            technical: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 30 },
+            tools: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 30 },
+            soft: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 20 }
+          }
+        },
+        workHistory: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["title", "company", "startDate", "endDate", "highlights"],
+            properties: {
+              title: { type: "string" },
+              company: { type: "string" },
+              startDate: { type: "string" },
+              endDate: { type: "string" },
+              highlights: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 6 }
+            }
+          },
+          minItems: 0,
+          maxItems: 12
+        },
+        education: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["institution", "credential", "field"],
+            properties: {
+              institution: { type: "string" },
+              credential: { type: "string" },
+              field: { type: "string" }
+            }
+          },
+          minItems: 0,
+          maxItems: 8
+        },
+        certifications: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 20 },
+        projects: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 20 },
+        languages: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 12 },
+        locationSignals: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 12 }
+      }
+    },
     strengths: { type: "array", items: { type: "string" }, minItems: 3, maxItems: 6 },
     improvements: {
       type: "array",
@@ -95,7 +167,14 @@ async function analyzeResume({ resumeText, targetRole, jobContext }, config) {
     "1. Extract core technical skills, soft skills, and requirements from Job Context.",
     "2. Cross-reference those terms against Resume.",
     "3. Put found terms in keywordAnalysis.matched and absent terms in keywordAnalysis.missing.",
-    "4. Generate concise, specific improvement feedback.",
+    "4. Extract a structured workforce-development profile from the resume only.",
+    "5. Generate concise, specific improvement feedback.",
+    "",
+    "Privacy and data-minimization rules:",
+    "- Do not infer protected characteristics.",
+    "- Do not include grades, GPAs, student IDs, birth dates, or full mailing addresses.",
+    "- Use empty strings or empty arrays when a profile field is not present.",
+    "- Keep education to institution, credential, and field only.",
     "",
     `Target Role: ${targetRole || "Not specified"}`,
     "",
@@ -165,7 +244,7 @@ async function analyzeWithOpenAICompatibleChat(prompt, config) {
         {
           role: "system",
           content:
-            "You are an expert ATS parser and resume evaluator. Return only valid JSON matching this shape: score number 0-100, summary string, strengths string array, improvements array of objects with title/detail/priority, keywordAnalysis object with matched and missing string arrays, sections array of objects with name/score/note. Be concise, objective, and do not hallucinate experience."
+            "You are an expert ATS parser and workforce-development resume evaluator. Return only valid JSON matching this shape: score number 0-100, summary string, profile object with currentTitle, careerLevel, yearsExperienceEstimate, industries, skills, workHistory, education, certifications, projects, languages, locationSignals, strengths string array, improvements array of objects with title/detail/priority, keywordAnalysis object with matched and missing string arrays, sections array of objects with name/score/note. Be concise, objective, avoid protected-characteristic inference, do not include grades, GPAs, student IDs, birth dates, or full mailing addresses, and do not hallucinate experience."
         },
         { role: "user", content: prompt }
       ],

@@ -13,14 +13,20 @@ This is a Manifest V3 extension source folder built from the uploaded FokalView 
 ## What It Does
 
 - Extracts job title, company, location, URL, and source from the current tab when possible.
-- Saves applications to local browser storage only.
+- Saves applications to local browser storage, with optional consent-based sync to Cloudflare D1.
 - Tracks total applications, applications this week, interview count, and weekly goal progress.
 - Exports/imports JSON backups.
 - Opens the resume analyzer at `https://resume.fokalview.com` for the companion workflow.
 - Sends saved job details into the resume analyzer with the `Send to resume` dashboard button.
 
+## Cloud Sync
+
+Cloud sync is opt-in. Users must check the cloud storage consent box and enter the private beta access code before job context is sent to `/api/applications`.
+
+The extension syncs job/application context only. It does not send resume text through this storage endpoint.
+
 ## Notes Before Store Submission
 
 - Replace `icon.svg` with 16, 48, and 128 pixel PNG icons before submitting to Edge Add-ons if the store requires PNG assets.
 - Change `RESUME_ANALYZER_URL` in `config.js` if you need a staging URL before production.
-- Narrow `host_permissions` from `<all_urls>` to specific job boards if you want a stricter store review posture.
+- Add or remove job-board domains in `manifest.json` as supported sources change.

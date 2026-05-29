@@ -44,6 +44,18 @@
         <textarea id="notes" placeholder="Referral, resume version, follow-up reminder..."></textarea>
       </label>
 
+      <section class="cloud-sync-panel">
+        <label class="checkbox-label">
+          <input id="cloudSyncConsent" type="checkbox" />
+          Save this job context to FokalView cloud storage
+        </label>
+
+        <label>
+          Access code
+          <input id="cloudAccessCode" type="password" autocomplete="off" placeholder="Private beta code" />
+        </label>
+      </section>
+
       <div id="message" class="message" hidden></div>
 
       <button id="save" class="primary-button">Save job</button>

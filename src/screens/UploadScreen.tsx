@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { ClipboardPaste, Loader2, Upload } from "lucide-react";
 import JSZip from "jszip";
 import * as pdfjsLib from "pdfjs-dist";
-import { analyzeResume } from "../services/api";
+import { analyzeResume, saveResumeRecord } from "../services/api";
 import type { ResumeAnalysis } from "../types";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -33,6 +33,9 @@ export default function UploadScreen({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [fileStatus, setFileStatus] = useState("");
+  const [saveWorkforceProfile, setSaveWorkforceProfile] = useState(false);
+  const [retainRawResumeText, setRetainRawResumeText] = useState(false);
+  const [saveStatus, setSaveStatus] = useState("");
 
   async function handleFile(file: File) {
     setError("");
@@ -60,8 +63,19 @@ export default function UploadScreen({
   async function submit() {
     setIsLoading(true);
     setError("");
+    setSaveStatus("");
     try {
       const analysis = await analyzeResume({ resumeText, targetRole, jobContext });
+      if (saveWorkforceProfile) {
+        const saved = await saveResumeRecord({
+          resumeText,
+          targetRole,
+          jobContext,
+          analysis,
+          retainRawResumeText
+        });
+        setSaveStatus(`Saved workforce profile ${saved.id.slice(0, 8)}.`);
+      }
       onAnalysisComplete(analysis);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Something went wrong.");
@@ -146,9 +160,34 @@ export default function UploadScreen({
             placeholder="Paste the resume content here..."
           />
         </label>
+
+        <section className="storage-panel">
+          <label className="checkbox-field">
+            <input
+              type="checkbox"
+              checked={saveWorkforceProfile}
+              onChange={(event) => {
+                setSaveWorkforceProfile(event.target.checked);
+                if (!event.target.checked) setRetainRawResumeText(false);
+              }}
+            />
+            <span>Save structured workforce profile and analysis to D1</span>
+          </label>
+
+          <label className="checkbox-field">
+            <input
+              type="checkbox"
+              checked={retainRawResumeText}
+              disabled={!saveWorkforceProfile}
+              onChange={(event) => setRetainRawResumeText(event.target.checked)}
+            />
+            <span>Also retain raw resume text for future review</span>
+          </label>
+        </section>
       </div>
 
       {error && <p className="error-message">{error}</p>}
+      {saveStatus && <p className="success-message">{saveStatus}</p>}
 
       <div className="actions">
         <span>{resumeText.trim().length.toLocaleString()} characters ready</span>
