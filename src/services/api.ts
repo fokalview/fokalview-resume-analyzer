@@ -94,7 +94,7 @@ export async function getApplications() {
   return payload.applications as ApplicationRecord[];
 }
 
-export async function saveApplicationRecord(input: Omit<ApplicationRecord, "createdAt" | "updatedAt"> & { id?: string }) {
+export async function saveApplicationRecord(input: Omit<ApplicationRecord, "id" | "createdAt" | "updatedAt"> & { id?: string }) {
   const now = new Date().toISOString();
   const application = {
     ...input,

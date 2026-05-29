@@ -19,10 +19,11 @@ export function downloadResumeReport({ analysis, job = {}, applications = [], ti
 }
 
 function reportHtml({ analysis, job, applications, title }: Required<ReportInput>) {
-  const matched = analysis?.keywordAnalysis?.matched || [];
-  const missing = analysis?.keywordAnalysis?.missing || [];
-  const improvements = analysis?.improvements || [];
-  const strengths = analysis?.strengths || [];
+  const currentAnalysis = analysis || null;
+  const matched = currentAnalysis?.keywordAnalysis?.matched || [];
+  const missing = currentAnalysis?.keywordAnalysis?.missing || [];
+  const improvements = currentAnalysis?.improvements || [];
+  const strengths = currentAnalysis?.strengths || [];
 
   return `<!doctype html>
 <html>
@@ -48,7 +49,7 @@ function reportHtml({ analysis, job, applications, title }: Required<ReportInput
     <button onclick="window.print()">Print or save as PDF</button>
     <h1>${escapeHtml(title)}</h1>
     <p class="summary">${escapeHtml(jobSummary(job))}</p>
-    ${analysis ? `<div class="score">${analysis.score}% resume readiness</div><p>${escapeHtml(analysis.summary)}</p>` : ""}
+    ${currentAnalysis ? `<div class="score">${currentAnalysis.score}% resume readiness</div><p>${escapeHtml(currentAnalysis.summary)}</p>` : ""}
     <div class="grid">
       <section class="card">
         <h2>Strengths</h2>
