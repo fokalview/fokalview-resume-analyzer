@@ -129,6 +129,7 @@ function readJobHandoff() {
   const title = params.get("jobTitle") || "";
   const company = params.get("company") || "";
   const location = params.get("location") || "";
+  const salary = params.get("salary") || "";
   const url = params.get("jobUrl") || "";
   const notes = params.get("notes") || "";
   const source = params.get("source") || "";
@@ -138,6 +139,7 @@ function readJobHandoff() {
     title && `Job title: ${title}`,
     company && `Company: ${company}`,
     location && `Location: ${location}`,
+    salary && `Salary: ${salary}`,
     source && `Source: ${source}`,
     url && `Job URL: ${url}`,
     notes && `Tracker notes: ${notes}`
@@ -145,5 +147,5 @@ function readJobHandoff() {
     .filter(Boolean)
     .join("\n");
 
-  return { targetRole, jobContext, title, company, location, url, notes, source };
+  return { targetRole, jobContext, title, company, location, salary, url, notes, source };
 }

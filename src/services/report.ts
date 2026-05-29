@@ -77,9 +77,9 @@ function reportHtml({ analysis, job, applications, title }: ReportData) {
     </div>
     <h2>Applications</h2>
     <table>
-      <thead><tr><th>Role</th><th>Company</th><th>Status</th><th>Date</th></tr></thead>
+      <thead><tr><th>Role</th><th>Company</th><th>Salary</th><th>Status</th><th>Date</th></tr></thead>
       <tbody>
-        ${applications.map((item) => `<tr><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.company)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(formatDate(item.createdAt))}</td></tr>`).join("") || "<tr><td colspan='4'>No applications recorded.</td></tr>"}
+        ${applications.map((item) => `<tr><td>${escapeHtml(item.title)}</td><td>${escapeHtml(item.company)}</td><td>${escapeHtml(item.salary)}</td><td>${escapeHtml(item.status)}</td><td>${escapeHtml(formatDate(item.createdAt))}</td></tr>`).join("") || "<tr><td colspan='5'>No applications recorded.</td></tr>"}
       </tbody>
     </table>
   </body>
@@ -87,7 +87,7 @@ function reportHtml({ analysis, job, applications, title }: ReportData) {
 }
 
 function jobSummary(job: Partial<JobHandoff>) {
-  return [job.title || job.targetRole, job.company, job.location, job.source].filter(Boolean).join(" | ");
+  return [job.title || job.targetRole, job.company, job.location, job.salary, job.source].filter(Boolean).join(" | ");
 }
 
 function formatDate(value: string) {

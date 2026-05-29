@@ -84,6 +84,7 @@ function rowTemplate(item) {
   const safeTitle = escapeHtml(item.title);
   const safeCompany = escapeHtml(item.company);
   const safeLocation = escapeHtml(item.location || "Location not saved");
+  const safeSalary = escapeHtml(item.salary || "");
   const safeNotes = escapeHtml(item.notes || "");
   const link = item.url ? `<a href="${escapeAttribute(item.url)}" target="_blank">Open</a>` : "";
 
@@ -92,6 +93,7 @@ function rowTemplate(item) {
       <div>
         <strong>${safeTitle}</strong>
         <span>${safeCompany} - ${safeLocation}</span>
+        ${safeSalary ? `<span>Salary: ${safeSalary}</span>` : ""}
         ${safeNotes ? `<p>${safeNotes}</p>` : ""}
       </div>
       <select data-status="${item.id}">
@@ -126,6 +128,7 @@ function buildResumeAnalyzerUrl(application) {
     jobTitle: application.title || "",
     company: application.company || "",
     location: application.location || "",
+    salary: application.salary || "",
     notes: application.notes || "",
     jobUrl: application.url || "",
     source: application.source || ""

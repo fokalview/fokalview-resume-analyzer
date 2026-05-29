@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS application_captures (
   title TEXT NOT NULL,
   company TEXT NOT NULL,
   location TEXT,
+  salary TEXT,
   status TEXT NOT NULL,
   notes TEXT,
   url TEXT,

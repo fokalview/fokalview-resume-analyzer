@@ -187,6 +187,7 @@ async function saveApplicationFromHandoff(jobHandoff: JobHandoff, targetRole: st
   const parsedJob = parseJobContext(jobContext);
   const title = jobHandoff.title || targetRole || parsedJob.title;
   const company = jobHandoff.company || parsedJob.company || "Not specified";
+  const salary = jobHandoff.salary || parsedJob.salary;
   if (!title) return;
 
   await saveApplicationRecord({
@@ -194,6 +195,7 @@ async function saveApplicationFromHandoff(jobHandoff: JobHandoff, targetRole: st
     title,
     company,
     location: jobHandoff.location || parsedJob.location,
+    salary,
     status: "Interested",
     notes: jobHandoff.notes || jobContext,
     url: jobHandoff.url || parsedJob.url,
@@ -216,6 +218,7 @@ function parseJobContext(jobContext: string) {
     title: valueFor("Job title") || valueFor("Title"),
     company: valueFor("Company"),
     location: valueFor("Location"),
+    salary: valueFor("Salary") || valueFor("Compensation") || valueFor("Pay"),
     url: valueFor("Job URL") || valueFor("URL"),
     source: valueFor("Source")
   };

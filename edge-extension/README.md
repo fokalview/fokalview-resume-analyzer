@@ -12,7 +12,7 @@ This is a Manifest V3 extension source folder built from the uploaded FokalView 
 
 ## What It Does
 
-- Extracts job title, company, location, URL, and source from the current tab when possible.
+- Extracts job title, company, location, salary, URL, and source from the current tab when possible.
 - Saves applications to local browser storage, with optional consent-based sync to Cloudflare D1.
 - Tracks total applications, applications this week, interview count, and weekly goal progress.
 - Exports/imports JSON backups.

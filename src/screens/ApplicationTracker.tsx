@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { BriefcaseBusiness, CalendarClock, ExternalLink, Plus, RefreshCw } from "lucide-react";
+import { BriefcaseBusiness, CalendarClock, Edit3, ExternalLink, Plus, RefreshCw, X } from "lucide-react";
 import {
   getApplications,
   saveApplicationRecord,
@@ -16,10 +16,12 @@ export default function ApplicationTracker() {
     title: "",
     company: "",
     location: "",
+    salary: "",
     status: "Applied",
     url: "",
     notes: ""
   });
+  const [editingId, setEditingId] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -47,16 +49,41 @@ export default function ApplicationTracker() {
         title: form.title,
         company: form.company,
         location: form.location,
+        salary: form.salary,
         status: form.status,
         url: form.url,
         notes: form.notes,
-        source: sourceFromUrl(form.url)
+        source: sourceFromUrl(form.url),
+        ...(editingId ? { id: editingId } : {})
       });
-      setApplications((current) => [saved, ...current]);
-      setForm({ title: "", company: "", location: "", status: "Applied", url: "", notes: "" });
+      setApplications((current) =>
+        editingId
+          ? current.map((item) => (item.id === editingId ? { ...saved, createdAt: item.createdAt } : item))
+          : [saved, ...current]
+      );
+      resetForm();
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Could not save application.");
     }
+  }
+
+  function editApplication(item: ApplicationRecord) {
+    setEditingId(item.id);
+    setForm({
+      title: item.title,
+      company: item.company,
+      location: item.location,
+      salary: item.salary || "",
+      status: item.status,
+      url: item.url,
+      notes: item.notes
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function resetForm() {
+    setEditingId("");
+    setForm({ title: "", company: "", location: "", salary: "", status: "Applied", url: "", notes: "" });
   }
 
   async function changeStatus(id: string, status: string) {
@@ -133,6 +160,14 @@ export default function ApplicationTracker() {
           />
         </label>
         <label>
+          Salary
+          <input
+            value={form.salary}
+            onChange={(event) => setForm({ ...form, salary: event.target.value })}
+            placeholder="$65,000 - $80,000"
+          />
+        </label>
+        <label>
           Job URL
           <input
             value={form.url}
@@ -150,8 +185,14 @@ export default function ApplicationTracker() {
         </label>
         <button className="primary-button">
           <Plus size={18} />
-          Add application
+          {editingId ? "Save changes" : "Add application"}
         </button>
+        {editingId && (
+          <button type="button" className="secondary-action" onClick={resetForm}>
+            <X size={16} />
+            Cancel edit
+          </button>
+        )}
       </form>
 
       {error && <p className="error-message">{error}</p>}
@@ -179,6 +220,7 @@ export default function ApplicationTracker() {
               <div>
                 <strong>{item.title}</strong>
                 <span>{item.company} - {item.location || "Location not saved"}</span>
+                {item.salary && <span>Salary: {item.salary}</span>}
                 {item.notes && <p>{item.notes}</p>}
               </div>
               <select
@@ -199,6 +241,10 @@ export default function ApplicationTracker() {
                   <ExternalLink size={16} />
                 </a>
               )}
+              <button className="secondary-action compact-action" onClick={() => editApplication(item)}>
+                <Edit3 size={15} />
+                Edit
+              </button>
             </article>
           ))
         ) : (

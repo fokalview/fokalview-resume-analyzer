@@ -2,6 +2,7 @@ const fields = {
   title: document.getElementById("title"),
   company: document.getElementById("company"),
   location: document.getElementById("location"),
+  salary: document.getElementById("salary"),
   status: document.getElementById("status"),
   notes: document.getElementById("notes"),
   cloudSyncConsent: document.getElementById("cloudSyncConsent"),
@@ -35,6 +36,7 @@ async function hydrateFromActiveTab() {
     fields.title.value = response.title || "";
     fields.company.value = response.company || "";
     fields.location.value = response.location || "";
+    fields.salary.value = response.salary || "";
     fields.status.value = "Interested";
     fields.notes.dataset.url = response.url || tab.url || "";
     fields.notes.dataset.source = response.source || "";
@@ -50,6 +52,7 @@ async function saveApplication() {
     title: fields.title.value.trim(),
     company: fields.company.value.trim(),
     location: fields.location.value.trim(),
+    salary: fields.salary.value.trim(),
     status: fields.status.value,
     notes: fields.notes.value.trim(),
     url: fields.notes.dataset.url || "",
@@ -168,6 +171,7 @@ function readFormApplication() {
     title: fields.title.value.trim(),
     company: fields.company.value.trim(),
     location: fields.location.value.trim(),
+    salary: fields.salary.value.trim(),
     notes: fields.notes.value.trim(),
     url: fields.notes.dataset.url || "",
     source: fields.notes.dataset.source || ""
@@ -179,6 +183,7 @@ function buildResumeAnalyzerUrl(application) {
     jobTitle: application.title,
     company: application.company,
     location: application.location,
+    salary: application.salary,
     notes: application.notes,
     jobUrl: application.url,
     source: application.source

@@ -12,8 +12,9 @@ export async function onRequestGet({ request, env }) {
   const identity = await ensureUser(request, env);
   if (!identity) return json({ error: "Missing user identifier." }, 400);
 
+  const canStoreSalary = await hasSalaryColumn(env.DB);
   const rows = await env.DB.prepare(
-    `SELECT id, user_id AS userId, title, company, location, status, notes, url, source, captured_at AS createdAt,
+    `SELECT id, user_id AS userId, title, company, location, ${canStoreSalary ? "salary" : "''"} AS salary, status, notes, url, source, captured_at AS createdAt,
       updated_at AS updatedAt, synced_at AS syncedAt
      FROM application_captures
      WHERE user_id = ?
@@ -43,42 +44,83 @@ export async function onRequestPost({ request, env }) {
 
     const application = normalizeApplication(body.application);
     const syncedAt = new Date().toISOString();
+    const canStoreSalary = await hasSalaryColumn(env.DB);
 
-    await env.DB.prepare(
-      `INSERT INTO application_captures (
-        id, client_hash, user_id, title, company, location, status, notes, url, source,
-        data_category, consent_version, captured_at, updated_at, synced_at
+    if (canStoreSalary) {
+      await env.DB.prepare(
+        `INSERT INTO application_captures (
+          id, client_hash, user_id, title, company, location, salary, status, notes, url, source,
+          data_category, consent_version, captured_at, updated_at, synced_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'job_application_context', ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          title = excluded.title,
+          company = excluded.company,
+          location = excluded.location,
+          salary = excluded.salary,
+          status = excluded.status,
+          notes = excluded.notes,
+          url = excluded.url,
+          source = excluded.source,
+          consent_version = excluded.consent_version,
+          updated_at = excluded.updated_at,
+          synced_at = excluded.synced_at`
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'job_application_context', ?, ?, ?, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        title = excluded.title,
-        company = excluded.company,
-        location = excluded.location,
-        status = excluded.status,
-        notes = excluded.notes,
-        url = excluded.url,
-        source = excluded.source,
-        consent_version = excluded.consent_version,
-        updated_at = excluded.updated_at,
-        synced_at = excluded.synced_at`
-    )
-      .bind(
-        application.id,
-        identity.clientHash,
-        identity.userId,
-        application.title,
-        application.company,
-        application.location,
-        application.status,
-        application.notes,
-        application.url,
-        application.source,
-        CONSENT_VERSION,
-        application.createdAt,
-        application.updatedAt,
-        syncedAt
+        .bind(
+          application.id,
+          identity.clientHash,
+          identity.userId,
+          application.title,
+          application.company,
+          application.location,
+          application.salary,
+          application.status,
+          application.notes,
+          application.url,
+          application.source,
+          CONSENT_VERSION,
+          application.createdAt,
+          application.updatedAt,
+          syncedAt
+        )
+        .run();
+    } else {
+      await env.DB.prepare(
+        `INSERT INTO application_captures (
+          id, client_hash, user_id, title, company, location, status, notes, url, source,
+          data_category, consent_version, captured_at, updated_at, synced_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'job_application_context', ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          title = excluded.title,
+          company = excluded.company,
+          location = excluded.location,
+          status = excluded.status,
+          notes = excluded.notes,
+          url = excluded.url,
+          source = excluded.source,
+          consent_version = excluded.consent_version,
+          updated_at = excluded.updated_at,
+          synced_at = excluded.synced_at`
       )
-      .run();
+        .bind(
+          application.id,
+          identity.clientHash,
+          identity.userId,
+          application.title,
+          application.company,
+          application.location,
+          application.status,
+          application.notes,
+          application.url,
+          application.source,
+          CONSENT_VERSION,
+          application.createdAt,
+          application.updatedAt,
+          syncedAt
+        )
+        .run();
+    }
 
     return json({ ok: true, id: application.id, syncedAt });
   } catch (error) {
@@ -159,6 +201,7 @@ function normalizeApplication(input) {
     title,
     company,
     location: clean(application.location, 160),
+    salary: clean(application.salary, 160),
     status: STATUSES.has(application.status) ? application.status : "Interested",
     notes: clean(application.notes, 2000),
     url: cleanUrl(application.url),
@@ -201,6 +244,11 @@ function cleanUrl(value) {
 function cleanDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+}
+
+async function hasSalaryColumn(db) {
+  const columns = await db.prepare("PRAGMA table_info(application_captures)").all();
+  return (columns.results || []).some((column) => column.name === "salary");
 }
 
 function json(payload, status = 200) {

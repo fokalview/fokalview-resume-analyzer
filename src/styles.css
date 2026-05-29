@@ -898,11 +898,16 @@ textarea:focus {
 
 .application-list article {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 132px 128px 36px;
+  grid-template-columns: minmax(0, 1fr) 132px 128px 36px 86px;
   align-items: center;
   gap: 14px;
   padding: 14px 16px;
   border-bottom: 1px solid #d8e0e8;
+}
+
+.compact-action {
+  min-height: 34px;
+  padding: 0 10px;
 }
 
 .application-list article:last-child {

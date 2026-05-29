@@ -6,6 +6,7 @@ export type JobHandoff = {
   title: string;
   company: string;
   location: string;
+  salary: string;
   url: string;
   notes: string;
   source: string;
