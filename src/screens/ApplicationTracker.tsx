@@ -3,9 +3,11 @@ import { BriefcaseBusiness, CalendarClock, ExternalLink, Plus, RefreshCw } from 
 import {
   getApplications,
   saveApplicationRecord,
+  updateApplicationStatus,
   type ApplicationRecord
 } from "../services/api";
 import { getStoredUserEmail } from "../services/access";
+import { downloadResumeReport } from "../services/report";
 
 const STATUSES = ["Interested", "Applied", "Interviewing", "Offer", "Rejected"];
 
@@ -59,6 +61,20 @@ export default function ApplicationTracker() {
     }
   }
 
+  async function changeStatus(id: string, status: string) {
+    setError("");
+    try {
+      const result = await updateApplicationStatus(id, status);
+      setApplications((current) =>
+        current.map((item) =>
+          item.id === id ? { ...item, status: result.status, updatedAt: result.updatedAt } : item
+        )
+      );
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Could not update status.");
+    }
+  }
+
   const counts = useMemo(
     () =>
       STATUSES.reduce<Record<string, number>>((nextCounts, status) => {
@@ -88,7 +104,7 @@ export default function ApplicationTracker() {
       <div className="screen-heading">
         <p className="eyebrow">Applications</p>
         <h2>Your application tracker.</h2>
-        <p>Track recent applications, status, timing, and follow-up notes tied to your beta profile.</p>
+        <p>Applications are created when you run a resume against a job. Update milestones as they happen.</p>
       </div>
 
       <section className="application-stats">
@@ -159,10 +175,18 @@ export default function ApplicationTracker() {
 
       <div className="application-toolbar">
         <h3>Recent applications</h3>
-        <button className="secondary-action" onClick={loadApplications} disabled={isLoading}>
-          <RefreshCw className={isLoading ? "spin" : ""} size={16} />
-          Refresh
-        </button>
+        <div className="toolbar-actions">
+          <button
+            className="secondary-action"
+            onClick={() => downloadResumeReport({ applications, title: "FokalView Application Tracker" })}
+          >
+            Download PDF
+          </button>
+          <button className="secondary-action" onClick={loadApplications} disabled={isLoading}>
+            <RefreshCw className={isLoading ? "spin" : ""} size={16} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       <section className="application-list">
@@ -174,7 +198,15 @@ export default function ApplicationTracker() {
                 <span>{item.company} - {item.location || "Location not saved"}</span>
                 {item.notes && <p>{item.notes}</p>}
               </div>
-              <span className={`status-pill ${item.status.toLowerCase()}`}>{item.status}</span>
+              <select
+                className={`status-select ${item.status.toLowerCase()}`}
+                value={item.status}
+                onChange={(event) => void changeStatus(item.id, event.target.value)}
+              >
+                {STATUSES.map((status) => (
+                  <option key={status}>{status}</option>
+                ))}
+              </select>
               <span className="age-label">
                 <CalendarClock size={15} />
                 {ageLabel(item.createdAt)}

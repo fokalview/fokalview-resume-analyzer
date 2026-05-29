@@ -1,13 +1,15 @@
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, Download } from "lucide-react";
 import type { CSSProperties } from "react";
-import type { ResumeAnalysis } from "../types";
+import { downloadResumeReport } from "../services/report";
+import type { JobHandoff, ResumeAnalysis } from "../types";
 
 type Props = {
   analysis: ResumeAnalysis;
+  jobHandoff: JobHandoff;
   onNext: () => void;
 };
 
-export default function ResultsScreen({ analysis, onNext }: Props) {
+export default function ResultsScreen({ analysis, jobHandoff, onNext }: Props) {
   return (
     <div className="screen">
       <div className="result-hero">
@@ -53,10 +55,19 @@ export default function ResultsScreen({ analysis, onNext }: Props) {
 
       <div className="actions">
         <span>Next: prioritize fixes and missing keywords</span>
-        <button className="primary-button" onClick={onNext}>
-          View feedback
-          <ArrowRight size={18} />
-        </button>
+        <div className="toolbar-actions">
+          <button
+            className="secondary-action"
+            onClick={() => downloadResumeReport({ analysis, job: jobHandoff, title: "FokalView Resume Readiness Report" })}
+          >
+            <Download size={18} />
+            Download PDF
+          </button>
+          <button className="primary-button" onClick={onNext}>
+            View feedback
+            <ArrowRight size={18} />
+          </button>
+        </div>
       </div>
     </div>
   );

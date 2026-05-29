@@ -854,6 +854,13 @@ textarea:focus {
   font-weight: 800;
 }
 
+.toolbar-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .application-list {
   display: grid;
   border: 1px solid #d8e0e8;
@@ -897,6 +904,13 @@ textarea:focus {
   border-radius: 999px;
   background: #e8edf1;
   color: #344252;
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.status-select {
+  height: 38px;
+  border-radius: 999px;
   font-size: 0.8rem;
   font-weight: 850;
 }

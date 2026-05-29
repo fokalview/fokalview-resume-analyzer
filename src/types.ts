@@ -1,5 +1,16 @@
 export type Screen = "upload" | "results" | "feedback" | "applications";
 
+export type JobHandoff = {
+  targetRole: string;
+  jobContext: string;
+  title: string;
+  company: string;
+  location: string;
+  url: string;
+  notes: string;
+  source: string;
+};
+
 export type ResumeProfile = {
   currentTitle: string;
   careerLevel: "Entry" | "Early Career" | "Mid Career" | "Senior" | "Leadership" | "Unknown";

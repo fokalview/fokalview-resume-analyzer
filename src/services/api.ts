@@ -94,11 +94,11 @@ export async function getApplications() {
   return payload.applications as ApplicationRecord[];
 }
 
-export async function saveApplicationRecord(input: Omit<ApplicationRecord, "id" | "createdAt" | "updatedAt">) {
+export async function saveApplicationRecord(input: Omit<ApplicationRecord, "createdAt" | "updatedAt"> & { id?: string }) {
   const now = new Date().toISOString();
   const application = {
     ...input,
-    id: crypto.randomUUID(),
+    id: input.id || crypto.randomUUID(),
     createdAt: now,
     updatedAt: now
   };
@@ -124,6 +124,27 @@ export async function saveApplicationRecord(input: Omit<ApplicationRecord, "id" 
   }
 
   return { ...application, syncedAt: payload.syncedAt } as ApplicationRecord;
+}
+
+export async function updateApplicationStatus(id: string, status: string) {
+  const clientId = getClientId();
+  const response = await fetch("/api/applications", {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Beta-Access-Code": getStoredAccessCode(),
+      "X-FokalView-User-Email": getStoredUserEmail(),
+      "X-FokalView-Client-ID": clientId
+    },
+    body: JSON.stringify({ id, status })
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "Could not update application.");
+  }
+
+  return payload as { ok: boolean; id: string; status: string; updatedAt: string };
 }
 
 function getClientId() {

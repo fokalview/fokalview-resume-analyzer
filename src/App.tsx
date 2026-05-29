@@ -85,6 +85,7 @@ function ResumeApp() {
             resumeText={resumeText}
             targetRole={targetRole}
             jobContext={jobContext}
+            jobHandoff={{ ...handoff, targetRole, jobContext }}
             onResumeTextChange={setResumeText}
             onTargetRoleChange={setTargetRole}
             onJobContextChange={setJobContext}
@@ -94,8 +95,10 @@ function ResumeApp() {
             }}
           />
         )}
-        {screen === "results" && analysis && <ResultsScreen analysis={analysis} onNext={() => setScreen("feedback")} />}
-        {screen === "feedback" && analysis && <FeedbackScreen analysis={analysis} />}
+        {screen === "results" && analysis && (
+          <ResultsScreen analysis={analysis} jobHandoff={{ ...handoff, targetRole, jobContext }} onNext={() => setScreen("feedback")} />
+        )}
+        {screen === "feedback" && analysis && <FeedbackScreen analysis={analysis} jobHandoff={{ ...handoff, targetRole, jobContext }} />}
         {screen === "applications" && <ApplicationTracker />}
       </section>
     </main>
@@ -123,5 +126,5 @@ function readJobHandoff() {
     .filter(Boolean)
     .join("\n");
 
-  return { targetRole, jobContext };
+  return { targetRole, jobContext, title, company, location, url, notes, source };
 }

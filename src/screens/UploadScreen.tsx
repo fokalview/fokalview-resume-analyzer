@@ -2,8 +2,8 @@ import { useRef, useState } from "react";
 import { ClipboardPaste, Loader2, Upload } from "lucide-react";
 import JSZip from "jszip";
 import * as pdfjsLib from "pdfjs-dist";
-import { analyzeResume, saveResumeRecord } from "../services/api";
-import type { ResumeAnalysis } from "../types";
+import { analyzeResume, saveApplicationRecord, saveResumeRecord } from "../services/api";
+import type { JobHandoff, ResumeAnalysis } from "../types";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.mjs",
@@ -14,6 +14,7 @@ type Props = {
   resumeText: string;
   targetRole: string;
   jobContext: string;
+  jobHandoff: JobHandoff;
   onResumeTextChange: (value: string) => void;
   onTargetRoleChange: (value: string) => void;
   onJobContextChange: (value: string) => void;
@@ -24,6 +25,7 @@ export default function UploadScreen({
   resumeText,
   targetRole,
   jobContext,
+  jobHandoff,
   onResumeTextChange,
   onTargetRoleChange,
   onJobContextChange,
@@ -72,6 +74,7 @@ export default function UploadScreen({
         retainRawResumeText: true
       });
       setSaveStatus(`Saved workforce profile ${saved.id.slice(0, 8)}.`);
+      await saveApplicationFromHandoff(jobHandoff, targetRole, jobContext);
       onAnalysisComplete(analysis);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Something went wrong.");
@@ -178,6 +181,31 @@ export default function UploadScreen({
       </div>
     </div>
   );
+}
+
+async function saveApplicationFromHandoff(jobHandoff: JobHandoff, targetRole: string, jobContext: string) {
+  const title = jobHandoff.title || targetRole;
+  if (!title || !jobHandoff.company) return;
+
+  await saveApplicationRecord({
+    id: stableApplicationId(jobHandoff, title),
+    title,
+    company: jobHandoff.company,
+    location: jobHandoff.location,
+    status: "Interested",
+    notes: jobHandoff.notes || jobContext,
+    url: jobHandoff.url,
+    source: jobHandoff.source
+  });
+}
+
+function stableApplicationId(jobHandoff: JobHandoff, title: string) {
+  const seed = `${jobHandoff.url || ""}|${jobHandoff.company || ""}|${title}`.toLowerCase();
+  let hash = 0;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
+  }
+  return `job-${hash.toString(16)}`;
 }
 
 function isTextLike(file: File) {

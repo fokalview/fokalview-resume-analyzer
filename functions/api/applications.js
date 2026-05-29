@@ -83,6 +83,34 @@ export async function onRequestPost({ request, env }) {
   }
 }
 
+export async function onRequestPatch({ request, env }) {
+  const auth = await requireAccess(request, env);
+  if (auth) return auth;
+
+  if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
+
+  const clientHash = await readClientHash(request, env);
+  if (!clientHash) return json({ error: "Missing X-FokalView-Client-ID." }, 400);
+
+  try {
+    const body = await request.json();
+    const id = clean(body.id, 80);
+    const status = STATUSES.has(body.status) ? body.status : "";
+    if (!id || !status) return json({ error: "Application id and valid status are required." }, 400);
+
+    const updatedAt = new Date().toISOString();
+    await env.DB.prepare(
+      "UPDATE application_captures SET status = ?, updated_at = ?, synced_at = ? WHERE id = ? AND client_hash = ?"
+    )
+      .bind(status, updatedAt, updatedAt, id, clientHash)
+      .run();
+
+    return json({ ok: true, id, status, updatedAt });
+  } catch (error) {
+    return json({ error: error instanceof Error ? error.message : "Could not update application." }, 400);
+  }
+}
+
 export async function onRequestDelete({ request, env }) {
   const auth = await requireAccess(request, env);
   if (auth) return auth;
@@ -107,7 +135,7 @@ export async function onRequestOptions() {
     status: 204,
     headers: {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
+      "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS",
       "Access-Control-Allow-Headers":
         "Content-Type, X-Beta-Access-Code, X-FokalView-Client-ID, X-FokalView-User-Email"
     }

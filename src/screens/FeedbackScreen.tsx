@@ -1,17 +1,26 @@
-import { AlertCircle, CircleCheck } from "lucide-react";
-import type { ResumeAnalysis } from "../types";
+import { AlertCircle, CircleCheck, Download } from "lucide-react";
+import { downloadResumeReport } from "../services/report";
+import type { JobHandoff, ResumeAnalysis } from "../types";
 
 type Props = {
   analysis: ResumeAnalysis;
+  jobHandoff: JobHandoff;
 };
 
-export default function FeedbackScreen({ analysis }: Props) {
+export default function FeedbackScreen({ analysis, jobHandoff }: Props) {
   return (
     <div className="screen">
       <div className="screen-heading">
         <p className="eyebrow">Feedback</p>
         <h2>Prioritized edits for the next draft.</h2>
         <p>Work high priority items first, then tighten keyword coverage for the target role.</p>
+        <button
+          className="secondary-action"
+          onClick={() => downloadResumeReport({ analysis, job: jobHandoff, title: "FokalView Resume Feedback Report" })}
+        >
+          <Download size={18} />
+          Download PDF
+        </button>
       </div>
 
       <div className="feedback-layout">
