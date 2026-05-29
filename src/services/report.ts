@@ -8,17 +8,24 @@ type ReportInput = {
   title?: string;
 };
 
+type ReportData = {
+  analysis: ResumeAnalysis | null;
+  job: Partial<JobHandoff>;
+  applications: ApplicationRecord[];
+  title: string;
+};
+
 export function downloadResumeReport({ analysis, job = {}, applications = [], title = "FokalView report" }: ReportInput) {
   const reportWindow = window.open("", "_blank");
   if (!reportWindow) return;
 
-  reportWindow.document.write(reportHtml({ analysis, job, applications, title }));
+  reportWindow.document.write(reportHtml({ analysis: analysis ?? null, job, applications, title }));
   reportWindow.document.close();
   reportWindow.focus();
   reportWindow.print();
 }
 
-function reportHtml({ analysis, job, applications, title }: Required<ReportInput>) {
+function reportHtml({ analysis, job, applications, title }: ReportData) {
   const currentAnalysis = analysis || null;
   const matched = currentAnalysis?.keywordAnalysis?.matched || [];
   const missing = currentAnalysis?.keywordAnalysis?.missing || [];
