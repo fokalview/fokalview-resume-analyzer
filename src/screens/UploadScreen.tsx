@@ -184,19 +184,41 @@ export default function UploadScreen({
 }
 
 async function saveApplicationFromHandoff(jobHandoff: JobHandoff, targetRole: string, jobContext: string) {
-  const title = jobHandoff.title || targetRole;
-  if (!title || !jobHandoff.company) return;
+  const parsedJob = parseJobContext(jobContext);
+  const title = jobHandoff.title || targetRole || parsedJob.title;
+  const company = jobHandoff.company || parsedJob.company || "Not specified";
+  if (!title) return;
 
   await saveApplicationRecord({
-    id: stableApplicationId(jobHandoff, title),
+    id: stableApplicationId({ ...jobHandoff, company }, title),
     title,
-    company: jobHandoff.company,
-    location: jobHandoff.location,
+    company,
+    location: jobHandoff.location || parsedJob.location,
     status: "Interested",
     notes: jobHandoff.notes || jobContext,
-    url: jobHandoff.url,
-    source: jobHandoff.source
+    url: jobHandoff.url || parsedJob.url,
+    source: jobHandoff.source || parsedJob.source
   });
+}
+
+function parseJobContext(jobContext: string) {
+  const lines = jobContext
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const valueFor = (label: string) => {
+    const match = lines.find((line) => line.toLowerCase().startsWith(`${label.toLowerCase()}:`));
+    return match ? match.slice(match.indexOf(":") + 1).trim() : "";
+  };
+
+  return {
+    title: valueFor("Job title") || valueFor("Title"),
+    company: valueFor("Company"),
+    location: valueFor("Location"),
+    url: valueFor("Job URL") || valueFor("URL"),
+    source: valueFor("Source")
+  };
 }
 
 function stableApplicationId(jobHandoff: JobHandoff, title: string) {

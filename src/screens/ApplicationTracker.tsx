@@ -6,13 +6,11 @@ import {
   updateApplicationStatus,
   type ApplicationRecord
 } from "../services/api";
-import { getStoredUserEmail } from "../services/access";
 import { downloadResumeReport } from "../services/report";
 
 const STATUSES = ["Interested", "Applied", "Interviewing", "Offer", "Rejected"];
 
 export default function ApplicationTracker() {
-  const userEmail = getStoredUserEmail();
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
   const [form, setForm] = useState({
     title: "",
@@ -26,8 +24,8 @@ export default function ApplicationTracker() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (userEmail) void loadApplications();
-  }, [userEmail]);
+    void loadApplications();
+  }, []);
 
   async function loadApplications() {
     setIsLoading(true);
@@ -83,21 +81,6 @@ export default function ApplicationTracker() {
       }, {}),
     [applications]
   );
-
-  if (!userEmail) {
-    return (
-      <section className="screen applications-screen">
-        <div className="screen-heading">
-          <p className="eyebrow">Applications</p>
-          <h2>Add an email to unlock your application tracker.</h2>
-          <p>
-            The tracker uses your email as a private hashed identifier so your applications can follow
-            you across devices. Sign out by closing the session, then enter the beta code with email.
-          </p>
-        </div>
-      </section>
-    );
-  }
 
   return (
     <section className="screen applications-screen">
