@@ -147,6 +147,24 @@ export async function updateApplicationStatus(id: string, status: string) {
   return payload as { ok: boolean; id: string; status: string; updatedAt: string };
 }
 
+export async function getCurrentUser() {
+  const clientId = getClientId();
+  const response = await fetch("/api/me", {
+    headers: {
+      "X-Beta-Access-Code": getStoredAccessCode(),
+      "X-FokalView-User-Email": getStoredUserEmail(),
+      "X-FokalView-Client-ID": clientId
+    }
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "Could not load user profile.");
+  }
+
+  return payload as { userId: string; identifierType: "email" | "client" };
+}
+
 function getClientId() {
   const storageKey = "fokalview_client_id";
   const existing = localStorage.getItem(storageKey);

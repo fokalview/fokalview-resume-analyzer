@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BriefcaseBusiness, FileText, MessageSquareText, Sparkles } from "lucide-react";
 import UploadScreen from "./screens/UploadScreen";
 import ResultsScreen from "./screens/ResultsScreen";
@@ -7,6 +7,7 @@ import WelcomeScreen from "./screens/WelcomeScreen";
 import AdminDashboard from "./screens/AdminDashboard";
 import ApplicationTracker from "./screens/ApplicationTracker";
 import { getStoredAccessCode } from "./services/access";
+import { getCurrentUser } from "./services/api";
 import type { ResumeAnalysis, Screen } from "./types";
 
 export default function App() {
@@ -20,11 +21,19 @@ export default function App() {
 function ResumeApp() {
   const handoff = readJobHandoff();
   const [hasBetaAccess, setHasBetaAccess] = useState(Boolean(getStoredAccessCode()));
+  const [userIdentity, setUserIdentity] = useState<{ userId: string; identifierType: string } | null>(null);
   const [screen, setScreen] = useState<Screen>("upload");
   const [analysis, setAnalysis] = useState<ResumeAnalysis | null>(null);
   const [resumeText, setResumeText] = useState("");
   const [targetRole, setTargetRole] = useState(handoff.targetRole);
   const [jobContext, setJobContext] = useState(handoff.jobContext);
+
+  useEffect(() => {
+    if (!hasBetaAccess) return;
+    void getCurrentUser()
+      .then(setUserIdentity)
+      .catch(() => setUserIdentity(null));
+  }, [hasBetaAccess]);
 
   if (!hasBetaAccess) {
     return <WelcomeScreen onAccessGranted={() => setHasBetaAccess(true)} />;
@@ -75,7 +84,17 @@ function ResumeApp() {
 
         <div className="api-status">
           <span />
-          Artificial intelligence API key stays server-side in <code>.env</code>
+          <div>
+            <strong>Candidate ID</strong>
+            <button
+              className="candidate-id-button"
+              onClick={() => userIdentity?.userId && navigator.clipboard?.writeText(userIdentity.userId)}
+              title="Copy candidate ID"
+            >
+              {userIdentity?.userId || "Loading..."}
+            </button>
+            <small>{userIdentity?.identifierType === "email" ? "Email-linked profile" : "Device-linked profile"}</small>
+          </div>
         </div>
       </aside>
 

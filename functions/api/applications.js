@@ -1,3 +1,5 @@
+import { ensureUser } from "./identity.js";
+
 const CONSENT_VERSION = "ferpa-minimum-necessary-v1";
 const STATUSES = new Set(["Interested", "Applied", "Interviewing", "Offer", "Rejected"]);
 
@@ -7,18 +9,18 @@ export async function onRequestGet({ request, env }) {
 
   if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
 
-  const clientHash = await readClientHash(request, env);
-  if (!clientHash) return json({ error: "Missing X-FokalView-Client-ID." }, 400);
+  const identity = await ensureUser(request, env);
+  if (!identity) return json({ error: "Missing user identifier." }, 400);
 
   const rows = await env.DB.prepare(
-    `SELECT id, title, company, location, status, notes, url, source, captured_at AS createdAt,
+    `SELECT id, user_id AS userId, title, company, location, status, notes, url, source, captured_at AS createdAt,
       updated_at AS updatedAt, synced_at AS syncedAt
      FROM application_captures
-     WHERE client_hash = ?
+     WHERE user_id = ?
      ORDER BY updated_at DESC
      LIMIT 500`
   )
-    .bind(clientHash)
+    .bind(identity.userId)
     .all();
 
   return json({ applications: rows.results || [] });
@@ -30,8 +32,8 @@ export async function onRequestPost({ request, env }) {
 
   if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
 
-  const clientHash = await readClientHash(request, env);
-  if (!clientHash) return json({ error: "Missing X-FokalView-Client-ID." }, 400);
+  const identity = await ensureUser(request, env);
+  if (!identity) return json({ error: "Missing user identifier." }, 400);
 
   try {
     const body = await request.json();
@@ -44,10 +46,10 @@ export async function onRequestPost({ request, env }) {
 
     await env.DB.prepare(
       `INSERT INTO application_captures (
-        id, client_hash, title, company, location, status, notes, url, source,
+        id, client_hash, user_id, title, company, location, status, notes, url, source,
         data_category, consent_version, captured_at, updated_at, synced_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'job_application_context', ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'job_application_context', ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET
         title = excluded.title,
         company = excluded.company,
@@ -62,7 +64,8 @@ export async function onRequestPost({ request, env }) {
     )
       .bind(
         application.id,
-        clientHash,
+        identity.clientHash,
+        identity.userId,
         application.title,
         application.company,
         application.location,
@@ -89,8 +92,8 @@ export async function onRequestPatch({ request, env }) {
 
   if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
 
-  const clientHash = await readClientHash(request, env);
-  if (!clientHash) return json({ error: "Missing X-FokalView-Client-ID." }, 400);
+  const identity = await ensureUser(request, env);
+  if (!identity) return json({ error: "Missing user identifier." }, 400);
 
   try {
     const body = await request.json();
@@ -100,9 +103,9 @@ export async function onRequestPatch({ request, env }) {
 
     const updatedAt = new Date().toISOString();
     await env.DB.prepare(
-      "UPDATE application_captures SET status = ?, updated_at = ?, synced_at = ? WHERE id = ? AND client_hash = ?"
+      "UPDATE application_captures SET status = ?, updated_at = ?, synced_at = ? WHERE id = ? AND user_id = ?"
     )
-      .bind(status, updatedAt, updatedAt, id, clientHash)
+      .bind(status, updatedAt, updatedAt, id, identity.userId)
       .run();
 
     return json({ ok: true, id, status, updatedAt });
@@ -117,14 +120,14 @@ export async function onRequestDelete({ request, env }) {
 
   if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
 
-  const clientHash = await readClientHash(request, env);
-  if (!clientHash) return json({ error: "Missing X-FokalView-Client-ID." }, 400);
+  const identity = await ensureUser(request, env);
+  if (!identity) return json({ error: "Missing user identifier." }, 400);
 
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return json({ error: "Missing application id." }, 400);
 
-  await env.DB.prepare("DELETE FROM application_captures WHERE id = ? AND client_hash = ?")
-    .bind(id, clientHash)
+  await env.DB.prepare("DELETE FROM application_captures WHERE id = ? AND user_id = ?")
+    .bind(id, identity.userId)
     .run();
 
   return json({ ok: true });
@@ -173,21 +176,6 @@ async function requireAccess(request, env) {
   return null;
 }
 
-async function readClientHash(request, env) {
-  const email = normalizeEmail(request.headers.get("X-FokalView-User-Email"));
-  const clientId = request.headers.get("X-FokalView-Client-ID");
-  const identifier = email ? `email:${email}` : clientId ? `client:${clientId}` : "";
-  if (!identifier) return "";
-
-  const salt = env.APPLICATION_SYNC_SALT || env.BETA_ACCESS_CODE || "fokalview";
-  const bytes = new TextEncoder().encode(`${salt}:${identifier}`);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function normalizeEmail(value) {
-  return String(value || "").trim().toLowerCase();
-}
 
 function clean(value, maxLength) {
   return String(value || "")

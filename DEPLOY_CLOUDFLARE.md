@@ -93,6 +93,8 @@ database_id = "your-real-d1-database-id"
 wrangler d1 migrations apply fokalview-resume-analyzer --remote
 ```
 
+If you are using the Cloudflare dashboard console instead of Wrangler, run each file in `migrations/` once and in filename order. `0002_users_relations.sql` adds the relational `users` table and links resume/application records through `user_id` foreign keys.
+
 4. Add an encrypted secret for a server-side hash salt:
 
 ```text

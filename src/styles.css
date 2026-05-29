@@ -238,6 +238,33 @@ button:disabled {
   background: #7dd3fc;
 }
 
+.api-status strong,
+.api-status small {
+  display: block;
+}
+
+.api-status strong {
+  margin-bottom: 6px;
+  color: #ffffff;
+  font-size: 0.82rem;
+}
+
+.api-status small {
+  margin-top: 6px;
+  color: #9aa8b4;
+}
+
+.candidate-id-button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid #3b4855;
+  border-radius: 8px;
+  background: #24313d;
+  color: #9be7dc;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+
 .workspace {
   padding: 42px;
 }

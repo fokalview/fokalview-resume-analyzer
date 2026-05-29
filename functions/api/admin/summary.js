@@ -6,7 +6,7 @@ export async function onRequestGet({ request, env }) {
 
   const [resumeRows, applicationRows] = await Promise.all([
     env.DB.prepare(
-      `SELECT client_hash AS clientHash, target_role AS targetRole, profile_json AS profileJson,
+      `SELECT user_id AS userId, client_hash AS clientHash, target_role AS targetRole, profile_json AS profileJson,
         analysis_json AS analysisJson, raw_resume_retained AS rawResumeRetained,
         captured_at AS capturedAt
        FROM resume_records
@@ -14,7 +14,7 @@ export async function onRequestGet({ request, env }) {
        LIMIT 1000`
     ).all(),
     env.DB.prepare(
-      `SELECT client_hash AS clientHash, title, company, status, source, captured_at AS capturedAt
+      `SELECT user_id AS userId, client_hash AS clientHash, title, company, status, source, captured_at AS capturedAt
        FROM application_captures
        ORDER BY captured_at DESC
        LIMIT 1000`
@@ -26,8 +26,8 @@ export async function onRequestGet({ request, env }) {
   const readinessThreshold = Number(env.READINESS_THRESHOLD || 85);
   const averageReadinessScore = average(resumes.map((item) => item.analysis.score));
   const uniqueUsers = new Set([
-    ...resumes.map((item) => item.clientHash),
-    ...applications.map((item) => item.clientHash)
+    ...resumes.map((item) => item.userId || item.clientHash),
+    ...applications.map((item) => item.userId || item.clientHash)
   ].filter(Boolean)).size;
   const allGapItems = resumes.flatMap((item) => cleanGapItems(item.analysis.keywordAnalysis.missing));
 
@@ -65,7 +65,8 @@ export async function onRequestGet({ request, env }) {
       "85-100": resumes.filter((item) => item.analysis.score >= 85).length
     },
     recentResumeRecords: resumes.slice(0, 20).map((item) => ({
-      candidateId: candidateLabel(item.clientHash),
+      candidateId: item.userId || candidateLabel(item.clientHash),
+      userId: item.userId,
       targetRole: item.targetRole,
       currentTitle: item.profile.currentTitle,
       careerLevel: item.profile.careerLevel,
@@ -107,6 +108,7 @@ function parseResumeRow(row) {
   try {
     return {
       clientHash: row.clientHash,
+      userId: row.userId,
       targetRole: row.targetRole || "",
       profile: JSON.parse(row.profileJson),
       analysis: JSON.parse(row.analysisJson),
@@ -132,8 +134,8 @@ function buildUsageByDay(resumes, applications) {
       applications: applications.filter((item) => dateKey(item.capturedAt) === key).length,
       uniqueUsers: new Set(
         [
-          ...resumes.filter((item) => dateKey(item.capturedAt) === key).map((item) => item.clientHash),
-          ...applications.filter((item) => dateKey(item.capturedAt) === key).map((item) => item.clientHash)
+          ...resumes.filter((item) => dateKey(item.capturedAt) === key).map((item) => item.userId || item.clientHash),
+          ...applications.filter((item) => dateKey(item.capturedAt) === key).map((item) => item.userId || item.clientHash)
         ].filter(Boolean)
       ).size
     });

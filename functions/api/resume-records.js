@@ -1,3 +1,5 @@
+import { ensureUser } from "./identity.js";
+
 const CONSENT_VERSION = "workforce-resume-profile-v1";
 const MAX_RAW_RESUME_LENGTH = 50000;
 const MAX_JOB_CONTEXT_LENGTH = 12000;
@@ -8,20 +10,20 @@ export async function onRequestGet({ request, env }) {
 
   if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
 
-  const clientHash = await readClientHash(request, env);
-  if (!clientHash) return json({ error: "Missing X-FokalView-Client-ID." }, 400);
+  const identity = await ensureUser(request, env);
+  if (!identity) return json({ error: "Missing user identifier." }, 400);
 
   const rows = await env.DB.prepare(
-    `SELECT id, target_role AS targetRole, profile_json AS profileJson,
+    `SELECT id, user_id AS userId, target_role AS targetRole, profile_json AS profileJson,
       analysis_json AS analysisJson, raw_resume_retained AS rawResumeRetained,
       data_category AS dataCategory, consent_version AS consentVersion,
       captured_at AS capturedAt, updated_at AS updatedAt
      FROM resume_records
-     WHERE client_hash = ?
+     WHERE user_id = ?
      ORDER BY updated_at DESC
      LIMIT 200`
   )
-    .bind(clientHash)
+    .bind(identity.userId)
     .all();
 
   return json({
@@ -42,8 +44,8 @@ export async function onRequestPost({ request, env }) {
 
   if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
 
-  const clientHash = await readClientHash(request, env);
-  if (!clientHash) return json({ error: "Missing X-FokalView-Client-ID." }, 400);
+  const identity = await ensureUser(request, env);
+  if (!identity) return json({ error: "Missing user identifier." }, 400);
 
   try {
     const body = await request.json();
@@ -56,15 +58,16 @@ export async function onRequestPost({ request, env }) {
 
     await env.DB.prepare(
       `INSERT INTO resume_records (
-        id, client_hash, target_role, job_context, profile_json, analysis_json,
+        id, client_hash, user_id, target_role, job_context, profile_json, analysis_json,
         raw_resume_text, raw_resume_retained, data_category, consent_version,
         captured_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'workforce_resume_profile', ?, ?, ?)`
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'workforce_resume_profile', ?, ?, ?)`
     )
       .bind(
         record.id,
-        clientHash,
+        identity.clientHash,
+        identity.userId,
         record.targetRole,
         record.jobContext,
         JSON.stringify(record.profile),
@@ -89,14 +92,14 @@ export async function onRequestDelete({ request, env }) {
 
   if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
 
-  const clientHash = await readClientHash(request, env);
-  if (!clientHash) return json({ error: "Missing X-FokalView-Client-ID." }, 400);
+  const identity = await ensureUser(request, env);
+  if (!identity) return json({ error: "Missing user identifier." }, 400);
 
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return json({ error: "Missing resume record id." }, 400);
 
-  await env.DB.prepare("DELETE FROM resume_records WHERE id = ? AND client_hash = ?")
-    .bind(id, clientHash)
+  await env.DB.prepare("DELETE FROM resume_records WHERE id = ? AND user_id = ?")
+    .bind(id, identity.userId)
     .run();
 
   return json({ ok: true });
@@ -206,21 +209,6 @@ async function requireAccess(request, env) {
   return null;
 }
 
-async function readClientHash(request, env) {
-  const email = normalizeEmail(request.headers.get("X-FokalView-User-Email"));
-  const clientId = request.headers.get("X-FokalView-Client-ID");
-  const identifier = email ? `email:${email}` : clientId ? `client:${clientId}` : "";
-  if (!identifier) return "";
-
-  const salt = env.APPLICATION_SYNC_SALT || env.BETA_ACCESS_CODE || "fokalview";
-  const bytes = new TextEncoder().encode(`${salt}:${identifier}`);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function normalizeEmail(value) {
-  return String(value || "").trim().toLowerCase();
-}
 
 function cleanList(value, maxItems, maxLength) {
   return Array.isArray(value)
