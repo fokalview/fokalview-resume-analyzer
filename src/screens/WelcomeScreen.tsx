@@ -8,6 +8,7 @@ type Props = {
 
 export default function WelcomeScreen({ onAccessGranted }: Props) {
   const [code, setCode] = useState("");
+  const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [isChecking, setIsChecking] = useState(false);
 
@@ -18,8 +19,9 @@ export default function WelcomeScreen({ onAccessGranted }: Props) {
 
     try {
       const trimmed = code.trim();
-      await validateAccessCode(trimmed);
-      storeAccessCode(trimmed);
+      const normalizedEmail = email.trim().toLowerCase();
+      await validateAccessCode(trimmed, normalizedEmail);
+      storeAccessCode(trimmed, normalizedEmail);
       onAccessGranted();
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Access code was not accepted.");
@@ -39,6 +41,7 @@ export default function WelcomeScreen({ onAccessGranted }: Props) {
         <p>
           This beta is invite-only while we tune the resume analysis, keyword matching, and job tracker
           handoff. Entering your access code means you accept the beta Terms and Privacy Notice.
+          Add an email if you want application tracking and progress history across devices.
         </p>
 
         <form className="access-form" onSubmit={submit}>
@@ -52,6 +55,17 @@ export default function WelcomeScreen({ onAccessGranted }: Props) {
               onChange={(event) => setCode(event.target.value)}
               placeholder="Enter beta code"
               autoComplete="off"
+            />
+          </label>
+
+          <label>
+            <span>Email address <small>optional</small></span>
+            <input
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              type="email"
+              placeholder="student@example.com"
+              autoComplete="email"
             />
           </label>
 

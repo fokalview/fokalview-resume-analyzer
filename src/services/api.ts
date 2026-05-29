@@ -1,5 +1,5 @@
 import type { ResumeAnalysis } from "../types";
-import { getStoredAccessCode } from "./access";
+import { getStoredAccessCode, getStoredUserEmail } from "./access";
 
 export async function analyzeResume(input: {
   resumeText: string;
@@ -10,7 +10,8 @@ export async function analyzeResume(input: {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Beta-Access-Code": getStoredAccessCode()
+      "X-Beta-Access-Code": getStoredAccessCode(),
+      "X-FokalView-User-Email": getStoredUserEmail()
     },
     body: JSON.stringify(input)
   });
@@ -37,6 +38,7 @@ export async function saveResumeRecord(input: {
     headers: {
       "Content-Type": "application/json",
       "X-Beta-Access-Code": getStoredAccessCode(),
+      "X-FokalView-User-Email": getStoredUserEmail(),
       "X-FokalView-Client-ID": clientId
     },
     body: JSON.stringify({
@@ -58,6 +60,70 @@ export async function saveResumeRecord(input: {
   }
 
   return payload as { ok: boolean; id: string; savedAt: string };
+}
+
+export type ApplicationRecord = {
+  id: string;
+  title: string;
+  company: string;
+  location: string;
+  status: string;
+  notes: string;
+  url: string;
+  source: string;
+  createdAt: string;
+  updatedAt: string;
+  syncedAt?: string;
+};
+
+export async function getApplications() {
+  const clientId = getClientId();
+  const response = await fetch("/api/applications", {
+    headers: {
+      "X-Beta-Access-Code": getStoredAccessCode(),
+      "X-FokalView-User-Email": getStoredUserEmail(),
+      "X-FokalView-Client-ID": clientId
+    }
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "Could not load applications.");
+  }
+
+  return payload.applications as ApplicationRecord[];
+}
+
+export async function saveApplicationRecord(input: Omit<ApplicationRecord, "id" | "createdAt" | "updatedAt">) {
+  const now = new Date().toISOString();
+  const application = {
+    ...input,
+    id: crypto.randomUUID(),
+    createdAt: now,
+    updatedAt: now
+  };
+  const clientId = getClientId();
+  const response = await fetch("/api/applications", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Beta-Access-Code": getStoredAccessCode(),
+      "X-FokalView-User-Email": getStoredUserEmail(),
+      "X-FokalView-Client-ID": clientId
+    },
+    body: JSON.stringify({
+      consent: true,
+      consentVersion: "ferpa-minimum-necessary-v1",
+      application
+    })
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "Could not save application.");
+  }
+
+  return { ...application, syncedAt: payload.syncedAt } as ApplicationRecord;
 }
 
 function getClientId() {

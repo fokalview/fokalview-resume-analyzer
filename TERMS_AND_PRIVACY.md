@@ -14,6 +14,7 @@ Access is invite-only and may require a beta access code. FokalView may limit, s
 
 To generate analysis, the tool may process:
 
+- Optional email address for cross-device application and progress tracking
 - Resume text submitted by the user
 - Target role
 - Job posting or job tracker context
@@ -34,6 +35,8 @@ By entering a valid beta access code and using the tool, users agree that FokalV
 - Industry or role categories
 - Raw resume text submitted for review
 - Work history, education, certifications, projects, tools, and career level signals
+
+If a user provides an email address, the system may use it to create a private tracking identifier for linking that user's resumes, workforce profile, and applications over time. Resume and application records use a salted identifier rather than the plain email address.
 
 ## De-Identification Limits
 

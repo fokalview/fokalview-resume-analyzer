@@ -16,6 +16,7 @@ Planned production URL: `https://resume.fokalview.com`
 - Optional Cloudflare D1 sync for saved job/application context
 - Cloudflare D1 storage for structured resume workforce profiles and retained resume text under the beta usage terms
 - Admin-only `/admin` dashboard protected by a second-level access code
+- Optional email-based tracking identifier for user application tracking across devices
 - Invite-only beta welcome screen backed by server-side access-code enforcement
 - Beta terms and privacy notice with de-identified analytics disclosure
 

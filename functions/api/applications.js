@@ -109,7 +109,7 @@ export async function onRequestOptions() {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET,POST,DELETE,OPTIONS",
       "Access-Control-Allow-Headers":
-        "Content-Type, X-Beta-Access-Code, X-FokalView-Client-ID"
+        "Content-Type, X-Beta-Access-Code, X-FokalView-Client-ID, X-FokalView-User-Email"
     }
   });
 }
@@ -146,13 +146,19 @@ async function requireAccess(request, env) {
 }
 
 async function readClientHash(request, env) {
+  const email = normalizeEmail(request.headers.get("X-FokalView-User-Email"));
   const clientId = request.headers.get("X-FokalView-Client-ID");
-  if (!clientId) return "";
+  const identifier = email ? `email:${email}` : clientId ? `client:${clientId}` : "";
+  if (!identifier) return "";
 
   const salt = env.APPLICATION_SYNC_SALT || env.BETA_ACCESS_CODE || "fokalview";
-  const bytes = new TextEncoder().encode(`${salt}:${clientId}`);
+  const bytes = new TextEncoder().encode(`${salt}:${identifier}`);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function clean(value, maxLength) {

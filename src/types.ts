@@ -1,4 +1,4 @@
-export type Screen = "upload" | "results" | "feedback";
+export type Screen = "upload" | "results" | "feedback" | "applications";
 
 export type ResumeProfile = {
   currentTitle: string;

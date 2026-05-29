@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { FileText, MessageSquareText, Sparkles } from "lucide-react";
+import { BriefcaseBusiness, FileText, MessageSquareText, Sparkles } from "lucide-react";
 import UploadScreen from "./screens/UploadScreen";
 import ResultsScreen from "./screens/ResultsScreen";
 import FeedbackScreen from "./screens/FeedbackScreen";
 import WelcomeScreen from "./screens/WelcomeScreen";
 import AdminDashboard from "./screens/AdminDashboard";
+import ApplicationTracker from "./screens/ApplicationTracker";
 import { getStoredAccessCode } from "./services/access";
 import type { ResumeAnalysis, Screen } from "./types";
 
@@ -63,6 +64,13 @@ function ResumeApp() {
             <MessageSquareText size={18} />
             Feedback
           </button>
+          <button
+            className={screen === "applications" ? "active" : ""}
+            onClick={() => setScreen("applications")}
+          >
+            <BriefcaseBusiness size={18} />
+            Applications
+          </button>
         </nav>
 
         <div className="api-status">
@@ -88,6 +96,7 @@ function ResumeApp() {
         )}
         {screen === "results" && analysis && <ResultsScreen analysis={analysis} onNext={() => setScreen("feedback")} />}
         {screen === "feedback" && analysis && <FeedbackScreen analysis={analysis} />}
+        {screen === "applications" && <ApplicationTracker />}
       </section>
     </main>
   );
