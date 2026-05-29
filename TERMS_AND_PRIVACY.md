@@ -18,10 +18,11 @@ To generate analysis, the tool may process:
 - Target role
 - Job posting or job tracker context
 - Generated analysis, including scores, strengths, improvements, matched keywords, missing keywords, and section notes
+- Generated workforce profile data, including skills, tools, work history, education, certifications, projects, career level, and experience estimates
 
-## De-Identified Product Improvement Data
+## Beta Retention And Product Improvement
 
-During the beta, FokalView may retain de-identified analysis data to improve the product. This may include:
+By entering a valid beta access code and using the tool, users agree that FokalView may retain submitted resume text, job context, generated workforce profiles, and analysis outputs during the beta to provide the service, support future review, track workforce-development progress, and improve the product. Retained data may include:
 
 - Target job titles
 - Job description keywords
@@ -31,8 +32,8 @@ During the beta, FokalView may retain de-identified analysis data to improve the
 - Score ranges
 - Improvement categories
 - Industry or role categories
-
-FokalView does not intentionally retain names, email addresses, phone numbers, street addresses, uploaded resume files, or full raw resume text for analytics.
+- Raw resume text submitted for review
+- Work history, education, certifications, projects, tools, and career level signals
 
 ## De-Identification Limits
 

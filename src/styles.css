@@ -541,20 +541,15 @@ textarea:focus {
   background: #ffffff;
 }
 
-.checkbox-field {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
+.storage-panel strong {
   color: #344252;
-  font-weight: 750;
-  line-height: 1.4;
+  font-weight: 850;
 }
 
-.checkbox-field input {
-  width: 18px;
-  height: 18px;
-  margin-top: 2px;
-  flex: 0 0 auto;
+.storage-panel p {
+  margin: 0;
+  color: #50606f;
+  line-height: 1.4;
 }
 
 .actions {

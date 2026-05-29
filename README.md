@@ -13,8 +13,8 @@ Planned production URL: `https://resume.fokalview.com`
 - OpenAI Responses API support with strict JSON schema output
 - Cloudflare Pages Functions for deployable `/api/health` and `/api/analyze`
 - Edge extension source for saving jobs and sending them into the analyzer
-- Optional consent-based Cloudflare D1 sync for saved job/application context
-- Optional consent-based Cloudflare D1 storage for structured resume workforce profiles
+- Optional Cloudflare D1 sync for saved job/application context
+- Cloudflare D1 storage for structured resume workforce profiles and retained resume text under the beta usage terms
 - Admin-only `/admin` dashboard protected by a second-level access code
 - Invite-only beta welcome screen backed by server-side access-code enforcement
 - Beta terms and privacy notice with de-identified analytics disclosure
@@ -53,7 +53,7 @@ Build output directory: dist
 
 Add `ARTIFICIAL_INTELLIGENCE_API_KEY`, `BETA_ACCESS_CODE`, and `ADMIN_ACCESS_CODE` as encrypted secrets in Cloudflare Pages. See `DEPLOY_CLOUDFLARE.md` for the full checklist.
 
-To enable cloud storage, create a Cloudflare D1 database, bind it as `DB`, and run the migrations in `migrations/`. The sync endpoints require the same beta access code and explicit current consent. Job tracker sync stores job/application context. Resume storage saves a structured workforce profile and analysis; raw resume text is retained only when the user selects that option.
+To enable cloud storage, create a Cloudflare D1 database, bind it as `DB`, and run the migrations in `migrations/`. The sync endpoints require the same beta access code. Job tracker sync stores job/application context. Resume storage saves a structured workforce profile, analysis, and raw resume text under the beta usage terms.
 
 ## Docker
 

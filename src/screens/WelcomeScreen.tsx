@@ -8,7 +8,6 @@ type Props = {
 
 export default function WelcomeScreen({ onAccessGranted }: Props) {
   const [code, setCode] = useState("");
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState("");
   const [isChecking, setIsChecking] = useState(false);
 
@@ -39,7 +38,7 @@ export default function WelcomeScreen({ onAccessGranted }: Props) {
         <h1>FokalView Resume Readiness Lab</h1>
         <p>
           This beta is invite-only while we tune the resume analysis, keyword matching, and job tracker
-          handoff. Enter your access code to continue.
+          handoff. Entering your access code means you accept the beta Terms and Privacy Notice.
         </p>
 
         <form className="access-form" onSubmit={submit}>
@@ -56,18 +55,6 @@ export default function WelcomeScreen({ onAccessGranted }: Props) {
             />
           </label>
 
-          <label className="terms-check">
-            <input
-              type="checkbox"
-              checked={acceptedTerms}
-              onChange={(event) => setAcceptedTerms(event.target.checked)}
-            />
-            <span>
-              I agree to the beta Terms and Privacy Notice, including de-identified analysis use,
-              no guarantee of job outcomes, and no upload of sensitive information I do not want processed.
-            </span>
-          </label>
-
           <details className="terms-panel">
             <summary>Beta Terms and Privacy Notice</summary>
             <div>
@@ -80,18 +67,16 @@ export default function WelcomeScreen({ onAccessGranted }: Props) {
 
               <h2>Data Use</h2>
               <p>
-                Resume text, job context, and analysis inputs are processed to generate feedback. During
-                the beta, FokalView may retain de-identified analysis data such as target roles,
-                qualifications, skill keywords, matched/missing terms, score ranges, and improvement
-                categories to improve the product.
+                Resume text, job context, generated workforce profiles, and analysis outputs are
+                processed and may be retained during the beta to provide the service, support future
+                review, track workforce-development progress, and improve the product.
               </p>
 
-              <h2>Information We Avoid Keeping</h2>
+              <h2>Sensitive Information</h2>
               <p>
-                FokalView does not intentionally retain names, email addresses, phone numbers, street
-                addresses, uploaded resume files, or full raw resume text for analytics. Users should not
-                upload Social Security numbers, financial information, health information, or other
-                sensitive personal data.
+                Users should not upload Social Security numbers, financial information, health
+                information, government ID numbers, passwords, private credentials, or other sensitive
+                information that is not needed for resume and workforce-development review.
               </p>
 
               <h2>De-Identification Limits</h2>
@@ -110,7 +95,7 @@ export default function WelcomeScreen({ onAccessGranted }: Props) {
           </details>
 
           {error && <p className="error-message">{error}</p>}
-          <button className="primary-button" disabled={!code.trim() || !acceptedTerms || isChecking}>
+          <button className="primary-button" disabled={!code.trim() || isChecking}>
             {isChecking ? "Checking..." : "Enter beta"}
           </button>
         </form>

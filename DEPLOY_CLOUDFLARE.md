@@ -70,7 +70,7 @@ This is a temporary second-level access model. For production student tracking, 
 
 ## D1 Storage For Captured Job And Resume Context
 
-The app can optionally sync saved job/application context and structured resume workforce profiles to Cloudflare D1. This is off unless the user enables the relevant consent control and provides the private access code.
+The app can sync saved job/application context and structured resume workforce profiles to Cloudflare D1. Resume analysis records are stored under the beta usage terms after the user enters a valid beta access code.
 
 1. Create a D1 database:
 
@@ -117,7 +117,7 @@ The `/api/resume-records` endpoint stores:
 - structured skills, tools, soft skills, industries, work history, education, certifications, projects, languages, and location signals
 - resume analysis score, summary, strengths, improvement actions, keyword matches/gaps, and section health
 - target role and job context
-- raw resume text only when `retainRawResumeText` is explicitly true
+- raw resume text retained under the beta usage terms
 
 Avoid collecting grades, GPAs, student IDs, birth dates, full mailing addresses, or other education-record details unless you have a reviewed FERPA policy and retention plan for that data.
 

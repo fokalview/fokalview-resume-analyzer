@@ -33,8 +33,6 @@ export default function UploadScreen({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [fileStatus, setFileStatus] = useState("");
-  const [saveWorkforceProfile, setSaveWorkforceProfile] = useState(false);
-  const [retainRawResumeText, setRetainRawResumeText] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
 
   async function handleFile(file: File) {
@@ -66,16 +64,14 @@ export default function UploadScreen({
     setSaveStatus("");
     try {
       const analysis = await analyzeResume({ resumeText, targetRole, jobContext });
-      if (saveWorkforceProfile) {
-        const saved = await saveResumeRecord({
-          resumeText,
-          targetRole,
-          jobContext,
-          analysis,
-          retainRawResumeText
-        });
-        setSaveStatus(`Saved workforce profile ${saved.id.slice(0, 8)}.`);
-      }
+      const saved = await saveResumeRecord({
+        resumeText,
+        targetRole,
+        jobContext,
+        analysis,
+        retainRawResumeText: true
+      });
+      setSaveStatus(`Saved workforce profile ${saved.id.slice(0, 8)}.`);
       onAnalysisComplete(analysis);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Something went wrong.");
@@ -162,27 +158,11 @@ export default function UploadScreen({
         </label>
 
         <section className="storage-panel">
-          <label className="checkbox-field">
-            <input
-              type="checkbox"
-              checked={saveWorkforceProfile}
-              onChange={(event) => {
-                setSaveWorkforceProfile(event.target.checked);
-                if (!event.target.checked) setRetainRawResumeText(false);
-              }}
-            />
-            <span>Save structured workforce profile and analysis to D1</span>
-          </label>
-
-          <label className="checkbox-field">
-            <input
-              type="checkbox"
-              checked={retainRawResumeText}
-              disabled={!saveWorkforceProfile}
-              onChange={(event) => setRetainRawResumeText(event.target.checked)}
-            />
-            <span>Also retain raw resume text for future review</span>
-          </label>
+          <strong>Beta data use</strong>
+          <p>
+            Resume text, job context, generated workforce profile, and analysis results are saved
+            under the beta Terms and Privacy Notice after analysis.
+          </p>
         </section>
       </div>
 
