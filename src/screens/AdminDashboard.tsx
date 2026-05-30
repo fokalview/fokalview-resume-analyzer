@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { BarChart3, Download, LockKeyhole, RefreshCw, Search, Settings2 } from "lucide-react";
 
 type CountItem = { label: string; count: number; percentAffected?: number };
@@ -9,6 +9,10 @@ type AdminSummary = {
   totals: {
     resumeRecords: number;
     applicationCaptures: number;
+    waitlistSignups: number;
+    interviewVolunteers: number;
+    pilotProspects: number;
+    budgetQualified: number;
     uniqueUsers: number;
     rawResumeRecords: number;
     averageReadinessScore: number;
@@ -22,6 +26,9 @@ type AdminSummary = {
   commonSkillGaps: Record<string, CountItem[]>;
   applicationStatuses: Record<string, number>;
   applicationSources: CountItem[];
+  waitlistOrganizationTypes: CountItem[];
+  waitlistSources: CountItem[];
+  waitlistInterest: Record<string, number>;
   emailDomains: CountItem[];
   emailDomainTypes: Record<string, number>;
   countries: CountItem[];
@@ -38,6 +45,22 @@ type AdminSummary = {
     country?: string;
     capturedAt: string;
     rawResumeRetained: boolean;
+  }>;
+  recentWaitlistSignups: Array<{
+    id: string;
+    name: string;
+    organization: string;
+    organizationType: string;
+    role: string;
+    country: string;
+    emailDomain: string;
+    emailDomainType: string;
+    interviewInterest: boolean;
+    betaInterest: boolean;
+    pilotInterest: boolean;
+    budgetInterest: boolean;
+    status: string;
+    createdAt: string;
   }>;
 };
 
@@ -82,18 +105,6 @@ export default function AdminDashboard() {
       setIsLoading(false);
     }
   }
-
-  const filteredRecords = useMemo(() => {
-    if (!summary) return [];
-    const needle = query.trim().toLowerCase();
-    if (!needle) return summary.recentResumeRecords;
-    return summary.recentResumeRecords.filter((record) =>
-      [record.candidateId, record.currentTitle, record.targetRole, record.careerLevel]
-        .join(" ")
-        .toLowerCase()
-        .includes(needle)
-    );
-  }, [query, summary]);
 
   return (
     <main className="admin-shell">
@@ -148,6 +159,13 @@ export default function AdminDashboard() {
             <ReadinessMetric summary={summary} />
           </section>
 
+          <section className="admin-metrics four">
+            <Metric label="Waitlist signups" value={summary.totals.waitlistSignups || 0} note="Discovery pipeline" />
+            <Metric label="Interview volunteers" value={summary.totals.interviewVolunteers || 0} note="Customer discovery" />
+            <Metric label="Pilot prospects" value={summary.totals.pilotProspects || 0} note="Institutional leads" />
+            <Metric label="Budget signals" value={summary.totals.budgetQualified || 0} note="Buying influence" />
+          </section>
+
           <section className="admin-grid">
             <UsagePanel days={summary.usageByDay} />
             <ReadinessBands bands={summary.readinessBands} total={summary.totals.resumeRecords} />
@@ -157,6 +175,9 @@ export default function AdminDashboard() {
             <SortablePanel title="Top Skills" items={summary.topSkills} />
             <SortablePanel title="Top Tools" items={summary.topTools} />
             <ChartPanel title="Application Sources" items={summary.applicationSources} />
+            <ChartPanel title="Waitlist Organization Types" items={summary.waitlistOrganizationTypes || []} />
+            <ChartPanel title="Waitlist Sources" items={summary.waitlistSources || []} />
+            <ChartPanel title="Waitlist Interest" items={toCountItems(summary.waitlistInterest || {})} />
             <ChartPanel title="Email Domains" items={summary.emailDomains} />
             <ChartPanel title="Countries" items={summary.countries} />
             <ChartPanel title="Email Domain Types" items={toCountItems(summary.emailDomainTypes)} />
@@ -168,7 +189,7 @@ export default function AdminDashboard() {
               <button className="panel-menu" aria-label="Resume record options">...</button>
             </div>
             <div className="admin-table record-table">
-              {filteredRecords.map((record) => (
+              {summary.recentResumeRecords.map((record) => (
                 <article key={`${record.candidateId}-${record.capturedAt}`}>
                   <div className="candidate-cell">
                     <span className="avatar">{initials(record.candidateId)}</span>
@@ -187,6 +208,38 @@ export default function AdminDashboard() {
                   <button className="panel-menu" aria-label="Record actions">...</button>
                 </article>
               ))}
+            </div>
+          </section>
+
+          <section className="admin-table-panel">
+            <div className="panel-heading">
+              <h2>Waitlist Discovery</h2>
+              <button className="panel-menu" aria-label="Waitlist options">...</button>
+            </div>
+            <div className="admin-table waitlist-table">
+              {summary.recentWaitlistSignups?.length ? (
+                summary.recentWaitlistSignups.map((signup) => (
+                  <article key={signup.id}>
+                    <div className="candidate-cell">
+                      <span className="avatar">{initials(signup.name)}</span>
+                      <div>
+                        <strong>{signup.name}</strong>
+                        <span>{[signup.organization, signup.organizationType].filter(Boolean).join(" - ") || "No organization"}</span>
+                        <small>{[signup.emailDomain, signup.country].filter(Boolean).join(" - ")}</small>
+                      </div>
+                    </div>
+                    <span>{signup.role || "Role not saved"}</span>
+                    <span>{interestLabels(signup).join(", ") || "No interest flags"}</span>
+                    <span>{formatDate(signup.createdAt)}</span>
+                    <span className="status-pill applied">{signup.status || "New"}</span>
+                  </article>
+                ))
+              ) : (
+                <div className="empty-panel compact">
+                  <strong>No waitlist signups yet.</strong>
+                  <span>Share /waitlist to start collecting discovery data.</span>
+                </div>
+              )}
             </div>
           </section>
 
@@ -401,6 +454,20 @@ function percent(count: number, total: number) {
 
 function initials(value: string) {
   return value.replace(/^Candidate\s+/i, "").slice(0, 2).toUpperCase() || "FV";
+}
+
+function interestLabels(signup: {
+  interviewInterest?: boolean;
+  betaInterest?: boolean;
+  pilotInterest?: boolean;
+  budgetInterest?: boolean;
+}) {
+  return [
+    signup.interviewInterest && "Interview",
+    signup.betaInterest && "Beta",
+    signup.pilotInterest && "Pilot",
+    signup.budgetInterest && "Budget"
+  ].filter(Boolean) as string[];
 }
 
 function formatDate(value: string) {

@@ -146,6 +146,114 @@ button:disabled {
   opacity: 0.5;
 }
 
+.waitlist-shell {
+  min-height: 100vh;
+  padding: 36px;
+  background: #eef2f5;
+}
+
+.waitlist-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  gap: 28px;
+  max-width: 1180px;
+  margin: 0 auto 24px;
+}
+
+.waitlist-hero h1 {
+  max-width: 900px;
+  margin: 8px 0 14px;
+  color: #18202a;
+  font-size: clamp(2.4rem, 5vw, 5rem);
+  line-height: 0.96;
+}
+
+.waitlist-hero p {
+  max-width: 760px;
+  color: #50606f;
+  font-size: 1.08rem;
+  line-height: 1.6;
+}
+
+.waitlist-summary {
+  display: grid;
+  gap: 14px;
+}
+
+.waitlist-summary article,
+.waitlist-form {
+  border: 1px solid #d8e0e8;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.waitlist-summary article {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+}
+
+.waitlist-summary svg {
+  color: #0f766e;
+}
+
+.waitlist-summary strong {
+  color: #18202a;
+}
+
+.waitlist-summary span {
+  color: #647482;
+  line-height: 1.45;
+}
+
+.waitlist-form {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.waitlist-form label {
+  display: grid;
+  gap: 8px;
+  color: #344252;
+  font-weight: 750;
+}
+
+.wide-field {
+  grid-column: span 2;
+}
+
+.waitlist-options {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.toggle-row {
+  grid-template-columns: 20px 1fr;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid #d8e0e8;
+  border-radius: 8px;
+  background: #f8fafc;
+  line-height: 1.35;
+}
+
+.toggle-row input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+}
+
+.waitlist-submit {
+  grid-column: 1 / -1;
+  justify-self: end;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 292px minmax(0, 1fr);
@@ -364,6 +472,10 @@ button:disabled {
 
 .admin-metrics.three {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-metrics.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .admin-metrics article,
@@ -638,6 +750,12 @@ button:disabled {
 .record-table article {
   display: grid;
   grid-template-columns: minmax(180px, 1.4fr) minmax(180px, 1.4fr) 76px 108px 86px 36px;
+}
+
+.waitlist-table article {
+  display: grid;
+  grid-template-columns: minmax(200px, 1.4fr) minmax(160px, 1fr) minmax(170px, 1fr) 108px 86px;
+  align-items: center;
 }
 
 .candidate-cell {
@@ -1295,8 +1413,22 @@ meter {
   .application-stats,
   .application-form,
   .application-list article,
-  .record-table article {
+  .record-table article,
+  .waitlist-hero,
+  .waitlist-form,
+  .waitlist-options,
+  .waitlist-table article {
     grid-template-columns: 1fr;
+  }
+
+  .waitlist-shell {
+    padding: 20px;
+  }
+
+  .wide-field,
+  .waitlist-submit {
+    grid-column: auto;
+    justify-self: stretch;
   }
 
   .application-notes {

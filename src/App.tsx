@@ -6,6 +6,7 @@ import FeedbackScreen from "./screens/FeedbackScreen";
 import WelcomeScreen from "./screens/WelcomeScreen";
 import AdminDashboard from "./screens/AdminDashboard";
 import ApplicationTracker from "./screens/ApplicationTracker";
+import WaitlistScreen from "./screens/WaitlistScreen";
 import { getStoredAccessCode } from "./services/access";
 import { getCurrentUser } from "./services/api";
 import type { ResumeAnalysis, Screen } from "./types";
@@ -13,6 +14,10 @@ import type { ResumeAnalysis, Screen } from "./types";
 export default function App() {
   if (window.location.pathname === "/admin") {
     return <AdminDashboard />;
+  }
+
+  if (window.location.pathname === "/waitlist") {
+    return <WaitlistScreen />;
   }
 
   return <ResumeApp />;

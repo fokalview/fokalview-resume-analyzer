@@ -12,7 +12,7 @@ export async function onRequestGet({ request, env }) {
   const userJoin = "LEFT JOIN users u ON u.id = r.user_id";
   const appUserJoin = "LEFT JOIN users u ON u.id = a.user_id";
 
-  const [resumeRows, applicationRows] = await Promise.all([
+  const [resumeRows, applicationRows, waitlistRows] = await Promise.all([
     env.DB.prepare(
       `SELECT r.user_id AS userId, r.client_hash AS clientHash, r.target_role AS targetRole, r.profile_json AS profileJson,
         r.analysis_json AS analysisJson, r.raw_resume_retained AS rawResumeRetained, r.raw_resume_text AS rawResumeText,
@@ -30,12 +30,25 @@ export async function onRequestGet({ request, env }) {
        ORDER BY a.captured_at DESC
        LIMIT 1000`
     ).all()
+      .catch(() => ({ results: [] })),
+    env.DB.prepare(
+      `SELECT id, name, email_domain AS emailDomain, email_domain_type AS emailDomainType, organization,
+        organization_type AS organizationType, role, city, state, country, interview_interest AS interviewInterest,
+        beta_interest AS betaInterest, pilot_interest AS pilotInterest, budget_interest AS budgetInterest,
+        source, status, created_at AS createdAt
+       FROM waitlist_signups
+       ORDER BY created_at DESC
+       LIMIT 1000`
+    ).all()
+      .catch(() => ({ results: [] }))
   ]);
 
   const allResumes = (resumeRows.results || []).map(parseResumeRow).filter(Boolean);
   const allApplications = applicationRows.results || [];
   const resumes = filterResumes(allResumes, query);
   const applications = filterApplications(allApplications, query);
+  const allWaitlist = waitlistRows.results || [];
+  const waitlist = filterWaitlist(allWaitlist, query);
   const readinessThreshold = Number(env.READINESS_THRESHOLD || 85);
   const averageReadinessScore = average(resumes.map((item) => item.analysis.score));
   const uniqueUsers = new Set([
@@ -53,6 +66,10 @@ export async function onRequestGet({ request, env }) {
     totals: {
       resumeRecords: resumes.length,
       applicationCaptures: applications.length,
+      waitlistSignups: waitlist.length,
+      interviewVolunteers: waitlist.filter((item) => item.interviewInterest).length,
+      pilotProspects: waitlist.filter((item) => item.pilotInterest).length,
+      budgetQualified: waitlist.filter((item) => item.budgetInterest).length,
       uniqueUsers,
       rawResumeRecords: resumes.filter((item) => item.rawResumeRetained).length,
       averageReadinessScore,
@@ -72,6 +89,14 @@ export async function onRequestGet({ request, env }) {
     commonSkillGaps: groupSkillGaps(allGapItems, resumes.length),
     applicationStatuses: countBy(applications.map((item) => item.status || "Unknown")),
     applicationSources: topCounts(applications.map((item) => item.source).filter(Boolean), 12),
+    waitlistOrganizationTypes: topCounts(waitlist.map((item) => item.organizationType).filter(Boolean), 12),
+    waitlistSources: topCounts(waitlist.map((item) => item.source).filter(Boolean), 12),
+    waitlistInterest: {
+      Interviews: waitlist.filter((item) => item.interviewInterest).length,
+      Beta: waitlist.filter((item) => item.betaInterest).length,
+      Pilots: waitlist.filter((item) => item.pilotInterest).length,
+      Budget: waitlist.filter((item) => item.budgetInterest).length
+    },
     emailDomains: topCounts(resumes.map((item) => item.emailDomain).filter(Boolean), 12),
     emailDomainTypes: countBy(resumes.map((item) => item.emailDomainType).filter(Boolean)),
     countries: topCounts(resumes.map((item) => item.country).filter(Boolean), 12),
@@ -94,6 +119,22 @@ export async function onRequestGet({ request, env }) {
       country: item.country,
       capturedAt: item.capturedAt,
       rawResumeRetained: item.rawResumeRetained
+    })),
+    recentWaitlistSignups: waitlist.slice(0, 20).map((item) => ({
+      id: item.id,
+      name: item.name,
+      organization: item.organization,
+      organizationType: item.organizationType,
+      role: item.role,
+      country: item.country,
+      emailDomain: item.emailDomain,
+      emailDomainType: item.emailDomainType,
+      interviewInterest: Boolean(item.interviewInterest),
+      betaInterest: Boolean(item.betaInterest),
+      pilotInterest: Boolean(item.pilotInterest),
+      budgetInterest: Boolean(item.budgetInterest),
+      status: item.status,
+      createdAt: item.createdAt
     }))
   });
 }
@@ -167,6 +208,30 @@ function filterApplications(applications, query) {
       item.emailDomain,
       item.emailDomainType,
       item.country
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(needle)
+  );
+}
+
+function filterWaitlist(signups, query) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return signups;
+  return signups.filter((item) =>
+    [
+      item.id,
+      item.name,
+      item.emailDomain,
+      item.emailDomainType,
+      item.organization,
+      item.organizationType,
+      item.role,
+      item.city,
+      item.state,
+      item.country,
+      item.source,
+      item.status
     ]
       .join(" ")
       .toLowerCase()
