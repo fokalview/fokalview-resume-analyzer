@@ -52,8 +52,8 @@ function ResumeApp() {
             <Sparkles size={22} />
           </div>
           <div>
-            <p className="eyebrow">AI Resume Analyzer</p>
-            <h1>Resume readiness review</h1>
+            <p className="eyebrow">SagittaIQ</p>
+            <h1>Career readiness assessment</h1>
           </div>
         </div>
 
@@ -83,7 +83,7 @@ function ResumeApp() {
             onClick={() => setScreen("applications")}
           >
             <BriefcaseBusiness size={18} />
-            Applications
+            Opportunities
           </button>
         </nav>
 

@@ -37,11 +37,11 @@ export default function WelcomeScreen({ onAccessGranted }: Props) {
           <Sparkles size={28} />
         </div>
         <p className="eyebrow">Private Beta</p>
-        <h1>FokalView Resume Readiness Lab</h1>
+        <h1>SagittaIQ Career Intelligence</h1>
         <p>
-          This beta is invite-only while we tune the resume analysis, keyword matching, and job tracker
-          handoff. Entering your access code means you accept the beta Terms and Privacy Notice.
-          Add an email if you want application tracking and progress history across devices.
+          This private beta helps students and job seekers evaluate career readiness, compare career
+          materials against target opportunities, and track progress from application to interview to
+          offer. Entering your access code means you accept the beta Terms and Privacy Notice.
         </p>
 
         <form className="access-form" onSubmit={submit}>
@@ -59,7 +59,7 @@ export default function WelcomeScreen({ onAccessGranted }: Props) {
           </label>
 
           <label>
-            <span>Email address <small>optional</small></span>
+            <span>Email address <small>optional, required to save progress across devices</small></span>
             <input
               value={email}
               onChange={(event) => setEmail(event.target.value)}
@@ -74,14 +74,14 @@ export default function WelcomeScreen({ onAccessGranted }: Props) {
             <div>
               <h2>Private Beta Terms</h2>
               <p>
-                FokalView Resume Readiness Lab is a beta tool for resume review, ATS keyword matching,
+                SagittaIQ is a beta tool for career readiness review, opportunity matching,
                 and job-fit feedback. It provides informational suggestions only and does not guarantee
                 interviews, offers, employment, legal compliance, or applicant tracking system outcomes.
               </p>
 
               <h2>Data Use</h2>
               <p>
-                Resume text, job context, generated workforce profiles, and analysis outputs are
+                Career material text, opportunity context, generated workforce profiles, and analysis outputs are
                 processed and may be retained during the beta to provide the service, support future
                 review, track workforce-development progress, and improve the product.
               </p>
@@ -102,7 +102,7 @@ export default function WelcomeScreen({ onAccessGranted }: Props) {
 
               <h2>User Rights and Requests</h2>
               <p>
-                Beta users may request deletion of retained beta analysis records by contacting FokalView.
+                Beta users may request deletion of retained beta analysis records by contacting SagittaIQ.
                 Access may be limited, suspended, or revoked during the beta.
               </p>
             </div>

@@ -8,7 +8,19 @@ import {
 } from "../services/api";
 import { downloadResumeReport } from "../services/report";
 
-const STATUSES = ["Interested", "Applied", "Interviewing", "Offer", "Rejected"];
+const STATUSES = [
+  "Interested",
+  "Researching",
+  "Applying",
+  "Applied",
+  "Recruiter Contact",
+  "Interviewing",
+  "Final Interview",
+  "Offer",
+  "Accepted",
+  "Rejected",
+  "Withdrawn"
+];
 
 export default function ApplicationTracker() {
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
@@ -19,7 +31,14 @@ export default function ApplicationTracker() {
     salary: "",
     status: "Applied",
     url: "",
-    notes: ""
+    notes: "",
+    followUpDate: "",
+    nextAction: "",
+    priority: "Medium",
+    resumeVersion: "",
+    interviewDate: "",
+    offerAmount: "",
+    outcomeNotes: ""
   });
   const [editingId, setEditingId] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -52,7 +71,7 @@ export default function ApplicationTracker() {
         salary: form.salary,
         status: form.status,
         url: form.url,
-        notes: form.notes,
+        notes: combinedNotes(form),
         source: sourceFromUrl(form.url),
         ...(editingId ? { id: editingId } : {})
       });
@@ -76,14 +95,29 @@ export default function ApplicationTracker() {
       salary: item.salary || "",
       status: item.status,
       url: item.url,
-      notes: item.notes
+      ...notesToForm(item.notes)
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function resetForm() {
     setEditingId("");
-    setForm({ title: "", company: "", location: "", salary: "", status: "Applied", url: "", notes: "" });
+    setForm({
+      title: "",
+      company: "",
+      location: "",
+      salary: "",
+      status: "Applied",
+      url: "",
+      notes: "",
+      followUpDate: "",
+      nextAction: "",
+      priority: "Medium",
+      resumeVersion: "",
+      interviewDate: "",
+      offerAmount: "",
+      outcomeNotes: ""
+    });
   }
 
   async function changeStatus(id: string, status: string) {
@@ -112,14 +146,14 @@ export default function ApplicationTracker() {
   return (
     <section className="screen applications-screen">
       <div className="screen-heading">
-        <p className="eyebrow">Applications</p>
-        <h2>Your application tracker.</h2>
-        <p>Applications are created when you run a resume against a job. Update milestones as they happen.</p>
+        <p className="eyebrow">Opportunities</p>
+        <h2>Career opportunity tracker.</h2>
+        <p>Opportunities are created when you analyze career materials against a target opportunity. Update milestones as they happen.</p>
       </div>
 
       <section className="application-stats">
         <Metric label="Total" value={applications.length} />
-        {STATUSES.map((status) => (
+        {["Applied", "Interviewing", "Offer", "Accepted"].map((status) => (
           <Metric key={status} label={status} value={counts[status] || 0} />
         ))}
       </section>
@@ -183,6 +217,62 @@ export default function ApplicationTracker() {
             placeholder="Follow-up date, referral, resume version, contact..."
           />
         </label>
+        <label>
+          Follow-up date
+          <input
+            value={form.followUpDate}
+            onChange={(event) => setForm({ ...form, followUpDate: event.target.value })}
+            type="date"
+          />
+        </label>
+        <label>
+          Next action
+          <input
+            value={form.nextAction}
+            onChange={(event) => setForm({ ...form, nextAction: event.target.value })}
+            placeholder="Email recruiter, tailor resume, schedule prep..."
+          />
+        </label>
+        <label>
+          Priority
+          <select value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })}>
+            <option>Low</option>
+            <option>Medium</option>
+            <option>High</option>
+          </select>
+        </label>
+        <label>
+          Resume version used
+          <input
+            value={form.resumeVersion}
+            onChange={(event) => setForm({ ...form, resumeVersion: event.target.value })}
+            placeholder="Data analyst v2, product resume..."
+          />
+        </label>
+        <label>
+          Interview date
+          <input
+            value={form.interviewDate}
+            onChange={(event) => setForm({ ...form, interviewDate: event.target.value })}
+            type="date"
+          />
+        </label>
+        <label>
+          Offer amount
+          <input
+            value={form.offerAmount}
+            onChange={(event) => setForm({ ...form, offerAmount: event.target.value })}
+            placeholder="$85,000 or $35/hr"
+          />
+        </label>
+        <label className="application-notes">
+          Outcome notes
+          <textarea
+            value={form.outcomeNotes}
+            onChange={(event) => setForm({ ...form, outcomeNotes: event.target.value })}
+            placeholder="Outcome, lessons learned, advisor notes, follow-up context..."
+          />
+        </label>
         <button className="primary-button">
           <Plus size={18} />
           {editingId ? "Save changes" : "Add application"}
@@ -202,7 +292,7 @@ export default function ApplicationTracker() {
         <div className="toolbar-actions">
           <button
             className="secondary-action"
-            onClick={() => downloadResumeReport({ applications, title: "FokalView Application Tracker" })}
+            onClick={() => downloadResumeReport({ applications, title: "SagittaIQ Opportunity Tracker" })}
           >
             Download PDF
           </button>
@@ -251,12 +341,66 @@ export default function ApplicationTracker() {
           <div className="empty-panel">
             <BriefcaseBusiness size={24} />
             <strong>No applications yet.</strong>
-            <span>Add your first application above.</span>
+            <span>Add your first opportunity above.</span>
           </div>
         )}
       </section>
     </section>
   );
+}
+
+function combinedNotes(form: {
+  notes: string;
+  followUpDate: string;
+  nextAction: string;
+  priority: string;
+  resumeVersion: string;
+  interviewDate: string;
+  offerAmount: string;
+  outcomeNotes: string;
+}) {
+  const metadata = [
+    form.followUpDate && `Follow-up date: ${form.followUpDate}`,
+    form.nextAction && `Next action: ${form.nextAction}`,
+    form.priority && `Priority: ${form.priority}`,
+    form.resumeVersion && `Resume version used: ${form.resumeVersion}`,
+    form.interviewDate && `Interview date: ${form.interviewDate}`,
+    form.offerAmount && `Offer amount: ${form.offerAmount}`,
+    form.outcomeNotes && `Outcome notes: ${form.outcomeNotes}`
+  ].filter(Boolean);
+  return [form.notes, ...metadata].filter(Boolean).join("\n");
+}
+
+function notesToForm(notes: string) {
+  const valueFor = (label: string) => {
+    const match = notes.split(/\r?\n/).find((line) => line.toLowerCase().startsWith(`${label.toLowerCase()}:`));
+    return match ? match.slice(match.indexOf(":") + 1).trim() : "";
+  };
+  const plainNotes = notes
+    .split(/\r?\n/)
+    .filter((line) =>
+      ![
+        "Follow-up date",
+        "Next action",
+        "Priority",
+        "Resume version used",
+        "Interview date",
+        "Offer amount",
+        "Outcome notes"
+      ].some((label) => line.toLowerCase().startsWith(`${label.toLowerCase()}:`))
+    )
+    .join("\n");
+
+  return {
+    notes: plainNotes,
+    followUpDate: valueFor("Follow-up date"),
+    nextAction: valueFor("Next action"),
+    priority: valueFor("Priority") || "Medium",
+    resumeVersion: valueFor("Resume version used"),
+    interviewDate: valueFor("Interview date"),
+    offerAmount: valueFor("Offer amount"),
+    outcomeNotes: valueFor("Outcome notes")
+  };
 }
 
 function Metric({ label, value }: { label: string; value: number }) {

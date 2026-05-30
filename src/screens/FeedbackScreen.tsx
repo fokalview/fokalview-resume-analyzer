@@ -12,11 +12,11 @@ export default function FeedbackScreen({ analysis, jobHandoff }: Props) {
     <div className="screen">
       <div className="screen-heading">
         <p className="eyebrow">Feedback</p>
-        <h2>Prioritized edits for the next draft.</h2>
-        <p>Work high priority items first, then tighten keyword coverage for the target role.</p>
+        <h2>Prioritized career development recommendations.</h2>
+        <p>Work high priority items first, then tighten opportunity alignment for the target role.</p>
         <button
           className="secondary-action"
-          onClick={() => downloadResumeReport({ analysis, job: jobHandoff, title: "FokalView Resume Feedback Report" })}
+          onClick={() => downloadResumeReport({ analysis, job: jobHandoff, title: "SagittaIQ Career Development Report" })}
         >
           <Download size={18} />
           Download PDF
@@ -25,7 +25,7 @@ export default function FeedbackScreen({ analysis, jobHandoff }: Props) {
 
       <div className="feedback-layout">
         <section>
-          <h3>Recommended improvements</h3>
+          <h3>Recommended next actions</h3>
           <div className="improvement-list">
             {analysis.improvements.map((item) => (
               <article className="improvement" key={item.title}>
@@ -38,10 +38,10 @@ export default function FeedbackScreen({ analysis, jobHandoff }: Props) {
         </section>
 
         <section>
-          <h3>Keyword coverage</h3>
+          <h3>Opportunity alignment analysis</h3>
           <div className="keyword-groups">
             <div>
-              <h4>Matched</h4>
+              <h4>Strength areas</h4>
               <div className="keyword-list">
                 {analysis.keywordAnalysis.matched.map((term) => (
                   <div className="keyword" key={`matched-${term}`}>
@@ -53,7 +53,7 @@ export default function FeedbackScreen({ analysis, jobHandoff }: Props) {
             </div>
 
             <div>
-              <h4>Missing</h4>
+              <h4>Growth opportunities</h4>
               <div className="keyword-list">
                 {analysis.keywordAnalysis.missing.map((term) => (
                   <div className="keyword missing" key={`missing-${term}`}>

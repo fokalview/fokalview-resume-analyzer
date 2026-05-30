@@ -1,7 +1,19 @@
 import { ensureUser } from "./identity.js";
 
 const CONSENT_VERSION = "ferpa-minimum-necessary-v1";
-const STATUSES = new Set(["Interested", "Applied", "Interviewing", "Offer", "Rejected"]);
+const STATUSES = new Set([
+  "Interested",
+  "Researching",
+  "Applying",
+  "Applied",
+  "Recruiter Contact",
+  "Interviewing",
+  "Final Interview",
+  "Offer",
+  "Accepted",
+  "Rejected",
+  "Withdrawn"
+]);
 
 export async function onRequestGet({ request, env }) {
   const auth = await requireAccess(request, env);

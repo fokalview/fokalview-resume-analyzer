@@ -79,7 +79,7 @@ export default function WaitlistScreen() {
       <section className="waitlist-card">
         <div className="waitlist-hero">
           <div className="waitlist-copy">
-            <p className="eyebrow">FokalView - Institutional Early Access</p>
+            <p className="eyebrow">SagittaIQ - Institutional Early Access</p>
             <h1>Workforce readiness, built on real data.</h1>
             <p>
               Analytics powered by actual resume and application data, not assumptions. Built for
@@ -189,7 +189,7 @@ export default function WaitlistScreen() {
           <textarea
             value={form.biggestChallenge}
             onChange={(event) => setForm({ ...form, biggestChallenge: event.target.value })}
-            placeholder="What is hardest about resume readiness, applications, or workforce reporting today?"
+            placeholder="What is hardest about career readiness, applications, or workforce reporting today?"
           />
         </label>
         <label>
@@ -215,7 +215,7 @@ export default function WaitlistScreen() {
         <section className="waitlist-options">
           <Toggle
             label="Discovery interview"
-            help="30 min call with the FokalView team"
+            help="30 min call with the SagittaIQ team"
             checked={form.interviewInterest}
             onChange={(value) => setForm({ ...form, interviewInterest: value })}
           />

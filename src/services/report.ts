@@ -15,7 +15,7 @@ type ReportData = {
   title: string;
 };
 
-export function downloadResumeReport({ analysis, job = {}, applications = [], title = "FokalView report" }: ReportInput) {
+export function downloadResumeReport({ analysis, job = {}, applications = [], title = "SagittaIQ report" }: ReportInput) {
   const reportWindow = window.open("", "_blank");
   if (!reportWindow) return;
 
@@ -56,26 +56,26 @@ function reportHtml({ analysis, job, applications, title }: ReportData) {
     <button onclick="window.print()">Print or save as PDF</button>
     <h1>${escapeHtml(title)}</h1>
     <p class="summary">${escapeHtml(jobSummary(job))}</p>
-    ${currentAnalysis ? `<div class="score">${currentAnalysis.score}% resume readiness</div><p>${escapeHtml(currentAnalysis.summary)}</p>` : ""}
+    ${currentAnalysis ? `<div class="score">${currentAnalysis.score}% career readiness</div><p>${escapeHtml(currentAnalysis.summary)}</p>` : ""}
     <div class="grid">
       <section class="card">
-        <h2>Strengths</h2>
+        <h2>Strength Areas</h2>
         <ul>${strengths.map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No strengths recorded.</li>"}</ul>
       </section>
       <section class="card">
-        <h2>Recommended Improvements</h2>
+        <h2>Recommended Next Actions</h2>
         <ul>${improvements.map((item) => `<li><strong>${escapeHtml(item.priority)}:</strong> ${escapeHtml(item.title)} - ${escapeHtml(item.detail)}</li>`).join("") || "<li>No improvements recorded.</li>"}</ul>
       </section>
       <section class="card">
-        <h2>Matched Keywords</h2>
+        <h2>Strength Areas</h2>
         <ul>${matched.map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No matched keywords recorded.</li>"}</ul>
       </section>
       <section class="card">
-        <h2>Missing Keywords</h2>
+        <h2>Growth Opportunities</h2>
         <ul>${missing.map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No missing keywords recorded.</li>"}</ul>
       </section>
     </div>
-    <h2>Applications</h2>
+    <h2>Opportunity Tracker</h2>
     <table>
       <thead><tr><th>Role</th><th>Company</th><th>Salary</th><th>Status</th><th>Date</th></tr></thead>
       <tbody>

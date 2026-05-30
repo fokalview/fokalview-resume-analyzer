@@ -15,7 +15,7 @@ export default function ResultsScreen({ analysis, jobHandoff, onNext }: Props) {
       <div className="result-hero">
         <div>
           <p className="eyebrow">Results</p>
-          <h2>{analysis.score}% resume readiness</h2>
+          <h2>{analysis.score}% career readiness</h2>
           <p>{analysis.summary}</p>
         </div>
         <div className="score-ring" style={{ "--score": `${analysis.score}%` } as CSSProperties}>
@@ -26,7 +26,7 @@ export default function ResultsScreen({ analysis, jobHandoff, onNext }: Props) {
 
       <section className="split-panel">
         <div>
-          <h3>Strengths</h3>
+          <h3>Career Strengths</h3>
           <ul className="clean-list">
             {analysis.strengths.map((strength) => (
               <li key={strength}>
@@ -38,7 +38,7 @@ export default function ResultsScreen({ analysis, jobHandoff, onNext }: Props) {
         </div>
 
         <div>
-          <h3>Section health</h3>
+          <h3>Readiness Categories</h3>
           <div className="section-list">
             {analysis.sections.map((section) => (
               <div className="section-row" key={section.name}>
@@ -54,11 +54,11 @@ export default function ResultsScreen({ analysis, jobHandoff, onNext }: Props) {
       </section>
 
       <div className="actions">
-        <span>Next: prioritize fixes and missing keywords</span>
+        <span>Next: prioritize career development recommendations</span>
         <div className="toolbar-actions">
           <button
             className="secondary-action"
-            onClick={() => downloadResumeReport({ analysis, job: jobHandoff, title: "FokalView Resume Readiness Report" })}
+            onClick={() => downloadResumeReport({ analysis, job: jobHandoff, title: "SagittaIQ Career Readiness Report" })}
           >
             <Download size={18} />
             Download PDF

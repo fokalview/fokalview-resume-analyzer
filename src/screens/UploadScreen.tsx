@@ -89,10 +89,10 @@ export default function UploadScreen({
     <div className="screen upload-screen">
       <div className="screen-heading">
         <p className="eyebrow">Upload</p>
-        <h2>Review a resume against a target role.</h2>
+        <h2>Evaluate career readiness against a target opportunity.</h2>
         <p>
-          Paste resume text or upload a text-based resume. Jobs sent from the tracker are loaded here
-          automatically and included in the artificial intelligence review.
+          Paste career material text or upload a text-based resume. Opportunities sent from the tracker
+          are loaded here automatically and included in the career intelligence review.
         </p>
         <p className="format-note">
           Supported uploads: PDF, DOCX, ODT, RTF, TXT, MD, and CSV. Scanned/image PDFs may not parse correctly.
@@ -102,7 +102,7 @@ export default function UploadScreen({
 
       <div className="upload-grid">
         <label className="field">
-          <span>Target role</span>
+          <span>Target opportunity</span>
           <input
             value={targetRole}
             onChange={(event) => onTargetRoleChange(event.target.value)}
@@ -111,12 +111,12 @@ export default function UploadScreen({
         </label>
 
         <label className="field">
-          <span>Job tracker handoff</span>
+          <span>Opportunity handoff</span>
           <textarea
             className="job-context"
             value={jobContext}
             onChange={(event) => onJobContextChange(event.target.value)}
-            placeholder="Send a job from the Edge extension or paste the job description here..."
+            placeholder="Send an opportunity from the Edge extension or paste the description here..."
           />
         </label>
 
@@ -133,7 +133,7 @@ export default function UploadScreen({
           tabIndex={0}
         >
           <Upload size={24} />
-          <strong>Drop a resume file here</strong>
+          <strong>Upload career materials</strong>
           <span>PDF, DOCX, ODT, RTF, TXT, MD, and CSV are supported.</span>
           {fileStatus && <small className="file-status">{fileStatus}</small>}
           <input
@@ -151,19 +151,19 @@ export default function UploadScreen({
         <label className="field textarea-field">
           <span>
             <ClipboardPaste size={16} />
-            Resume text
+            Career material text
           </span>
           <textarea
             value={resumeText}
             onChange={(event) => onResumeTextChange(event.target.value)}
-            placeholder="Paste the resume content here..."
+            placeholder="Paste the resume or career material content here..."
           />
         </label>
 
         <section className="storage-panel">
-          <strong>Beta data use</strong>
+          <strong>SagittaIQ beta data use</strong>
           <p>
-            Resume text, job context, generated workforce profile, and analysis results are saved
+            Career material text, job context, generated workforce profile, and analysis results are saved
             under the beta Terms and Privacy Notice after analysis.
           </p>
         </section>
@@ -176,7 +176,7 @@ export default function UploadScreen({
         <span>{resumeText.trim().length.toLocaleString()} characters ready</span>
         <button className="primary-button" disabled={!canSubmit} onClick={submit}>
           {isLoading ? <Loader2 className="spin" size={18} /> : <Upload size={18} />}
-          Analyze resume
+          Analyze career readiness
         </button>
       </div>
     </div>

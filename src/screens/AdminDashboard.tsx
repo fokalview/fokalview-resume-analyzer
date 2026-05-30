@@ -111,7 +111,7 @@ export default function AdminDashboard() {
       <header className="admin-header">
         <div>
           <p className="eyebrow">Administrator</p>
-          <h1>Workforce data dashboard</h1>
+          <h1>SagittaIQ Workforce Intelligence Dashboard</h1>
           {summary && <span className="connected-pill">Connected - Last synced {formatDateTime(summary.meta.lastLoadedAt)}</span>}
         </div>
         <form className="admin-access-form" onSubmit={loadSummary}>
@@ -154,8 +154,9 @@ export default function AdminDashboard() {
       {summary && (
         <>
           <section className="admin-metrics three">
-            <Metric label="Resume records" value={summary.totals.resumeRecords} note="Active pool" />
-            <Metric label="Applications" value={summary.totals.applicationCaptures} note="Linked records" />
+            <Metric label="Total users" value={summary.totals.uniqueUsers} note="Tracked profiles" />
+            <Metric label="Career records" value={summary.totals.resumeRecords} note="Active pool" />
+            <Metric label="Opportunities tracked" value={summary.totals.applicationCaptures} note="Linked records" />
             <ReadinessMetric summary={summary} />
           </section>
 
@@ -174,7 +175,7 @@ export default function AdminDashboard() {
             <ApplicationStatusPanel statuses={summary.applicationStatuses} />
             <SortablePanel title="Top Skills" items={summary.topSkills} />
             <SortablePanel title="Top Tools" items={summary.topTools} />
-            <ChartPanel title="Application Sources" items={summary.applicationSources} />
+            <ChartPanel title="Opportunity Sources" items={summary.applicationSources} />
             <ChartPanel title="Waitlist Organization Types" items={summary.waitlistOrganizationTypes || []} />
             <ChartPanel title="Waitlist Sources" items={summary.waitlistSources || []} />
             <ChartPanel title="Waitlist Interest" items={toCountItems(summary.waitlistInterest || {})} />
@@ -185,8 +186,8 @@ export default function AdminDashboard() {
 
           <section className="admin-table-panel">
             <div className="panel-heading">
-              <h2>Resume Records</h2>
-              <button className="panel-menu" aria-label="Resume record options">...</button>
+              <h2>Recent Candidate Activity</h2>
+              <button className="panel-menu" aria-label="Candidate record options">...</button>
             </div>
             <div className="admin-table record-table">
               {summary.recentResumeRecords.map((record) => (
@@ -201,7 +202,7 @@ export default function AdminDashboard() {
                       )}
                     </div>
                   </div>
-                  <span>{record.targetRole || "No target role"}</span>
+                  <span>{record.targetRole || "No target opportunity"}</span>
                   <span className={`score-pill ${scoreClass(record.score)}`}>{record.score}%</span>
                   <span>{formatDate(record.capturedAt)}</span>
                   <span className="status-pill applied">Active</span>
@@ -275,7 +276,7 @@ function ReadinessMetric({ summary }: { summary: AdminSummary }) {
   return (
     <article className="readiness-metric">
       <strong className={scoreClass(score)}>{score}%</strong>
-      <span>Average readiness</span>
+      <span>Average career readiness</span>
       <small>{delta >= 0 ? "+" : ""}{delta} pts from strong match threshold</small>
       <div className="threshold-track" title="Readiness = weighted match across skills, tools, and role fit">
         <span style={{ width: `${Math.min(100, score)}%` }} />
@@ -361,7 +362,7 @@ function ApplicationStatusPanel({ statuses }: { statuses: Record<string, number>
   const items = toCountItems(statuses);
   return (
     <section className="chart-panel">
-      <PanelHeading title="Application Statuses" />
+      <PanelHeading title="Application Status Funnel" />
       {items.length ? (
         <div className="bar-list">
           {items.map((item) => (
@@ -371,7 +372,7 @@ function ApplicationStatusPanel({ statuses }: { statuses: Record<string, number>
       ) : (
         <div className="empty-panel compact">
           <strong>No applications linked.</strong>
-          <span>Application tracking appears once users add applications with email enabled.</span>
+          <span>Opportunity tracking appears once users add opportunities with email enabled.</span>
           <button className="secondary-action">Add manually</button>
         </div>
       )}
