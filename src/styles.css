@@ -185,8 +185,8 @@ button:disabled {
 
 .waitlist-hero p {
   max-width: 760px;
-  color: #d7e4ea;
-  font-size: 1rem;
+  color: #e5eef3;
+  font-size: 1.03rem;
   line-height: 1.6;
 }
 
@@ -209,8 +209,8 @@ button:disabled {
   padding: 0 10px;
   border: 1px solid rgba(125, 211, 252, 0.34);
   border-radius: 3px;
-  color: #d9f2ff;
-  font-size: 0.76rem;
+  color: #edf9ff;
+  font-size: 0.82rem;
   font-weight: 800;
 }
 
@@ -252,8 +252,8 @@ button:disabled {
 }
 
 .waitlist-summary span {
-  color: #bdd0da;
-  font-size: 0.9rem;
+  color: #dbe8ee;
+  font-size: 0.95rem;
   line-height: 1.45;
 }
 
@@ -279,7 +279,7 @@ button:disabled {
 }
 
 .waitlist-stats small {
-  color: #9ab1bd;
+  color: #d6e3ea;
   font-weight: 750;
 }
 
@@ -298,24 +298,34 @@ button:disabled {
 .waitlist-form label {
   display: grid;
   gap: 7px;
-  color: #5d6b72;
-  font-size: 0.72rem;
+  color: #26323c;
+  font-size: 0.82rem;
   font-weight: 900;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
 }
 
 .waitlist-form input,
 .waitlist-form select,
 .waitlist-form textarea {
-  border-color: #343533;
-  background: #2f302d;
-  color: #f8f7f2;
+  border-color: #6b7280;
+  background: #ffffff;
+  color: #111827;
 }
 
 .waitlist-form input::placeholder,
 .waitlist-form textarea::placeholder {
-  color: #c8c2b4;
+  color: #5f6b77;
+  opacity: 1;
+}
+
+.waitlist-form input:focus,
+.waitlist-form select:focus,
+.waitlist-form textarea:focus,
+.toggle-row:focus-within {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.2);
+  outline: none;
 }
 
 .wide-field {
@@ -328,10 +338,10 @@ button:disabled {
   align-items: center;
   gap: 14px;
   margin-top: 8px;
-  color: #647482;
-  font-size: 0.72rem;
+  color: #344252;
+  font-size: 0.82rem;
   font-weight: 900;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
@@ -354,7 +364,7 @@ button:disabled {
   align-items: start;
   min-height: 70px;
   padding: 12px;
-  border: 1px solid #d8d2c4;
+  border: 1px solid #b8c0c8;
   border-radius: 8px;
   background: #ffffff;
   line-height: 1.35;
@@ -375,13 +385,13 @@ button:disabled {
 
 .toggle-row strong {
   color: #18202a;
-  font-size: 0.85rem;
+  font-size: 0.92rem;
 }
 
 .toggle-row small {
-  color: #647482;
-  font-size: 0.76rem;
-  font-weight: 650;
+  color: #4b5563;
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 .waitlist-submit {
