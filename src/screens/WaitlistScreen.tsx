@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { ArrowRight, ClipboardList, UsersRound } from "lucide-react";
+import { ArrowRight, BarChart3, ClipboardList, ShieldCheck, UsersRound } from "lucide-react";
 
 const ORGANIZATION_TYPES = [
   "Higher education",
@@ -76,36 +76,64 @@ export default function WaitlistScreen() {
 
   return (
     <main className="waitlist-shell">
-      <section className="waitlist-hero">
-        <div>
-          <p className="eyebrow">FokalView Early Access</p>
-          <h1>Build better workforce readiness from real resume and application data.</h1>
-          <p>
-            Join the customer discovery list for pilots, advisor interviews, beta access, and institutional
-            workflow feedback.
-          </p>
+      <section className="waitlist-card">
+        <div className="waitlist-hero">
+          <div className="waitlist-copy">
+            <p className="eyebrow">FokalView - Institutional Early Access</p>
+            <h1>Workforce readiness, built on real data.</h1>
+            <p>
+              Analytics powered by actual resume and application data, not assumptions. Built for
+              career centers, workforce boards, and institutional partners who need actionable insight.
+            </p>
+            <div className="waitlist-tags">
+              <span>Resume scoring</span>
+              <span>Cohort analytics</span>
+              <span>Advisor workflows</span>
+              <span>Institutional reporting</span>
+              <span>Pilot program</span>
+            </div>
+          </div>
+
+          <div className="waitlist-summary">
+            <article>
+              <BarChart3 size={20} />
+              <div>
+                <strong>Resume and application intelligence</strong>
+                <span>Aggregate cohort data, score trends, skill gaps, and outcomes in one readiness view.</span>
+              </div>
+            </article>
+            <article>
+              <UsersRound size={20} />
+              <div>
+                <strong>Built for career advisors</strong>
+                <span>Flag at-risk students, track progress, and generate reports your leadership can use.</span>
+              </div>
+            </article>
+            <article>
+              <ShieldCheck size={20} />
+              <div>
+                <strong>Institutional-grade trust</strong>
+                <span>Designed for privacy-conscious environments. Your data stays yours.</span>
+              </div>
+            </article>
+            <div className="waitlist-stats" aria-label="Early access stats">
+              <span><strong>Beta</strong><small>cohort forming</small></span>
+              <span><strong>Free</strong><small>pilot access</small></span>
+              <span><strong>3x</strong><small>faster reporting</small></span>
+            </div>
+          </div>
         </div>
-        <div className="waitlist-summary">
-          <article>
-            <UsersRound size={20} />
-            <strong>For programs</strong>
-            <span>Career services, workforce boards, mentors, and pilot partners.</span>
-          </article>
-          <article>
-            <ClipboardList size={20} />
-            <strong>Discovery ready</strong>
-            <span>Capture challenges, current tools, requested features, and pilot interest.</span>
-          </article>
-        </div>
-      </section>
 
       <form className="waitlist-form" onSubmit={submit}>
+        <div className="form-section-title">
+          <span>Your information</span>
+        </div>
         <label>
-          Name
+          Full name
           <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required />
         </label>
         <label>
-          Email
+          Work email
           <input
             value={form.email}
             onChange={(event) => setForm({ ...form, email: event.target.value })}
@@ -153,6 +181,9 @@ export default function WaitlistScreen() {
             placeholder="https://linkedin.com/in/..."
           />
         </label>
+        <div className="form-section-title">
+          <span>Context and challenges</span>
+        </div>
         <label className="wide-field">
           Biggest challenge
           <textarea
@@ -178,24 +209,31 @@ export default function WaitlistScreen() {
           />
         </label>
 
+        <div className="form-section-title">
+          <span>Engagement interest</span>
+        </div>
         <section className="waitlist-options">
           <Toggle
-            label="Open to a customer discovery interview"
+            label="Discovery interview"
+            help="30 min call with the FokalView team"
             checked={form.interviewInterest}
             onChange={(value) => setForm({ ...form, interviewInterest: value })}
           />
           <Toggle
-            label="Interested in beta access"
+            label="Beta access"
+            help="Early platform access before public launch"
             checked={form.betaInterest}
             onChange={(value) => setForm({ ...form, betaInterest: value })}
           />
           <Toggle
-            label="Potential pilot partner"
+            label="Institutional pilot"
+            help="Formal pilot with onboarding support"
             checked={form.pilotInterest}
             onChange={(value) => setForm({ ...form, pilotInterest: value })}
           />
           <Toggle
-            label="Budget-qualified or buying influence"
+            label="Procurement involvement"
+            help="Influence or hold budget decisions"
             checked={form.budgetInterest}
             onChange={(value) => setForm({ ...form, budgetInterest: value })}
           />
@@ -205,19 +243,33 @@ export default function WaitlistScreen() {
         {status && <p className="success-message">{status}</p>}
 
         <button className="primary-button waitlist-submit" disabled={isSubmitting}>
-          {isSubmitting ? "Submitting..." : "Join waitlist"}
+          {isSubmitting ? "Submitting..." : "Request access"}
           <ArrowRight size={18} />
         </button>
       </form>
+      </section>
     </main>
   );
 }
 
-function Toggle({ label, checked, onChange }: { label: string; checked: boolean; onChange: (value: boolean) => void }) {
+function Toggle({
+  label,
+  help,
+  checked,
+  onChange
+}: {
+  label: string;
+  help: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
   return (
     <label className="toggle-row">
       <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
-      <span>{label}</span>
+      <span>
+        <strong>{label}</strong>
+        <small>{help}</small>
+      </span>
     </label>
   );
 }
