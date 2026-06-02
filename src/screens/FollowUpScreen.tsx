@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useId, useState, type FormEvent } from "react";
 import { ArrowRight, ClipboardCheck } from "lucide-react";
 
 const CURRENT_STATUSES = [
@@ -61,6 +61,7 @@ export default function FollowUpScreen() {
 
   return (
     <main className="waitlist-shell">
+      <a className="skip-link" href="#follow-up-form">Skip to follow-up form</a>
       <section className="waitlist-card followup-card">
         <div className="followup-hero">
           <ClipboardCheck size={32} />
@@ -72,7 +73,7 @@ export default function FollowUpScreen() {
           </p>
         </div>
 
-        <form className="waitlist-form" onSubmit={submit}>
+        <form id="follow-up-form" className="waitlist-form" onSubmit={submit} aria-label="SagittaIQ career progress follow-up" aria-busy={isSubmitting}>
           <div className="form-section-title"><span>Identifiers</span></div>
           <TextField label="Lead ID" value={form.leadId} onChange={(value) => setForm({ ...form, leadId: value })} placeholder="LD-000001" />
           <TextField label="Candidate ID" value={form.candidateId} onChange={(value) => setForm({ ...form, candidateId: value })} placeholder="SGQ-C-000001" />
@@ -89,7 +90,7 @@ export default function FollowUpScreen() {
           <SelectField label="Current industry" value={form.currentIndustry} onChange={(value) => setForm({ ...form, currentIndustry: value })} options={INDUSTRIES} />
           <SelectField label="Salary range" value={form.salaryRange} onChange={(value) => setForm({ ...form, salaryRange: value })} options={SALARY_RANGES} />
           <label className="wide-field">
-            Support needed
+            <span>Support needed</span>
             <textarea
               value={form.supportNeeded}
               onChange={(event) => setForm({ ...form, supportNeeded: event.target.value })}
@@ -97,7 +98,7 @@ export default function FollowUpScreen() {
             />
           </label>
           <label className="wide-field">
-            Notes
+            <span>Notes</span>
             <textarea
               value={form.notes}
               onChange={(event) => setForm({ ...form, notes: event.target.value })}
@@ -105,8 +106,8 @@ export default function FollowUpScreen() {
             />
           </label>
 
-          {error && <p className="error-message">{error}</p>}
-          {status && <p className="success-message">{status}</p>}
+          {error && <p className="error-message" role="alert">{error}</p>}
+          {status && <p className="success-message" role="status" aria-live="polite">{status}</p>}
 
           <button className="primary-button waitlist-submit" disabled={isSubmitting}>
             {isSubmitting ? "Submitting..." : "Submit follow-up"}
@@ -131,10 +132,11 @@ function TextField({
   type?: string;
   placeholder?: string;
 }) {
+  const inputId = useId();
   return (
-    <label>
-      {label}
-      <input value={value} onChange={(event) => onChange(event.target.value)} type={type} placeholder={placeholder} />
+    <label htmlFor={inputId}>
+      <span>{label}</span>
+      <input id={inputId} value={value} onChange={(event) => onChange(event.target.value)} type={type} placeholder={placeholder} />
     </label>
   );
 }
@@ -150,10 +152,11 @@ function SelectField({
   onChange: (value: string) => void;
   options: string[];
 }) {
+  const inputId = useId();
   return (
-    <label>
-      {label}
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
+    <label htmlFor={inputId}>
+      <span>{label}</span>
+      <select id={inputId} value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">Select</option>
         {options.map((item) => (
           <option key={item}>{item}</option>

@@ -3,6 +3,8 @@ import { BarChart3, Download, LockKeyhole, RefreshCw, Search, Settings2 } from "
 
 type CountItem = { label: string; count: number; percentAffected?: number };
 type UsageDay = { date: string; resumes: number; applications: number; uniqueUsers: number };
+type FunnelItem = { label: string; count: number; rate: number };
+type ConversionMetric = { label: string; value: number; detail: string };
 
 type AdminSummary = {
   meta: { readinessThreshold: number; lastLoadedAt: string; query?: string };
@@ -15,6 +17,10 @@ type AdminSummary = {
     budgetQualified: number;
     averageLeadScore?: number;
     followUpSurveys?: number;
+    followUpApplications?: number;
+    followUpInterviews?: number;
+    followUpOffers?: number;
+    followUpPlacements?: number;
     uniqueUsers: number;
     rawResumeRecords: number;
     averageReadinessScore: number;
@@ -38,6 +44,13 @@ type AdminSummary = {
   waitlistCurrentProcesses?: CountItem[];
   waitlistWorkforceRegions?: CountItem[];
   followUpOutcomes?: Record<string, number>;
+  followUpStatuses?: Record<string, number>;
+  followUpIndustries?: CountItem[];
+  followUpSalaryRanges?: CountItem[];
+  waitlistLeadScoreBands?: Record<string, number>;
+  waitlistFunnel?: FunnelItem[];
+  followUpFunnel?: FunnelItem[];
+  conversionMetrics?: ConversionMetric[];
   waitlistInterest: Record<string, number>;
   emailDomains: CountItem[];
   emailDomainTypes: Record<string, number>;
@@ -216,9 +229,16 @@ export default function AdminDashboard() {
             <Metric label="Pilot prospects" value={summary.totals.pilotProspects || 0} note="Institutional leads" />
             <Metric label="Avg lead score" value={summary.totals.averageLeadScore || 0} note="Rules-based priority" />
             <Metric label="Follow-ups" value={summary.totals.followUpSurveys || 0} note="Outcome signals" />
+            <Metric label="Applications reported" value={summary.totals.followUpApplications || 0} note="From follow-up surveys" />
+            <Metric label="Interviews reported" value={summary.totals.followUpInterviews || 0} note="Outcome momentum" />
+            <Metric label="Offers / placements" value={`${summary.totals.followUpOffers || 0} / ${summary.totals.followUpPlacements || 0}`} note="Career outcomes" />
           </section>
 
           <section className="admin-grid">
+            <FunnelPanel title="Waitlist Pipeline" items={summary.waitlistFunnel || []} />
+            <FunnelPanel title="Follow-up Outcome Funnel" items={summary.followUpFunnel || []} />
+            <ConversionPanel items={summary.conversionMetrics || []} />
+            <ChartPanel title="Lead Score Bands" items={toCountItems(summary.waitlistLeadScoreBands || {})} />
             <UsagePanel days={summary.usageByDay} />
             <ReadinessBands bands={summary.readinessBands} total={summary.totals.resumeRecords} />
             <ChartPanel title="Career Levels" items={toCountItems(summary.careerLevels)} showZeroRows />
@@ -236,6 +256,9 @@ export default function AdminDashboard() {
             <ChartPanel title="Current Processes" items={summary.waitlistCurrentProcesses || []} />
             <ChartPanel title="Workforce Regions" items={summary.waitlistWorkforceRegions || []} />
             <ChartPanel title="Follow-up Outcomes" items={toCountItems(summary.followUpOutcomes || {})} />
+            <ChartPanel title="Follow-up Statuses" items={toCountItems(summary.followUpStatuses || {})} />
+            <ChartPanel title="Follow-up Industries" items={summary.followUpIndustries || []} />
+            <ChartPanel title="Follow-up Salary Ranges" items={summary.followUpSalaryRanges || []} />
             <ChartPanel title="Waitlist Sources" items={summary.waitlistSources || []} />
             <ChartPanel title="Waitlist Interest" items={toCountItems(summary.waitlistInterest || {})} />
             <ChartPanel title="Email Domains" items={summary.emailDomains} />
@@ -522,6 +545,54 @@ function ApplicationStatusPanel({ statuses }: { statuses: Record<string, number>
   );
 }
 
+function FunnelPanel({ title, items }: { title: string; items: FunnelItem[] }) {
+  const max = Math.max(...items.map((item) => item.count), 1);
+  return (
+    <section className="chart-panel funnel-panel">
+      <PanelHeading title={title} />
+      {items.length ? (
+        <div className="funnel-list">
+          {items.map((item) => (
+            <div key={item.label} className="funnel-row">
+              <div>
+                <strong>{item.count}</strong>
+                <span>{item.label}</span>
+                <small>{item.rate}% conversion</small>
+              </div>
+              <span className="funnel-fill">
+                <i style={{ width: item.count ? `${Math.max(4, (item.count / max) * 100)}%` : "0%" }} />
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p>No pipeline data yet.</p>
+      )}
+    </section>
+  );
+}
+
+function ConversionPanel({ items }: { items: ConversionMetric[] }) {
+  return (
+    <section className="chart-panel conversion-panel">
+      <PanelHeading title="Conversion Signals" />
+      {items.length ? (
+        <div className="conversion-grid">
+          {items.map((item) => (
+            <article key={item.label}>
+              <strong>{item.value}%</strong>
+              <span>{item.label}</span>
+              <small>{item.detail}</small>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <p>No conversion data yet.</p>
+      )}
+    </section>
+  );
+}
+
 function SortablePanel({ title, items }: { title: string; items: CountItem[] }) {
   const [sort, setSort] = useState<"count" | "az">("count");
   const sorted = [...items].sort((left, right) =>
@@ -620,7 +691,14 @@ function exportResearchBundle(summary: AdminSummary) {
       waitlistTargetIndustries: summary.waitlistTargetIndustries,
       waitlistCurrentProcesses: summary.waitlistCurrentProcesses,
       waitlistWorkforceRegions: summary.waitlistWorkforceRegions,
-      followUpOutcomes: summary.followUpOutcomes
+      waitlistLeadScoreBands: summary.waitlistLeadScoreBands,
+      waitlistFunnel: summary.waitlistFunnel,
+      followUpFunnel: summary.followUpFunnel,
+      conversionMetrics: summary.conversionMetrics,
+      followUpOutcomes: summary.followUpOutcomes,
+      followUpStatuses: summary.followUpStatuses,
+      followUpIndustries: summary.followUpIndustries,
+      followUpSalaryRanges: summary.followUpSalaryRanges
     }
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });

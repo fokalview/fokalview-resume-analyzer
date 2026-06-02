@@ -141,9 +141,31 @@ button {
   cursor: pointer;
 }
 
+:focus-visible {
+  outline: 3px solid #0f766e;
+  outline-offset: 3px;
+}
+
 button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
+}
+
+.skip-link {
+  position: fixed;
+  z-index: 1000;
+  top: 12px;
+  left: 12px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  font-weight: 900;
+  transform: translateY(-140%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
 }
 
 .waitlist-shell {
@@ -382,6 +404,10 @@ button:disabled {
   border-color: #0f766e;
   box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.2);
   outline: none;
+}
+
+.required-mark {
+  color: #b42318;
 }
 
 .wide-field {
@@ -885,6 +911,90 @@ button:disabled {
 
 .bar-row meter {
   width: 100%;
+}
+
+.funnel-panel,
+.conversion-panel {
+  min-height: 280px;
+}
+
+.funnel-list {
+  display: grid;
+  gap: 14px;
+}
+
+.funnel-row {
+  display: grid;
+  gap: 7px;
+}
+
+.funnel-row div {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 118px;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.funnel-row strong {
+  color: #0f766e;
+  font-size: 1.3rem;
+}
+
+.funnel-row span {
+  overflow: hidden;
+  color: #344252;
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.funnel-row small {
+  text-align: right;
+}
+
+.funnel-fill {
+  display: block;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8edf1;
+}
+
+.funnel-fill i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #0f766e, #22a699);
+}
+
+.conversion-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.conversion-grid article {
+  display: grid;
+  gap: 4px;
+  min-height: 108px;
+  padding: 14px;
+  border: 1px solid #d8e0e8;
+  border-radius: 8px;
+  background: #f8fbfc;
+}
+
+.conversion-grid strong {
+  color: #0f766e;
+  font-size: 1.55rem;
+}
+
+.conversion-grid span {
+  color: #18202a;
+  font-weight: 900;
+}
+
+.conversion-grid small {
+  line-height: 1.35;
 }
 
 .usage-chart {
@@ -1820,8 +1930,15 @@ meter {
   .waitlist-hero,
   .waitlist-form,
   .waitlist-options,
-  .waitlist-table article {
+  .waitlist-table article,
+  .followup-table article,
+  .conversion-grid,
+  .funnel-row div {
     grid-template-columns: 1fr;
+  }
+
+  .funnel-row small {
+    text-align: left;
   }
 
   .waitlist-shell {
@@ -1853,5 +1970,18 @@ meter {
   .result-hero {
     align-items: flex-start;
     flex-direction: column;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+
+  .feature-preview article,
+  .spin {
+    animation: none !important;
   }
 }

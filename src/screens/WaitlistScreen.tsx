@@ -1,4 +1,4 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useId, useMemo, useState, type FormEvent } from "react";
 import {
   ArrowRight,
   BarChart3,
@@ -181,6 +181,7 @@ export default function WaitlistScreen() {
 
   return (
     <main className="waitlist-shell">
+      <a className="skip-link" href="#waitlist-form">Skip to waitlist form</a>
       <section className="waitlist-card">
         <div className="waitlist-hero">
           <div className="waitlist-copy">
@@ -248,19 +249,19 @@ export default function WaitlistScreen() {
           })}
         </section>
 
-        <form className="waitlist-form" onSubmit={submit}>
+        <form id="waitlist-form" className="waitlist-form" onSubmit={submit} aria-label="SagittaIQ waitlist signup" aria-busy={isSubmitting}>
           <div className="form-section-title">
             <span>Start here</span>
           </div>
           <label className="wide-field">
-            Who are you joining as?
+            <span>Who are you joining as? <span className="required-mark" aria-hidden="true">*</span></span>
             <select value={form.userType} onChange={(event) => setField("userType", event.target.value)}>
               {USER_TYPES.map((item) => (
                 <option key={item}>{item}</option>
               ))}
             </select>
           </label>
-          <div className="branch-note">
+          <div className="branch-note" aria-live="polite">
             <strong>{branchTitle}</strong>
             <span>The next questions adjust to keep this short and relevant.</span>
           </div>
@@ -280,7 +281,7 @@ export default function WaitlistScreen() {
             required={isOrganization}
           />
           <label>
-            Referral source
+            <span>Referral source</span>
             <select value={form.referralSource} onChange={(event) => setField("referralSource", event.target.value)}>
               {REFERRAL_SOURCES.map((item) => (
                 <option key={item}>{item}</option>
@@ -288,7 +289,7 @@ export default function WaitlistScreen() {
             </select>
           </label>
           <label>
-            Preferred contact
+            <span>Preferred contact</span>
             <select
               value={form.preferredContactMethod}
               onChange={(event) => setField("preferredContactMethod", event.target.value)}
@@ -379,8 +380,8 @@ export default function WaitlistScreen() {
             />
           </section>
 
-          {error && <p className="error-message">{error}</p>}
-          {status && <p className="success-message">{status}</p>}
+          {error && <p className="error-message" role="alert">{error}</p>}
+          {status && <p className="success-message" role="status" aria-live="polite">{status}</p>}
 
           <button className="primary-button waitlist-submit" disabled={isSubmitting}>
             {isSubmitting ? "Submitting..." : "Request access"}
@@ -666,10 +667,22 @@ function TextField({
   placeholder?: string;
   required?: boolean;
 }) {
+  const inputId = useId();
   return (
-    <label className={className}>
-      {label}
-      <input value={value} onChange={(event) => onChange(event.target.value)} type={type} placeholder={placeholder} required={required} />
+    <label className={className} htmlFor={inputId}>
+      <span>
+        {label}
+        {required && <span className="required-mark" aria-hidden="true"> *</span>}
+      </span>
+      <input
+        id={inputId}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        type={type}
+        placeholder={placeholder}
+        required={required}
+        aria-required={required || undefined}
+      />
     </label>
   );
 }
@@ -689,10 +702,21 @@ function TextArea({
   placeholder?: string;
   required?: boolean;
 }) {
+  const inputId = useId();
   return (
-    <label className={className}>
-      {label}
-      <textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} required={required} />
+    <label className={className} htmlFor={inputId}>
+      <span>
+        {label}
+        {required && <span className="required-mark" aria-hidden="true"> *</span>}
+      </span>
+      <textarea
+        id={inputId}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        required={required}
+        aria-required={required || undefined}
+      />
     </label>
   );
 }
@@ -708,10 +732,11 @@ function SelectField({
   onChange: (value: string) => void;
   options: string[];
 }) {
+  const inputId = useId();
   return (
-    <label>
-      {label}
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
+    <label htmlFor={inputId}>
+      <span>{label}</span>
+      <select id={inputId} value={value} onChange={(event) => onChange(event.target.value)}>
         <option value="">Select</option>
         {options.map((item) => (
           <option key={item}>{item}</option>

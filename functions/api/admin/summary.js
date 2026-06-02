@@ -110,6 +110,7 @@ export async function onRequestGet({ request, env }) {
   const followups = filterFollowups(followupRows.results || [], query);
   const readinessThreshold = Number(env.READINESS_THRESHOLD || 85);
   const averageReadinessScore = average(resumes.map((item) => item.analysis.score));
+  const followUpTotals = buildFollowUpTotals(followups);
   const uniqueUsers = new Set([
     ...resumes.map((item) => item.userId || item.clientHash),
     ...applications.map((item) => item.userId || item.clientHash)
@@ -131,6 +132,10 @@ export async function onRequestGet({ request, env }) {
       budgetQualified: waitlist.filter((item) => item.budgetInterest).length,
       averageLeadScore: average(waitlist.map((item) => Number(item.leadScore || 0))),
       followUpSurveys: followups.length,
+      followUpApplications: followUpTotals.applications,
+      followUpInterviews: followUpTotals.interviews,
+      followUpOffers: followUpTotals.offers,
+      followUpPlacements: followUpTotals.placements,
       uniqueUsers,
       rawResumeRecords: resumes.filter((item) => item.rawResumeRetained).length,
       averageReadinessScore,
@@ -160,6 +165,13 @@ export async function onRequestGet({ request, env }) {
     waitlistCurrentProcesses: topCounts(waitlist.map((item) => item.currentProcess).filter(Boolean), 12),
     waitlistWorkforceRegions: topCounts(waitlist.map((item) => item.workforceRegion).filter(Boolean), 12),
     followUpOutcomes: countBy(followups.map((item) => item.placementStatus).filter(Boolean)),
+    followUpStatuses: countBy(followups.map((item) => item.currentStatus).filter(Boolean)),
+    followUpIndustries: topCounts(followups.map((item) => item.currentIndustry).filter(Boolean), 12),
+    followUpSalaryRanges: topCounts(followups.map((item) => item.salaryRange).filter(Boolean), 12),
+    waitlistLeadScoreBands: buildLeadScoreBands(waitlist),
+    waitlistFunnel: buildWaitlistFunnel(waitlist, followups),
+    followUpFunnel: buildFollowUpFunnel(waitlist, followups, followUpTotals),
+    conversionMetrics: buildConversionMetrics(waitlist, followups, followUpTotals),
     waitlistInterest: {
       Interviews: waitlist.filter((item) => item.interviewInterest).length,
       Beta: waitlist.filter((item) => item.betaInterest).length,
@@ -516,6 +528,82 @@ function groupSkillGaps(values, totalRecords) {
   return groups;
 }
 
+function buildFollowUpTotals(followups) {
+  return followups.reduce(
+    (totals, item) => {
+      const applications = Number(item.applicationCount || 0);
+      const interviews = Number(item.interviewCount || 0);
+      const offers = Number(item.offerCount || 0);
+      const placementStatus = String(item.placementStatus || "").toLowerCase();
+      totals.applications += Number.isFinite(applications) ? applications : 0;
+      totals.interviews += Number.isFinite(interviews) ? interviews : 0;
+      totals.offers += Number.isFinite(offers) ? offers : 0;
+      if (placementStatus.includes("placed") || placementStatus.includes("accepted")) totals.placements += 1;
+      return totals;
+    },
+    { applications: 0, interviews: 0, offers: 0, placements: 0 }
+  );
+}
+
+function buildLeadScoreBands(waitlist) {
+  return {
+    "0-24": waitlist.filter((item) => Number(item.leadScore || 0) < 25).length,
+    "25-49": waitlist.filter((item) => Number(item.leadScore || 0) >= 25 && Number(item.leadScore || 0) < 50).length,
+    "50-74": waitlist.filter((item) => Number(item.leadScore || 0) >= 50 && Number(item.leadScore || 0) < 75).length,
+    "75-89": waitlist.filter((item) => Number(item.leadScore || 0) >= 75 && Number(item.leadScore || 0) < 90).length,
+    "90-100": waitlist.filter((item) => Number(item.leadScore || 0) >= 90).length
+  };
+}
+
+function buildWaitlistFunnel(waitlist, followups) {
+  const total = waitlist.length;
+  const followupKeys = new Set(
+    followups
+      .flatMap((item) => [item.leadId, item.candidateId, item.contactId, item.emailDomain])
+      .filter(Boolean)
+  );
+  const matchedFollowups = waitlist.filter((item) =>
+    [item.leadId, item.candidateId, item.contactId, item.emailDomain].some((value) => value && followupKeys.has(value))
+  ).length;
+
+  return [
+    { label: "Waitlist signups", count: total, rate: 100 },
+    { label: "Interview volunteers", count: waitlist.filter((item) => item.interviewInterest).length, rate: percentNumber(waitlist.filter((item) => item.interviewInterest).length, total) },
+    { label: "Pilot prospects", count: waitlist.filter((item) => item.pilotInterest).length, rate: percentNumber(waitlist.filter((item) => item.pilotInterest).length, total) },
+    { label: "Budget qualified", count: waitlist.filter((item) => item.budgetInterest).length, rate: percentNumber(waitlist.filter((item) => item.budgetInterest).length, total) },
+    { label: "Submitted follow-up", count: matchedFollowups || followups.length, rate: percentNumber(matchedFollowups || followups.length, total) }
+  ];
+}
+
+function buildFollowUpFunnel(waitlist, followups, totals) {
+  const total = Math.max(waitlist.length, followups.length, 1);
+  const interviewSignals = followups.filter(
+    (item) => Number(item.interviewCount || 0) > 0 || String(item.currentStatus || "").toLowerCase().includes("interview")
+  ).length;
+  const offerSignals = followups.filter(
+    (item) => Number(item.offerCount || 0) > 0 || String(item.placementStatus || "").toLowerCase().includes("offer")
+  ).length;
+
+  return [
+    { label: "Follow-up responses", count: followups.length, rate: percentNumber(followups.length, total) },
+    { label: "Applications reported", count: totals.applications, rate: percentNumber(totals.applications, Math.max(totals.applications, 1)) },
+    { label: "Interview signals", count: Math.max(interviewSignals, totals.interviews), rate: percentNumber(Math.max(interviewSignals, totals.interviews), Math.max(followups.length, 1)) },
+    { label: "Offer signals", count: Math.max(offerSignals, totals.offers), rate: percentNumber(Math.max(offerSignals, totals.offers), Math.max(followups.length, 1)) },
+    { label: "Placed / accepted", count: totals.placements, rate: percentNumber(totals.placements, Math.max(followups.length, 1)) }
+  ];
+}
+
+function buildConversionMetrics(waitlist, followups, totals) {
+  return [
+    { label: "Discovery interest", value: percentNumber(waitlist.filter((item) => item.interviewInterest).length, waitlist.length), detail: "Waitlist leads open to a call" },
+    { label: "Pilot interest", value: percentNumber(waitlist.filter((item) => item.pilotInterest).length, waitlist.length), detail: "Institutional or partner pilot signal" },
+    { label: "Budget signal", value: percentNumber(waitlist.filter((item) => item.budgetInterest).length, waitlist.length), detail: "Procurement or budget influence" },
+    { label: "Follow-up response", value: percentNumber(followups.length, waitlist.length), detail: "Outcome surveys returned" },
+    { label: "Offer conversion", value: percentNumber(totals.offers, Math.max(followups.length, 1)), detail: "Offers reported per follow-up" },
+    { label: "Placement conversion", value: percentNumber(totals.placements, Math.max(followups.length, 1)), detail: "Placed or accepted outcomes" }
+  ];
+}
+
 function gapCategory(label) {
   const value = label.toLowerCase();
   if (
@@ -543,6 +631,10 @@ function average(values) {
   const valid = values.filter((value) => Number.isFinite(value));
   if (!valid.length) return 0;
   return Math.round(valid.reduce((sum, value) => sum + value, 0) / valid.length);
+}
+
+function percentNumber(count, total) {
+  return total ? Math.round((count / total) * 100) : 0;
 }
 
 function countBy(values) {
