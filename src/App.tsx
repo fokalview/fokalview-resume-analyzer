@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { BriefcaseBusiness, FileText, MessageSquareText, Sparkles } from "lucide-react";
+import { BriefcaseBusiness, FileText, Gauge, MessageSquareText, Sparkles } from "lucide-react";
 import UploadScreen from "./screens/UploadScreen";
 import ResultsScreen from "./screens/ResultsScreen";
 import FeedbackScreen from "./screens/FeedbackScreen";
 import WelcomeScreen from "./screens/WelcomeScreen";
 import AdminDashboard from "./screens/AdminDashboard";
 import ApplicationTracker from "./screens/ApplicationTracker";
+import CandidateDashboard from "./screens/CandidateDashboard";
 import FollowUpScreen from "./screens/FollowUpScreen";
 import WaitlistScreen from "./screens/WaitlistScreen";
 import { getStoredAccessCode } from "./services/access";
@@ -32,7 +33,7 @@ function ResumeApp() {
   const handoff = readJobHandoff();
   const [hasBetaAccess, setHasBetaAccess] = useState(Boolean(getStoredAccessCode()));
   const [userIdentity, setUserIdentity] = useState<{ userId: string; candidateId?: string; identifierType: string } | null>(null);
-  const [screen, setScreen] = useState<Screen>("upload");
+  const [screen, setScreen] = useState<Screen>("dashboard");
   const [analysis, setAnalysis] = useState<ResumeAnalysis | null>(null);
   const [resumeText, setResumeText] = useState("");
   const [targetRole, setTargetRole] = useState(handoff.targetRole);
@@ -63,6 +64,10 @@ function ResumeApp() {
         </div>
 
         <nav className="step-list">
+          <button className={screen === "dashboard" ? "active" : ""} onClick={() => setScreen("dashboard")}>
+            <Gauge size={18} />
+            Dashboard
+          </button>
           <button className={screen === "upload" ? "active" : ""} onClick={() => setScreen("upload")}>
             <FileText size={18} />
             Upload
@@ -112,6 +117,14 @@ function ResumeApp() {
       </aside>
 
       <section className="workspace">
+        {screen === "dashboard" && (
+          <CandidateDashboard
+            analysis={analysis}
+            targetRole={targetRole}
+            userIdentity={userIdentity}
+            onNavigate={setScreen}
+          />
+        )}
         {screen === "upload" && (
           <UploadScreen
             resumeText={resumeText}

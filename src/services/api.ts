@@ -78,6 +78,38 @@ export type ApplicationRecord = {
   syncedAt?: string;
 };
 
+export type ResumeRecord = {
+  id: string;
+  reportId?: string;
+  userId: string;
+  targetRole: string;
+  profile: ResumeAnalysis["profile"];
+  analysis: ResumeAnalysis;
+  rawResumeRetained: boolean;
+  dataCategory: string;
+  consentVersion: string;
+  capturedAt: string;
+  updatedAt: string;
+};
+
+export async function getResumeRecords() {
+  const clientId = getClientId();
+  const response = await fetch("/api/resume-records", {
+    headers: {
+      "X-Beta-Access-Code": getStoredAccessCode(),
+      "X-FokalView-User-Email": getStoredUserEmail(),
+      "X-FokalView-Client-ID": clientId
+    }
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "Could not load resume history.");
+  }
+
+  return payload.records as ResumeRecord[];
+}
+
 export async function getApplications() {
   const clientId = getClientId();
   const response = await fetch("/api/applications", {

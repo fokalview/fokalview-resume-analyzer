@@ -1446,6 +1446,253 @@ button:disabled {
   font-size: 0.96rem;
 }
 
+.dashboard-screen {
+  display: grid;
+  gap: 22px;
+}
+
+.dashboard-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  align-items: center;
+  gap: 26px;
+}
+
+.dashboard-hero h2 {
+  max-width: 900px;
+  margin: 8px 0 10px;
+  font-size: clamp(2.1rem, 4vw, 4.2rem);
+  line-height: 0.98;
+}
+
+.dashboard-hero p {
+  max-width: 720px;
+  color: #50606f;
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.dashboard-score-card {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid #d8e0e8;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.score-ring.compact {
+  width: 150px;
+  height: 150px;
+  flex-basis: 150px;
+}
+
+.score-ring.compact strong {
+  font-size: 2.7rem;
+}
+
+.trend-up {
+  color: #0f766e;
+  font-weight: 900;
+}
+
+.trend-down {
+  color: #b42318;
+  font-weight: 900;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.dashboard-panel {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-height: 250px;
+  padding: 18px;
+  border: 1px solid #d8e0e8;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.next-steps-panel,
+.timeline-panel,
+.alignment-panel {
+  grid-column: span 1;
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.panel-title svg {
+  color: #0f766e;
+}
+
+.panel-title h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.profile-list {
+  display: grid;
+  gap: 11px;
+  margin: 0;
+}
+
+.profile-list div {
+  display: grid;
+  gap: 3px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e8edf1;
+}
+
+.profile-list dt {
+  color: #647482;
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.profile-list dd {
+  margin: 0;
+  color: #18202a;
+  font-weight: 850;
+}
+
+.score-history {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(16px, 1fr));
+  align-items: end;
+  min-height: 168px;
+  gap: 9px;
+  padding-top: 10px;
+}
+
+.score-history span {
+  display: block;
+  min-height: 8px;
+  border-radius: 999px 999px 3px 3px;
+  background: linear-gradient(180deg, #22a699, #0f766e);
+}
+
+.mini-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mini-metrics div {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid #e1e7ec;
+  border-radius: 8px;
+  background: #f8fbfc;
+}
+
+.mini-metrics strong {
+  color: #0f766e;
+  font-size: 1.45rem;
+}
+
+.mini-metrics span,
+.timeline-list span,
+.dashboard-empty span {
+  color: #647482;
+  font-weight: 750;
+}
+
+.next-step-list {
+  display: grid;
+  gap: 10px;
+}
+
+.next-step-list label {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid #e1e7ec;
+  border-radius: 8px;
+  color: #344252;
+  font-weight: 750;
+}
+
+.next-step-list input {
+  width: 18px;
+  height: 18px;
+  margin: 2px 0 0;
+}
+
+.timeline-list {
+  display: grid;
+  gap: 12px;
+}
+
+.timeline-list div {
+  position: relative;
+  display: grid;
+  gap: 3px;
+  padding-left: 20px;
+}
+
+.timeline-list div::before {
+  content: "";
+  position: absolute;
+  top: 4px;
+  left: 0;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: #0f766e;
+}
+
+.timeline-list strong {
+  color: #18202a;
+}
+
+.alignment-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.alignment-groups h4 {
+  margin: 0 0 8px;
+}
+
+.alignment-groups span {
+  display: block;
+  margin-bottom: 8px;
+  padding: 9px 10px;
+  border: 1px solid #e1e7ec;
+  border-radius: 8px;
+  color: #344252;
+  font-weight: 750;
+}
+
+.dashboard-empty {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  min-height: 158px;
+  color: #647482;
+  text-align: center;
+}
+
+.dashboard-empty svg {
+  color: #0f766e;
+}
+
 .upload-grid,
 .split-panel,
 .feedback-layout {
@@ -2021,7 +2268,7 @@ meter {
   }
 
   .step-list {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(118px, 1fr));
   }
 
   .step-list button {
@@ -2052,6 +2299,9 @@ meter {
 
   .admin-metrics,
   .admin-grid,
+  .dashboard-hero,
+  .dashboard-grid,
+  .alignment-groups,
   .application-stats,
   .application-form,
   .application-list article,
