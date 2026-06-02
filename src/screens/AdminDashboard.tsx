@@ -14,6 +14,7 @@ type AdminSummary = {
     pilotProspects: number;
     budgetQualified: number;
     averageLeadScore?: number;
+    followUpSurveys?: number;
     uniqueUsers: number;
     rawResumeRecords: number;
     averageReadinessScore: number;
@@ -35,6 +36,8 @@ type AdminSummary = {
   waitlistBranchStatuses?: CountItem[];
   waitlistTargetIndustries?: CountItem[];
   waitlistCurrentProcesses?: CountItem[];
+  waitlistWorkforceRegions?: CountItem[];
+  followUpOutcomes?: Record<string, number>;
   waitlistInterest: Record<string, number>;
   emailDomains: CountItem[];
   emailDomainTypes: Record<string, number>;
@@ -80,14 +83,33 @@ type AdminSummary = {
     branchStatus?: string;
     targetRole?: string;
     targetIndustry?: string;
+    workforceRegion?: string;
     currentProcess?: string;
     populationServed?: string;
     reportingWish?: string;
+    branchProfile?: Record<string, unknown>;
     leadScore?: number;
     leadPriority?: string;
     recommendedAction?: string;
     status: string;
     createdAt: string;
+  }>;
+  recentFollowUps?: Array<{
+    leadId?: string;
+    candidateId?: string;
+    contactId?: string;
+    emailDomain?: string;
+    emailDomainType?: string;
+    currentStatus?: string;
+    applicationCount: number;
+    interviewCount: number;
+    offerCount: number;
+    placementStatus?: string;
+    currentRole?: string;
+    currentIndustry?: string;
+    salaryRange?: string;
+    supportNeeded?: string;
+    submittedAt?: string;
   }>;
 };
 
@@ -97,6 +119,7 @@ export default function AdminDashboard() {
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [selectedWaitlist, setSelectedWaitlist] = useState<AdminSummary["recentWaitlistSignups"][number] | null>(null);
 
   useEffect(() => {
     if (!summary) return;
@@ -157,7 +180,7 @@ export default function AdminDashboard() {
             {isLoading ? <RefreshCw className="spin" size={18} /> : <BarChart3 size={18} />}
             {summary ? "Refresh" : "Load"}
           </button>
-          <button className="secondary-action" type="button" disabled={!summary}>
+          <button className="secondary-action" type="button" disabled={!summary} onClick={() => summary && exportResearchBundle(summary)}>
             <Download size={16} />
             Export all
           </button>
@@ -192,6 +215,7 @@ export default function AdminDashboard() {
             <Metric label="Interview volunteers" value={summary.totals.interviewVolunteers || 0} note="Customer discovery" />
             <Metric label="Pilot prospects" value={summary.totals.pilotProspects || 0} note="Institutional leads" />
             <Metric label="Avg lead score" value={summary.totals.averageLeadScore || 0} note="Rules-based priority" />
+            <Metric label="Follow-ups" value={summary.totals.followUpSurveys || 0} note="Outcome signals" />
           </section>
 
           <section className="admin-grid">
@@ -210,6 +234,8 @@ export default function AdminDashboard() {
             <ChartPanel title="Branch Statuses" items={summary.waitlistBranchStatuses || []} />
             <ChartPanel title="Target Industries" items={summary.waitlistTargetIndustries || []} />
             <ChartPanel title="Current Processes" items={summary.waitlistCurrentProcesses || []} />
+            <ChartPanel title="Workforce Regions" items={summary.waitlistWorkforceRegions || []} />
+            <ChartPanel title="Follow-up Outcomes" items={toCountItems(summary.followUpOutcomes || {})} />
             <ChartPanel title="Waitlist Sources" items={summary.waitlistSources || []} />
             <ChartPanel title="Waitlist Interest" items={toCountItems(summary.waitlistInterest || {})} />
             <ChartPanel title="Email Domains" items={summary.emailDomains} />
@@ -254,7 +280,7 @@ export default function AdminDashboard() {
             <div className="admin-table waitlist-table">
               {summary.recentWaitlistSignups?.length ? (
                 summary.recentWaitlistSignups.map((signup) => (
-                  <article key={signup.id}>
+                  <article key={signup.id} className="clickable-row" onClick={() => setSelectedWaitlist(signup)}>
                     <div className="candidate-cell">
                       <span className="avatar">{initials(signup.name)}</span>
                       <div>
@@ -281,6 +307,34 @@ export default function AdminDashboard() {
             </div>
           </section>
 
+          <section className="admin-table-panel">
+            <div className="panel-heading">
+              <h2>Recent Follow-ups</h2>
+              <button className="panel-menu" aria-label="Follow-up options">...</button>
+            </div>
+            <div className="admin-table followup-table">
+              {summary.recentFollowUps?.length ? (
+                summary.recentFollowUps.map((item, index) => (
+                  <article key={`${item.leadId || item.candidateId || index}-${item.submittedAt}`}>
+                    <div>
+                      <strong>{item.candidateId || item.leadId || "Unlinked follow-up"}</strong>
+                      <span>{[item.emailDomain, item.emailDomainType].filter(Boolean).join(" - ")}</span>
+                    </div>
+                    <span>{item.currentStatus || "Status not saved"}</span>
+                    <span>{item.placementStatus || "No outcome"}</span>
+                    <span>{`${item.applicationCount} apps / ${item.interviewCount} interviews / ${item.offerCount} offers`}</span>
+                    <span>{formatDate(item.submittedAt || "")}</span>
+                  </article>
+                ))
+              ) : (
+                <div className="empty-panel compact">
+                  <strong>No follow-ups yet.</strong>
+                  <span>Share /follow-up with a lead or candidate ID to collect outcome updates.</span>
+                </div>
+              )}
+            </div>
+          </section>
+
           <details className="system-drawer">
             <summary>
               <Settings2 size={16} />
@@ -290,9 +344,60 @@ export default function AdminDashboard() {
             <p>Raw retention rate: {summary.systemInfo.rawResumeRetentionRate}%</p>
             <p>Unique tracked users: {summary.totals.uniqueUsers}</p>
           </details>
+
+          {selectedWaitlist && (
+            <div className="detail-backdrop" role="presentation" onClick={() => setSelectedWaitlist(null)}>
+              <aside
+                className="detail-drawer"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Waitlist record detail"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="panel-heading">
+                  <div>
+                    <p className="eyebrow">Waitlist detail</p>
+                    <h2>{selectedWaitlist.name}</h2>
+                  </div>
+                  <button className="panel-menu" onClick={() => setSelectedWaitlist(null)} aria-label="Close detail">x</button>
+                </div>
+                <dl className="detail-list">
+                  <Detail label="Lead ID" value={selectedWaitlist.leadId} />
+                  <Detail label="Candidate ID" value={selectedWaitlist.candidateId} />
+                  <Detail label="Contact ID" value={selectedWaitlist.contactId} />
+                  <Detail label="Organization ID" value={selectedWaitlist.organizationId} />
+                  <Detail label="User type" value={selectedWaitlist.userType} />
+                  <Detail label="Organization" value={selectedWaitlist.organization} />
+                  <Detail label="Role / target" value={selectedWaitlist.targetRole || selectedWaitlist.role} />
+                  <Detail label="Lead score" value={selectedWaitlist.leadScore ? `${selectedWaitlist.leadScore} - ${selectedWaitlist.leadPriority || "Scored"}` : ""} />
+                  <Detail label="Recommended action" value={selectedWaitlist.recommendedAction} />
+                  <Detail label="Branch status" value={selectedWaitlist.branchStatus} />
+                  <Detail label="Target industry" value={selectedWaitlist.targetIndustry} />
+                  <Detail label="Workforce region" value={selectedWaitlist.workforceRegion} />
+                  <Detail label="Current process" value={selectedWaitlist.currentProcess} />
+                  <Detail label="Population served" value={selectedWaitlist.populationServed} />
+                  <Detail label="Reporting wish" value={selectedWaitlist.reportingWish} />
+                </dl>
+                <div className="detail-json">
+                  <strong>Branch profile</strong>
+                  <pre>{JSON.stringify(selectedWaitlist.branchProfile || {}, null, 2)}</pre>
+                </div>
+              </aside>
+            </div>
+          )}
         </>
       )}
     </main>
+  );
+}
+
+function Detail({ label, value }: { label: string; value?: string | number }) {
+  if (!value) return null;
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
   );
 }
 
@@ -478,6 +583,53 @@ function PanelHeading({ title }: { title: string }) {
 
 function toCountItems(record: Record<string, number>) {
   return Object.entries(record).map(([label, count]) => ({ label, count }));
+}
+
+function exportResearchBundle(summary: AdminSummary) {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    totals: summary.totals,
+    waitlist: summary.recentWaitlistSignups.map((item) => ({
+      leadId: item.leadId,
+      candidateId: item.candidateId,
+      contactId: item.contactId,
+      organizationId: item.organizationId,
+      userType: item.userType,
+      organizationType: item.organizationType,
+      country: item.country,
+      emailDomain: item.emailDomain,
+      emailDomainType: item.emailDomainType,
+      referralSource: item.referralSource,
+      branchStatus: item.branchStatus,
+      targetRole: item.targetRole,
+      targetIndustry: item.targetIndustry,
+      workforceRegion: item.workforceRegion,
+      currentProcess: item.currentProcess,
+      populationServed: item.populationServed,
+      leadScore: item.leadScore,
+      leadPriority: item.leadPriority,
+      branchProfile: item.branchProfile,
+      createdAt: item.createdAt
+    })),
+    followUps: summary.recentFollowUps || [],
+    aggregatePanels: {
+      waitlistUserTypes: summary.waitlistUserTypes,
+      waitlistReferralSources: summary.waitlistReferralSources,
+      waitlistLeadPriorities: summary.waitlistLeadPriorities,
+      waitlistBranchStatuses: summary.waitlistBranchStatuses,
+      waitlistTargetIndustries: summary.waitlistTargetIndustries,
+      waitlistCurrentProcesses: summary.waitlistCurrentProcesses,
+      waitlistWorkforceRegions: summary.waitlistWorkforceRegions,
+      followUpOutcomes: summary.followUpOutcomes
+    }
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `sagittaiq-research-export-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function scoreClass(score: number) {

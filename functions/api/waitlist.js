@@ -24,7 +24,9 @@ export async function onRequestPost({ request, env }) {
     const now = new Date().toISOString();
     const columns = await tableColumns(env.DB, "waitlist_signups");
 
-    if (columns.has("branch_profile_json")) {
+    if (columns.has("workforce_region")) {
+      await insertResearchSignup(env.DB, record, now);
+    } else if (columns.has("branch_profile_json")) {
       await insertBranchedSignup(env.DB, record, now);
     } else if (columns.has("lead_id")) {
       await insertExtendedSignup(env.DB, record, now);
@@ -56,6 +58,7 @@ async function normalizeSignup(body, request, env) {
   const emailDomain = domainFromEmail(email);
   const emailDomainType = classifyEmailDomain(emailDomain);
   const countryFromEdge = cleanCountry(request.headers.get("CF-IPCountry"));
+  const location = deriveLocation(body, countryFromEdge);
 
   const ids = await buildSignupIds(env.DB, body);
   const scoring = scoreLead(body);
@@ -71,10 +74,13 @@ async function normalizeSignup(body, request, env) {
     organizationType: clean(body.organizationType, 80),
     role: clean(body.role, 120),
     city: clean(body.city, 120),
-    state: clean(body.state, 80),
-    country: clean(body.country, 80) || countryFromEdge,
+    state: location.state,
+    country: location.country,
     linkedinUrl: cleanUrl(body.linkedinUrl),
-    zipPostal: clean(body.zipPostal, 40),
+    zipPostal: location.zipPostal,
+    county: location.county,
+    metroArea: location.metroArea,
+    workforceRegion: location.workforceRegion,
     preferredContactMethod: clean(body.preferredContactMethod, 80),
     biggestChallenge: clean(body.biggestChallenge, 1200),
     currentTools: clean(body.currentTools, 800),
@@ -94,7 +100,7 @@ async function normalizeSignup(body, request, env) {
     currentProcess: clean(body.currentProcess, 120),
     populationServed: clean(body.populationServed, 80),
     reportingWish: clean(body.reportingWish, 1600),
-    branchProfile: buildBranchProfile(body),
+    branchProfile: buildBranchProfile(body, location),
     source: clean(body.source, 120) || "waitlist",
     ...scoring
   };
@@ -265,6 +271,73 @@ async function insertBranchedSignup(db, record, now) {
     .run();
 }
 
+async function insertResearchSignup(db, record, now) {
+  await db.prepare(
+    `INSERT INTO waitlist_signups (
+      id, lead_id, contact_id, organization_id, candidate_id, name, email_hash,
+      email_domain, email_domain_type, organization, organization_type, user_type, role,
+      city, state, country, zip_postal, county, metro_area, workforce_region,
+      preferred_contact_method, linkedin_url, biggest_challenge, current_tools,
+      desired_features, interview_interest, beta_interest, pilot_interest, budget_interest,
+      source, referral_source, buying_authority, timeline, lead_score, lead_priority,
+      recommended_action, score_breakdown_json, branch_status, target_role, target_industry,
+      experience_level, current_process, population_served, reporting_wish, branch_profile_json,
+      status, created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', ?, ?)`
+  )
+    .bind(
+      record.id,
+      record.leadId,
+      record.contactId,
+      record.organizationId,
+      record.candidateId,
+      record.name,
+      record.emailHash,
+      record.emailDomain,
+      record.emailDomainType,
+      record.organization,
+      record.organizationType,
+      record.userType,
+      record.role,
+      record.city,
+      record.state,
+      record.country,
+      record.zipPostal,
+      record.county,
+      record.metroArea,
+      record.workforceRegion,
+      record.preferredContactMethod,
+      record.linkedinUrl,
+      record.biggestChallenge,
+      record.currentTools,
+      record.desiredFeatures,
+      record.interviewInterest ? 1 : 0,
+      record.betaInterest ? 1 : 0,
+      record.pilotInterest ? 1 : 0,
+      record.budgetInterest ? 1 : 0,
+      record.source,
+      record.referralSource,
+      record.buyingAuthority,
+      record.timeline,
+      record.leadScore,
+      record.leadPriority,
+      record.recommendedAction,
+      JSON.stringify(record.scoreBreakdown),
+      record.branchStatus,
+      record.targetRole,
+      record.targetIndustry,
+      record.experienceLevel,
+      record.currentProcess,
+      record.populationServed,
+      record.reportingWish,
+      JSON.stringify(record.branchProfile),
+      now,
+      now
+    )
+    .run();
+}
+
 function scoreLead(body) {
   const factors = [];
   let score = 0;
@@ -318,10 +391,11 @@ function branchStatus(body) {
   return clean(body.pilotInterestLevel, 120) || clean(body.currentProcess, 120);
 }
 
-function buildBranchProfile(body) {
+function buildBranchProfile(body, location) {
   const userType = clean(body.userType, 80);
   return compactObject({
     userType,
+    location,
     currentStatus: clean(body.currentStatus, 160),
     targetRole: clean(body.targetRole, 180),
     targetIndustry: clean(body.targetIndustry, 120),
@@ -366,6 +440,35 @@ function buildBranchProfile(body) {
       budget: body.budgetInterest === true
     })
   });
+}
+
+function deriveLocation(body, countryFromEdge) {
+  const state = clean(body.state, 80);
+  const country = clean(body.country, 80) || countryFromEdge;
+  const zipPostal = clean(body.zipPostal, 40);
+  return {
+    state,
+    country,
+    zipPostal,
+    county: "",
+    metroArea: "",
+    workforceRegion: deriveWorkforceRegion(country, state)
+  };
+}
+
+function deriveWorkforceRegion(country, state) {
+  const normalizedCountry = String(country || "").trim().toUpperCase();
+  const normalizedState = String(state || "").trim().toUpperCase();
+  if (!normalizedState) return "";
+  if (!["US", "USA", "UNITED STATES"].includes(normalizedCountry)) return normalizedState;
+  const regions = {
+    Northeast: ["CT", "ME", "MA", "NH", "RI", "VT", "NJ", "NY", "PA"],
+    Midwest: ["IL", "IN", "MI", "OH", "WI", "IA", "KS", "MN", "MO", "NE", "ND", "SD"],
+    South: ["DE", "FL", "GA", "MD", "NC", "SC", "VA", "DC", "WV", "AL", "KY", "MS", "TN", "AR", "LA", "OK", "TX"],
+    West: ["AZ", "CO", "ID", "MT", "NV", "NM", "UT", "WY", "AK", "CA", "HI", "OR", "WA"]
+  };
+  const found = Object.entries(regions).find(([, states]) => states.includes(normalizedState));
+  return found ? `${found[0]} - ${normalizedState}` : normalizedState;
 }
 
 function compactObject(value) {

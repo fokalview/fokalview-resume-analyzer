@@ -7,11 +7,12 @@ export async function onRequestGet({ request, env }) {
   if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
 
   const query = new URL(request.url).searchParams.get("q") || "";
-  const [userColumns, resumeColumns, applicationColumns, waitlistColumns] = await Promise.all([
+  const [userColumns, resumeColumns, applicationColumns, waitlistColumns, followupColumns] = await Promise.all([
     tableColumns(env.DB, "users"),
     tableColumns(env.DB, "resume_records"),
     tableColumns(env.DB, "application_captures"),
-    tableColumns(env.DB, "waitlist_signups")
+    tableColumns(env.DB, "waitlist_signups"),
+    tableColumns(env.DB, "waitlist_followups")
   ]);
   const hasUserMetadata =
     userColumns.has("email_domain") && userColumns.has("email_domain_type") && userColumns.has("country");
@@ -35,6 +36,9 @@ export async function onRequestGet({ request, env }) {
        lead_score AS leadScore, lead_priority AS leadPriority, recommended_action AS recommendedAction,
        score_breakdown_json AS scoreBreakdownJson, status, created_at AS createdAt,
        ${waitlistColumns.has("zip_postal") ? "zip_postal" : "''"} AS zipPostal,
+       ${waitlistColumns.has("county") ? "county" : "''"} AS county,
+       ${waitlistColumns.has("metro_area") ? "metro_area" : "''"} AS metroArea,
+       ${waitlistColumns.has("workforce_region") ? "workforce_region" : "''"} AS workforceRegion,
        ${waitlistColumns.has("preferred_contact_method") ? "preferred_contact_method" : "''"} AS preferredContactMethod,
        ${waitlistColumns.has("branch_status") ? "branch_status" : "''"} AS branchStatus,
        ${waitlistColumns.has("target_role") ? "target_role" : "''"} AS targetRole,
@@ -52,7 +56,17 @@ export async function onRequestGet({ request, env }) {
        '' AS timeline, 0 AS leadScore, '' AS leadPriority, '' AS recommendedAction,
        '' AS scoreBreakdownJson, status, created_at AS createdAt`;
 
-  const [resumeRows, applicationRows, waitlistRows] = await Promise.all([
+  const followupSelect = followupColumns.has("id")
+    ? `lead_id AS leadId, candidate_id AS candidateId, contact_id AS contactId,
+       email_domain AS emailDomain, email_domain_type AS emailDomainType,
+       current_status AS currentStatus, application_count AS applicationCount,
+       interview_count AS interviewCount, offer_count AS offerCount,
+       placement_status AS placementStatus, current_role AS currentRole,
+       current_industry AS currentIndustry, salary_range AS salaryRange,
+       support_needed AS supportNeeded, submitted_at AS submittedAt`
+    : "'' AS leadId, '' AS candidateId, '' AS contactId, '' AS emailDomain, '' AS emailDomainType, '' AS currentStatus, 0 AS applicationCount, 0 AS interviewCount, 0 AS offerCount, '' AS placementStatus, '' AS currentRole, '' AS currentIndustry, '' AS salaryRange, '' AS supportNeeded, '' AS submittedAt";
+
+  const [resumeRows, applicationRows, waitlistRows, followupRows] = await Promise.all([
     env.DB.prepare(
       `SELECT ${reportIdSelect} r.user_id AS userId, r.client_hash AS clientHash, r.target_role AS targetRole, r.profile_json AS profileJson,
         r.analysis_json AS analysisJson, r.raw_resume_retained AS rawResumeRetained, r.raw_resume_text AS rawResumeText,
@@ -77,6 +91,13 @@ export async function onRequestGet({ request, env }) {
        ORDER BY created_at DESC
        LIMIT 1000`
     ).all()
+      .catch(() => ({ results: [] })),
+    env.DB.prepare(
+      `SELECT ${followupSelect}
+       FROM waitlist_followups
+       ORDER BY submitted_at DESC
+       LIMIT 1000`
+    ).all()
       .catch(() => ({ results: [] }))
   ]);
 
@@ -86,6 +107,7 @@ export async function onRequestGet({ request, env }) {
   const applications = filterApplications(allApplications, query);
   const allWaitlist = waitlistRows.results || [];
   const waitlist = filterWaitlist(allWaitlist, query);
+  const followups = filterFollowups(followupRows.results || [], query);
   const readinessThreshold = Number(env.READINESS_THRESHOLD || 85);
   const averageReadinessScore = average(resumes.map((item) => item.analysis.score));
   const uniqueUsers = new Set([
@@ -108,6 +130,7 @@ export async function onRequestGet({ request, env }) {
       pilotProspects: waitlist.filter((item) => item.pilotInterest).length,
       budgetQualified: waitlist.filter((item) => item.budgetInterest).length,
       averageLeadScore: average(waitlist.map((item) => Number(item.leadScore || 0))),
+      followUpSurveys: followups.length,
       uniqueUsers,
       rawResumeRecords: resumes.filter((item) => item.rawResumeRetained).length,
       averageReadinessScore,
@@ -135,6 +158,8 @@ export async function onRequestGet({ request, env }) {
     waitlistBranchStatuses: topCounts(waitlist.map((item) => item.branchStatus).filter(Boolean), 12),
     waitlistTargetIndustries: topCounts(waitlist.map((item) => item.targetIndustry).filter(Boolean), 12),
     waitlistCurrentProcesses: topCounts(waitlist.map((item) => item.currentProcess).filter(Boolean), 12),
+    waitlistWorkforceRegions: topCounts(waitlist.map((item) => item.workforceRegion).filter(Boolean), 12),
+    followUpOutcomes: countBy(followups.map((item) => item.placementStatus).filter(Boolean)),
     waitlistInterest: {
       Interviews: waitlist.filter((item) => item.interviewInterest).length,
       Beta: waitlist.filter((item) => item.betaInterest).length,
@@ -191,14 +216,33 @@ export async function onRequestGet({ request, env }) {
       branchStatus: item.branchStatus,
       targetRole: item.targetRole,
       targetIndustry: item.targetIndustry,
+      workforceRegion: item.workforceRegion,
       currentProcess: item.currentProcess,
       populationServed: item.populationServed,
       reportingWish: item.reportingWish,
+      branchProfile: parseJsonObject(item.branchProfileJson),
       leadScore: Number(item.leadScore || 0),
       leadPriority: item.leadPriority,
       recommendedAction: item.recommendedAction,
       status: item.status,
       createdAt: item.createdAt
+    })),
+    recentFollowUps: followups.slice(0, 20).map((item) => ({
+      leadId: item.leadId,
+      candidateId: item.candidateId,
+      contactId: item.contactId,
+      emailDomain: item.emailDomain,
+      emailDomainType: item.emailDomainType,
+      currentStatus: item.currentStatus,
+      applicationCount: Number(item.applicationCount || 0),
+      interviewCount: Number(item.interviewCount || 0),
+      offerCount: Number(item.offerCount || 0),
+      placementStatus: item.placementStatus,
+      currentRole: item.currentRole,
+      currentIndustry: item.currentIndustry,
+      salaryRange: item.salaryRange,
+      supportNeeded: item.supportNeeded,
+      submittedAt: item.submittedAt
     }))
   });
 }
@@ -251,6 +295,15 @@ function parseResumeRow(row) {
     return parsed;
   } catch {
     return null;
+  }
+}
+
+function parseJsonObject(value) {
+  try {
+    const parsed = JSON.parse(value || "{}");
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
   }
 }
 
@@ -308,6 +361,7 @@ function filterWaitlist(signups, query) {
       item.targetRole,
       item.targetIndustry,
       item.experienceLevel,
+      item.workforceRegion,
       item.currentProcess,
       item.populationServed,
       item.reportingWish,
@@ -316,6 +370,29 @@ function filterWaitlist(signups, query) {
       item.recommendedAction,
       item.source,
       item.status
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(needle)
+  );
+}
+
+function filterFollowups(followups, query) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return followups;
+  return followups.filter((item) =>
+    [
+      item.leadId,
+      item.candidateId,
+      item.contactId,
+      item.emailDomain,
+      item.emailDomainType,
+      item.currentStatus,
+      item.placementStatus,
+      item.currentRole,
+      item.currentIndustry,
+      item.salaryRange,
+      item.supportNeeded
     ]
       .join(" ")
       .toLowerCase()

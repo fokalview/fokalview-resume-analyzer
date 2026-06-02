@@ -6,6 +6,7 @@ import FeedbackScreen from "./screens/FeedbackScreen";
 import WelcomeScreen from "./screens/WelcomeScreen";
 import AdminDashboard from "./screens/AdminDashboard";
 import ApplicationTracker from "./screens/ApplicationTracker";
+import FollowUpScreen from "./screens/FollowUpScreen";
 import WaitlistScreen from "./screens/WaitlistScreen";
 import { getStoredAccessCode } from "./services/access";
 import { getCurrentUser } from "./services/api";
@@ -18,6 +19,10 @@ export default function App() {
 
   if (window.location.pathname === "/waitlist") {
     return <WaitlistScreen />;
+  }
+
+  if (window.location.pathname === "/follow-up") {
+    return <FollowUpScreen />;
   }
 
   return <ResumeApp />;
