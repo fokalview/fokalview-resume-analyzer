@@ -42,6 +42,7 @@ export default function ApplicationTracker() {
     outcomeNotes: ""
   });
   const [editingId, setEditingId] = useState("");
+  const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -144,6 +145,11 @@ export default function ApplicationTracker() {
     try {
       await deleteApplicationRecord(item.id);
       setApplications((current) => current.filter((entry) => entry.id !== item.id));
+      setExpandedNotes((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
       if (editingId === item.id) resetForm();
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Could not delete application.");
@@ -328,7 +334,18 @@ export default function ApplicationTracker() {
                 <span>{item.company} - {item.location || "Location not saved"}</span>
                 {item.applicationId && <small>{item.applicationId}</small>}
                 {item.salary && <span>Salary: {item.salary}</span>}
-                {item.notes && <p>{item.notes}</p>}
+                {item.notes && (
+                  <div className="application-note-preview">
+                    <p className={expandedNotes[item.id] ? "expanded" : ""}>{item.notes}</p>
+                    <button
+                      type="button"
+                      className="text-button"
+                      onClick={() => setExpandedNotes((current) => ({ ...current, [item.id]: !current[item.id] }))}
+                    >
+                      {expandedNotes[item.id] ? "Collapse notes" : "Expand notes"}
+                    </button>
+                  </div>
+                )}
               </div>
               <select
                 className={`status-select ${item.status.toLowerCase()}`}

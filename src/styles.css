@@ -1202,6 +1202,33 @@ textarea:focus {
   margin: 4px 0 0;
 }
 
+.application-note-preview p {
+  display: -webkit-box;
+  margin-top: 6px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.application-note-preview p.expanded {
+  display: block;
+  overflow: visible;
+  -webkit-line-clamp: unset;
+}
+
+.text-button {
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0f766e;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .status-pill {
   display: inline-flex;
   justify-content: center;
