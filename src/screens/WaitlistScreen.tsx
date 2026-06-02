@@ -152,6 +152,7 @@ export default function WaitlistScreen() {
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<WaitlistErrors>({});
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [showApproval, setShowApproval] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isOrganization = !["Individual Job Seeker", "Student"].includes(form.userType);
@@ -166,6 +167,7 @@ export default function WaitlistScreen() {
     event.preventDefault();
     setStatus("");
     setError("");
+    setShowApproval(false);
 
     const nextFieldErrors = validateWaitlist(form, isOrganization);
     setFieldErrors(nextFieldErrors);
@@ -184,7 +186,8 @@ export default function WaitlistScreen() {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not join waitlist.");
-      setStatus("You're on the list. Your answers help route beta access, discovery, and pilot outreach.");
+      setStatus("Your waitlist request has been approved for early-access review.");
+      setShowApproval(true);
       setForm(INITIAL_FORM);
       setFieldErrors({});
     } catch (nextError) {
@@ -410,6 +413,33 @@ export default function WaitlistScreen() {
           </button>
         </form>
       </section>
+
+      {showApproval && (
+        <div className="waitlist-modal-backdrop" role="presentation">
+          <section
+            className="waitlist-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="waitlist-approval-title"
+            aria-describedby="waitlist-approval-description"
+          >
+            <p className="eyebrow">Early Access</p>
+            <h2 id="waitlist-approval-title">Your waitlist request has been approved.</h2>
+            <p id="waitlist-approval-description">
+              You are now in the SagittaIQ early-access review queue. We saved your signup details and will use them
+              to route beta access, discovery invitations, and pilot conversations.
+            </p>
+            <div className="waitlist-modal-actions">
+              <button className="primary-button" type="button" onClick={() => setShowApproval(false)}>
+                Got it
+              </button>
+              <a className="secondary-action" href="/follow-up">
+                Share an update
+              </a>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
