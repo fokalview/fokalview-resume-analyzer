@@ -23,11 +23,11 @@ export function storeAccessCode(code: string, email = "") {
   }
 }
 
-export async function validateAccessCode(code: string, email = "") {
+export async function validateAccessCode(code: string, email = "", userSecurityCode = "") {
   const response = await fetch("/api/access", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code, email: normalizeEmail(email) })
+    body: JSON.stringify({ code, email: normalizeEmail(email), userSecurityCode: userSecurityCode.trim() })
   });
 
   const payload = await response.json();

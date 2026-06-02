@@ -9,6 +9,7 @@ type Props = {
 export default function WelcomeScreen({ onAccessGranted }: Props) {
   const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
+  const [userSecurityCode, setUserSecurityCode] = useState("");
   const [error, setError] = useState("");
   const [isChecking, setIsChecking] = useState(false);
 
@@ -20,7 +21,7 @@ export default function WelcomeScreen({ onAccessGranted }: Props) {
     try {
       const trimmed = code.trim();
       const normalizedEmail = email.trim().toLowerCase();
-      await validateAccessCode(trimmed, normalizedEmail);
+      await validateAccessCode(trimmed, normalizedEmail, userSecurityCode);
       storeAccessCode(trimmed, normalizedEmail);
       onAccessGranted();
     } catch (nextError) {
@@ -69,6 +70,20 @@ export default function WelcomeScreen({ onAccessGranted }: Props) {
             />
           </label>
 
+          <label>
+            <span>
+              <LockKeyhole size={16} />
+              User security code
+            </span>
+            <input
+              value={userSecurityCode}
+              onChange={(event) => setUserSecurityCode(event.target.value)}
+              type="password"
+              placeholder="Enter user security code"
+              autoComplete="one-time-code"
+            />
+          </label>
+
           <details className="terms-panel">
             <summary>Beta Terms and Privacy Notice</summary>
             <div>
@@ -109,7 +124,7 @@ export default function WelcomeScreen({ onAccessGranted }: Props) {
           </details>
 
           {error && <p className="error-message">{error}</p>}
-          <button className="primary-button" disabled={!code.trim() || isChecking}>
+          <button className="primary-button" disabled={!code.trim() || !userSecurityCode.trim() || isChecking}>
             {isChecking ? "Checking..." : "Enter beta"}
           </button>
         </form>

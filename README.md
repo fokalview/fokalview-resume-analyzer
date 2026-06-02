@@ -29,6 +29,7 @@ ARTIFICIAL_INTELLIGENCE_PROVIDER=openai
 ARTIFICIAL_INTELLIGENCE_API_KEY=your-real-key
 ARTIFICIAL_INTELLIGENCE_MODEL=gpt-5.4-mini
 BETA_ACCESS_CODE=choose-a-private-beta-code
+USER_SECURITY_CODE=choose-a-private-user-security-code
 ADMIN_ACCESS_CODE=choose-a-private-admin-code
 API_PORT=8787
 ```
@@ -52,7 +53,7 @@ Build command: npm run build
 Build output directory: dist
 ```
 
-Add `ARTIFICIAL_INTELLIGENCE_API_KEY`, `BETA_ACCESS_CODE`, and `ADMIN_ACCESS_CODE` as encrypted secrets in Cloudflare Pages. See `DEPLOY_CLOUDFLARE.md` for the full checklist.
+Add `ARTIFICIAL_INTELLIGENCE_API_KEY`, `BETA_ACCESS_CODE`, `USER_SECURITY_CODE`, and `ADMIN_ACCESS_CODE` as encrypted secrets in Cloudflare Pages. See `DEPLOY_CLOUDFLARE.md` for the full checklist.
 
 To enable cloud storage, create a Cloudflare D1 database, bind it as `DB`, and run the migrations in `migrations/`. The sync endpoints require the same beta access code. Job tracker sync stores job/application context. Resume storage saves a structured workforce profile, analysis, and raw resume text under the beta usage terms.
 
