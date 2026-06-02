@@ -3,8 +3,10 @@ import {
   ArrowRight,
   BarChart3,
   FileText,
+  Moon,
   Rocket,
   ShieldCheck,
+  Sun,
   Target,
   UsersRound
 } from "lucide-react";
@@ -142,11 +144,14 @@ const INITIAL_FORM = {
 };
 
 type WaitlistForm = typeof INITIAL_FORM;
+type WaitlistErrors = Partial<Record<keyof WaitlistForm, string>>;
 
 export default function WaitlistScreen() {
   const [form, setForm] = useState<WaitlistForm>(INITIAL_FORM);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<WaitlistErrors>({});
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isOrganization = !["Individual Job Seeker", "Student"].includes(form.userType);
@@ -154,12 +159,21 @@ export default function WaitlistScreen() {
 
   function setField<K extends keyof WaitlistForm>(key: K, value: WaitlistForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
+    setFieldErrors((current) => ({ ...current, [key]: "" }));
   }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setStatus("");
     setError("");
+
+    const nextFieldErrors = validateWaitlist(form, isOrganization);
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length) {
+      setError("Please fix the highlighted fields before submitting.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -172,6 +186,7 @@ export default function WaitlistScreen() {
       if (!response.ok) throw new Error(payload.error || "Could not join waitlist.");
       setStatus("You're on the list. Your answers help route beta access, discovery, and pilot outreach.");
       setForm(INITIAL_FORM);
+      setFieldErrors({});
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Could not join waitlist.");
     } finally {
@@ -180,8 +195,12 @@ export default function WaitlistScreen() {
   }
 
   return (
-    <main className="waitlist-shell">
+    <main className="waitlist-shell" data-theme={theme}>
       <a className="skip-link" href="#waitlist-form">Skip to waitlist form</a>
+      <button className="theme-toggle" type="button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+        {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+        {theme === "dark" ? "Light mode" : "Dark mode"}
+      </button>
       <section className="waitlist-card">
         <div className="waitlist-hero">
           <div className="waitlist-copy">
@@ -249,7 +268,7 @@ export default function WaitlistScreen() {
           })}
         </section>
 
-        <form id="waitlist-form" className="waitlist-form" onSubmit={submit} aria-label="SagittaIQ waitlist signup" aria-busy={isSubmitting}>
+        <form id="waitlist-form" className="waitlist-form" onSubmit={submit} aria-label="SagittaIQ waitlist signup" aria-busy={isSubmitting} noValidate>
           <div className="form-section-title">
             <span>Start here</span>
           </div>
@@ -269,16 +288,17 @@ export default function WaitlistScreen() {
           <div className="form-section-title">
             <span>Your information</span>
           </div>
-          <TextField label="Full name" value={form.name} onChange={(value) => setField("name", value)} required />
-          <TextField label="Email" value={form.email} onChange={(value) => setField("email", value)} type="email" required />
-          <TextField label="Country" value={form.country} onChange={(value) => setField("country", value)} required />
-          <TextField label="State / province" value={form.state} onChange={(value) => setField("state", value)} required />
-          <TextField label="City" value={form.city} onChange={(value) => setField("city", value)} required={isOrganization} />
+          <TextField label="Full name" value={form.name} onChange={(value) => setField("name", value)} required error={fieldErrors.name} />
+          <TextField label="Email" value={form.email} onChange={(value) => setField("email", value)} type="email" required error={fieldErrors.email} />
+          <TextField label="Country" value={form.country} onChange={(value) => setField("country", value)} required error={fieldErrors.country} />
+          <TextField label="State / province" value={form.state} onChange={(value) => setField("state", value)} required error={fieldErrors.state} />
+          <TextField label="City" value={form.city} onChange={(value) => setField("city", value)} required={isOrganization} error={fieldErrors.city} />
           <TextField
             label="ZIP / postal code"
             value={form.zipPostal}
             onChange={(value) => setField("zipPostal", value)}
             required={isOrganization}
+            error={fieldErrors.zipPostal}
           />
           <label>
             <span>Referral source</span>
@@ -313,6 +333,7 @@ export default function WaitlistScreen() {
             onChange={(value) => setField("biggestChallenge", value)}
             placeholder="Resume results, application tracking, reporting, skill visibility..."
             required
+            error={fieldErrors.biggestChallenge}
           />
 
           {form.userType === "Individual Job Seeker" && <IndividualBranch form={form} setField={setField} />}
@@ -657,7 +678,8 @@ function TextField({
   type = "text",
   className = "",
   placeholder = "",
-  required = false
+  required = false,
+  error = ""
 }: {
   label: string;
   value: string;
@@ -666,10 +688,12 @@ function TextField({
   className?: string;
   placeholder?: string;
   required?: boolean;
+  error?: string;
 }) {
   const inputId = useId();
+  const errorId = useId();
   return (
-    <label className={className} htmlFor={inputId}>
+    <label className={`${className} ${error ? "field-error" : ""}`.trim()} htmlFor={inputId}>
       <span>
         {label}
         {required && <span className="required-mark" aria-hidden="true"> *</span>}
@@ -682,7 +706,10 @@ function TextField({
         placeholder={placeholder}
         required={required}
         aria-required={required || undefined}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : undefined}
       />
+      {error && <small id={errorId} className="field-error-text">{error}</small>}
     </label>
   );
 }
@@ -693,7 +720,8 @@ function TextArea({
   onChange,
   className = "",
   placeholder = "",
-  required = false
+  required = false,
+  error = ""
 }: {
   label: string;
   value: string;
@@ -701,10 +729,12 @@ function TextArea({
   className?: string;
   placeholder?: string;
   required?: boolean;
+  error?: string;
 }) {
   const inputId = useId();
+  const errorId = useId();
   return (
-    <label className={className} htmlFor={inputId}>
+    <label className={`${className} ${error ? "field-error" : ""}`.trim()} htmlFor={inputId}>
       <span>
         {label}
         {required && <span className="required-mark" aria-hidden="true"> *</span>}
@@ -716,7 +746,10 @@ function TextArea({
         placeholder={placeholder}
         required={required}
         aria-required={required || undefined}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : undefined}
       />
+      {error && <small id={errorId} className="field-error-text">{error}</small>}
     </label>
   );
 }
@@ -805,6 +838,22 @@ function branchHeading(userType: string) {
   if (userType === "Institution / Program Leader") return "Institutional pilot qualification";
   if (userType === "Workforce / Gov / Nonprofit") return "Workforce and grant reporting fit";
   return "Employer pipeline intelligence";
+}
+
+function validateWaitlist(form: WaitlistForm, isOrganization: boolean) {
+  const errors: WaitlistErrors = {};
+  if (!form.name.trim()) errors.name = "Enter your full name.";
+  if (!form.email.trim()) {
+    errors.email = "Enter an email address.";
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+    errors.email = "Enter a valid email address.";
+  }
+  if (!form.country.trim()) errors.country = "Enter your country.";
+  if (!form.state.trim()) errors.state = "Enter your state or province.";
+  if (isOrganization && !form.city.trim()) errors.city = "Enter the city for this organization.";
+  if (isOrganization && !form.zipPostal.trim()) errors.zipPostal = "Enter a ZIP or postal code.";
+  if (!form.biggestChallenge.trim()) errors.biggestChallenge = "Share what you are trying to improve.";
+  return errors;
 }
 
 function populationOptions() {

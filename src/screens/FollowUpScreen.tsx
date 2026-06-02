@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from "react";
-import { ArrowRight, ClipboardCheck } from "lucide-react";
+import { ArrowRight, ClipboardCheck, Moon, Sun } from "lucide-react";
 
 const CURRENT_STATUSES = [
   "Still exploring",
@@ -33,14 +33,30 @@ export default function FollowUpScreen() {
     supportNeeded: "",
     notes: ""
   });
+  type FollowUpForm = typeof form;
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof FollowUpForm, string>>>({});
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  function updateField<K extends keyof FollowUpForm>(key: K, value: FollowUpForm[K]) {
+    setForm((current) => ({ ...current, [key]: value }));
+    setFieldErrors((current) => ({ ...current, [key]: "" }));
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     setStatus("");
     setError("");
+
+    const nextFieldErrors = validateFollowUp(form);
+    setFieldErrors(nextFieldErrors);
+    if (Object.keys(nextFieldErrors).length) {
+      setError("Please fix the highlighted fields before submitting.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -60,8 +76,12 @@ export default function FollowUpScreen() {
   }
 
   return (
-    <main className="waitlist-shell">
+    <main className="waitlist-shell" data-theme={theme}>
       <a className="skip-link" href="#follow-up-form">Skip to follow-up form</a>
+      <button className="theme-toggle" type="button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+        {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+        {theme === "dark" ? "Light mode" : "Dark mode"}
+      </button>
       <section className="waitlist-card followup-card">
         <div className="followup-hero">
           <ClipboardCheck size={32} />
@@ -73,27 +93,27 @@ export default function FollowUpScreen() {
           </p>
         </div>
 
-        <form id="follow-up-form" className="waitlist-form" onSubmit={submit} aria-label="SagittaIQ career progress follow-up" aria-busy={isSubmitting}>
+        <form id="follow-up-form" className="waitlist-form" onSubmit={submit} aria-label="SagittaIQ career progress follow-up" aria-busy={isSubmitting} noValidate>
           <div className="form-section-title"><span>Identifiers</span></div>
-          <TextField label="Lead ID" value={form.leadId} onChange={(value) => setForm({ ...form, leadId: value })} placeholder="LD-000001" />
-          <TextField label="Candidate ID" value={form.candidateId} onChange={(value) => setForm({ ...form, candidateId: value })} placeholder="SGQ-C-000001" />
-          <TextField label="Contact ID" value={form.contactId} onChange={(value) => setForm({ ...form, contactId: value })} placeholder="CT-000001" />
-          <TextField label="Email" value={form.email} onChange={(value) => setForm({ ...form, email: value })} type="email" placeholder="Used only as hashed linkage" />
+          <TextField label="Lead ID" value={form.leadId} onChange={(value) => updateField("leadId", value)} placeholder="LD-000001" error={fieldErrors.leadId} />
+          <TextField label="Candidate ID" value={form.candidateId} onChange={(value) => updateField("candidateId", value)} placeholder="SGQ-C-000001" />
+          <TextField label="Contact ID" value={form.contactId} onChange={(value) => updateField("contactId", value)} placeholder="CT-000001" />
+          <TextField label="Email" value={form.email} onChange={(value) => updateField("email", value)} type="email" placeholder="Used only as hashed linkage" error={fieldErrors.email} />
 
           <div className="form-section-title"><span>Progress</span></div>
-          <SelectField label="Current status" value={form.currentStatus} onChange={(value) => setForm({ ...form, currentStatus: value })} options={CURRENT_STATUSES} />
-          <SelectField label="Placement status" value={form.placementStatus} onChange={(value) => setForm({ ...form, placementStatus: value })} options={PLACEMENT_STATUSES} />
-          <TextField label="Applications sent" value={form.applicationCount} onChange={(value) => setForm({ ...form, applicationCount: value })} type="number" />
-          <TextField label="Interviews" value={form.interviewCount} onChange={(value) => setForm({ ...form, interviewCount: value })} type="number" />
-          <TextField label="Offers" value={form.offerCount} onChange={(value) => setForm({ ...form, offerCount: value })} type="number" />
-          <TextField label="Current role" value={form.currentRole} onChange={(value) => setForm({ ...form, currentRole: value })} />
-          <SelectField label="Current industry" value={form.currentIndustry} onChange={(value) => setForm({ ...form, currentIndustry: value })} options={INDUSTRIES} />
-          <SelectField label="Salary range" value={form.salaryRange} onChange={(value) => setForm({ ...form, salaryRange: value })} options={SALARY_RANGES} />
+          <SelectField label="Current status" value={form.currentStatus} onChange={(value) => updateField("currentStatus", value)} options={CURRENT_STATUSES} />
+          <SelectField label="Placement status" value={form.placementStatus} onChange={(value) => updateField("placementStatus", value)} options={PLACEMENT_STATUSES} />
+          <TextField label="Applications sent" value={form.applicationCount} onChange={(value) => updateField("applicationCount", value)} type="number" error={fieldErrors.applicationCount} />
+          <TextField label="Interviews" value={form.interviewCount} onChange={(value) => updateField("interviewCount", value)} type="number" error={fieldErrors.interviewCount} />
+          <TextField label="Offers" value={form.offerCount} onChange={(value) => updateField("offerCount", value)} type="number" error={fieldErrors.offerCount} />
+          <TextField label="Current role" value={form.currentRole} onChange={(value) => updateField("currentRole", value)} />
+          <SelectField label="Current industry" value={form.currentIndustry} onChange={(value) => updateField("currentIndustry", value)} options={INDUSTRIES} />
+          <SelectField label="Salary range" value={form.salaryRange} onChange={(value) => updateField("salaryRange", value)} options={SALARY_RANGES} />
           <label className="wide-field">
             <span>Support needed</span>
             <textarea
               value={form.supportNeeded}
-              onChange={(event) => setForm({ ...form, supportNeeded: event.target.value })}
+              onChange={(event) => updateField("supportNeeded", event.target.value)}
               placeholder="Resume help, interview prep, application strategy, salary negotiation..."
             />
           </label>
@@ -101,7 +121,7 @@ export default function FollowUpScreen() {
             <span>Notes</span>
             <textarea
               value={form.notes}
-              onChange={(event) => setForm({ ...form, notes: event.target.value })}
+              onChange={(event) => updateField("notes", event.target.value)}
               placeholder="Anything else you want the team to know."
             />
           </label>
@@ -124,19 +144,31 @@ function TextField({
   value,
   onChange,
   type = "text",
-  placeholder = ""
+  placeholder = "",
+  error = ""
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   type?: string;
   placeholder?: string;
+  error?: string;
 }) {
   const inputId = useId();
+  const errorId = useId();
   return (
-    <label htmlFor={inputId}>
+    <label className={error ? "field-error" : ""} htmlFor={inputId}>
       <span>{label}</span>
-      <input id={inputId} value={value} onChange={(event) => onChange(event.target.value)} type={type} placeholder={placeholder} />
+      <input
+        id={inputId}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        type={type}
+        placeholder={placeholder}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? errorId : undefined}
+      />
+      {error && <small id={errorId} className="field-error-text">{error}</small>}
     </label>
   );
 }
@@ -164,4 +196,29 @@ function SelectField({
       </select>
     </label>
   );
+}
+
+function validateFollowUp(form: {
+  leadId: string;
+  candidateId: string;
+  contactId: string;
+  email: string;
+  applicationCount: string;
+  interviewCount: string;
+  offerCount: string;
+}) {
+  const errors: Partial<Record<keyof typeof form, string>> = {};
+  if (!form.leadId.trim() && !form.candidateId.trim() && !form.contactId.trim() && !form.email.trim()) {
+    errors.leadId = "Enter at least one identifier or email so this can be linked.";
+  }
+  if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+    errors.email = "Enter a valid email address.";
+  }
+  (["applicationCount", "interviewCount", "offerCount"] as const).forEach((key) => {
+    const value = Number(form[key]);
+    if (!Number.isFinite(value) || value < 0) {
+      errors[key] = "Enter zero or a positive number.";
+    }
+  });
+  return errors;
 }
