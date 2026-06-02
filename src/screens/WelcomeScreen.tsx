@@ -9,7 +9,7 @@ type Props = {
 export default function WelcomeScreen({ onAccessGranted }: Props) {
   const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
-  const [userSecurityCode, setUserSecurityCode] = useState("");
+  const [userPin, setUserPin] = useState("");
   const [error, setError] = useState("");
   const [isChecking, setIsChecking] = useState(false);
 
@@ -21,7 +21,7 @@ export default function WelcomeScreen({ onAccessGranted }: Props) {
     try {
       const trimmed = code.trim();
       const normalizedEmail = email.trim().toLowerCase();
-      await validateAccessCode(trimmed, normalizedEmail, userSecurityCode);
+      await validateAccessCode(trimmed, normalizedEmail, userPin);
       storeAccessCode(trimmed, normalizedEmail);
       onAccessGranted();
     } catch (nextError) {
@@ -60,7 +60,7 @@ export default function WelcomeScreen({ onAccessGranted }: Props) {
           </label>
 
           <label>
-            <span>Email address <small>optional, required to save progress across devices</small></span>
+            <span>Email address <small>required for your beta PIN and saved progress</small></span>
             <input
               value={email}
               onChange={(event) => setEmail(event.target.value)}
@@ -73,15 +73,19 @@ export default function WelcomeScreen({ onAccessGranted }: Props) {
           <label>
             <span>
               <LockKeyhole size={16} />
-              User security code
+              4-digit security PIN
             </span>
             <input
-              value={userSecurityCode}
-              onChange={(event) => setUserSecurityCode(event.target.value)}
+              value={userPin}
+              onChange={(event) => setUserPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
               type="password"
-              placeholder="Enter user security code"
+              inputMode="numeric"
+              pattern="[0-9]{4}"
+              maxLength={4}
+              placeholder="Choose or enter 4 digits"
               autoComplete="one-time-code"
             />
+            <small>First visit: choose any 4 digits. Future visits: use the same 4 digits.</small>
           </label>
 
           <details className="terms-panel">
@@ -124,7 +128,7 @@ export default function WelcomeScreen({ onAccessGranted }: Props) {
           </details>
 
           {error && <p className="error-message">{error}</p>}
-          <button className="primary-button" disabled={!code.trim() || !userSecurityCode.trim() || isChecking}>
+          <button className="primary-button" disabled={!code.trim() || !email.trim() || userPin.length !== 4 || isChecking}>
             {isChecking ? "Checking..." : "Enter beta"}
           </button>
         </form>
