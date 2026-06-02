@@ -1,3 +1,5 @@
+import { tableColumns } from "../ids.js";
+
 export async function onRequestGet({ request, env }) {
   const auth = requireAdminAccess(request, env);
   if (auth) return auth;
@@ -5,16 +7,44 @@ export async function onRequestGet({ request, env }) {
   if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
 
   const query = new URL(request.url).searchParams.get("q") || "";
-  const hasUserMetadata = await hasUserMetadataColumns(env.DB);
+  const [userColumns, resumeColumns, applicationColumns, waitlistColumns] = await Promise.all([
+    tableColumns(env.DB, "users"),
+    tableColumns(env.DB, "resume_records"),
+    tableColumns(env.DB, "application_captures"),
+    tableColumns(env.DB, "waitlist_signups")
+  ]);
+  const hasUserMetadata =
+    userColumns.has("email_domain") && userColumns.has("email_domain_type") && userColumns.has("country");
   const userSelect = hasUserMetadata
-    ? "u.email_domain AS emailDomain, u.email_domain_type AS emailDomainType, u.country AS country"
-    : "'' AS emailDomain, '' AS emailDomainType, '' AS country";
+    ? `u.email_domain AS emailDomain, u.email_domain_type AS emailDomainType, u.country AS country,
+       ${userColumns.has("candidate_id") ? "u.candidate_id" : "''"} AS candidateId`
+    : "'' AS emailDomain, '' AS emailDomainType, '' AS country, '' AS candidateId";
   const userJoin = "LEFT JOIN users u ON u.id = r.user_id";
   const appUserJoin = "LEFT JOIN users u ON u.id = a.user_id";
+  const reportIdSelect = resumeColumns.has("report_id") ? "r.report_id AS reportId," : "'' AS reportId,";
+  const applicationIdSelect = applicationColumns.has("application_id")
+    ? "a.application_id AS applicationId,"
+    : "'' AS applicationId,";
+  const waitlistSelect = waitlistColumns.has("lead_id")
+    ? `id, lead_id AS leadId, contact_id AS contactId, organization_id AS organizationId,
+       candidate_id AS candidateId, user_type AS userType, name, email_domain AS emailDomain,
+       email_domain_type AS emailDomainType, organization, organization_type AS organizationType,
+       role, city, state, country, interview_interest AS interviewInterest,
+       beta_interest AS betaInterest, pilot_interest AS pilotInterest, budget_interest AS budgetInterest,
+       source, referral_source AS referralSource, buying_authority AS buyingAuthority, timeline,
+       lead_score AS leadScore, lead_priority AS leadPriority, recommended_action AS recommendedAction,
+       score_breakdown_json AS scoreBreakdownJson, status, created_at AS createdAt`
+    : `id, '' AS leadId, '' AS contactId, '' AS organizationId, '' AS candidateId,
+       '' AS userType, name, email_domain AS emailDomain, email_domain_type AS emailDomainType,
+       organization, organization_type AS organizationType, role, city, state, country,
+       interview_interest AS interviewInterest, beta_interest AS betaInterest, pilot_interest AS pilotInterest,
+       budget_interest AS budgetInterest, source, '' AS referralSource, '' AS buyingAuthority,
+       '' AS timeline, 0 AS leadScore, '' AS leadPriority, '' AS recommendedAction,
+       '' AS scoreBreakdownJson, status, created_at AS createdAt`;
 
   const [resumeRows, applicationRows, waitlistRows] = await Promise.all([
     env.DB.prepare(
-      `SELECT r.user_id AS userId, r.client_hash AS clientHash, r.target_role AS targetRole, r.profile_json AS profileJson,
+      `SELECT ${reportIdSelect} r.user_id AS userId, r.client_hash AS clientHash, r.target_role AS targetRole, r.profile_json AS profileJson,
         r.analysis_json AS analysisJson, r.raw_resume_retained AS rawResumeRetained, r.raw_resume_text AS rawResumeText,
         r.captured_at AS capturedAt, ${userSelect}
        FROM resume_records r
@@ -23,7 +53,7 @@ export async function onRequestGet({ request, env }) {
        LIMIT 1000`
     ).all(),
     env.DB.prepare(
-      `SELECT a.user_id AS userId, a.client_hash AS clientHash, a.title, a.company, a.status, a.source, a.captured_at AS capturedAt,
+      `SELECT ${applicationIdSelect} a.user_id AS userId, a.client_hash AS clientHash, a.title, a.company, a.status, a.source, a.captured_at AS capturedAt,
         ${userSelect}
        FROM application_captures a
        ${appUserJoin}
@@ -32,10 +62,7 @@ export async function onRequestGet({ request, env }) {
     ).all()
       .catch(() => ({ results: [] })),
     env.DB.prepare(
-      `SELECT id, name, email_domain AS emailDomain, email_domain_type AS emailDomainType, organization,
-        organization_type AS organizationType, role, city, state, country, interview_interest AS interviewInterest,
-        beta_interest AS betaInterest, pilot_interest AS pilotInterest, budget_interest AS budgetInterest,
-        source, status, created_at AS createdAt
+      `SELECT ${waitlistSelect}
        FROM waitlist_signups
        ORDER BY created_at DESC
        LIMIT 1000`
@@ -70,6 +97,7 @@ export async function onRequestGet({ request, env }) {
       interviewVolunteers: waitlist.filter((item) => item.interviewInterest).length,
       pilotProspects: waitlist.filter((item) => item.pilotInterest).length,
       budgetQualified: waitlist.filter((item) => item.budgetInterest).length,
+      averageLeadScore: average(waitlist.map((item) => Number(item.leadScore || 0))),
       uniqueUsers,
       rawResumeRecords: resumes.filter((item) => item.rawResumeRetained).length,
       averageReadinessScore,
@@ -91,6 +119,9 @@ export async function onRequestGet({ request, env }) {
     applicationSources: topCounts(applications.map((item) => item.source).filter(Boolean), 12),
     waitlistOrganizationTypes: topCounts(waitlist.map((item) => item.organizationType).filter(Boolean), 12),
     waitlistSources: topCounts(waitlist.map((item) => item.source).filter(Boolean), 12),
+    waitlistUserTypes: topCounts(waitlist.map((item) => item.userType).filter(Boolean), 12),
+    waitlistReferralSources: topCounts(waitlist.map((item) => item.referralSource).filter(Boolean), 12),
+    waitlistLeadPriorities: countBy(waitlist.map((item) => item.leadPriority).filter(Boolean)),
     waitlistInterest: {
       Interviews: waitlist.filter((item) => item.interviewInterest).length,
       Beta: waitlist.filter((item) => item.betaInterest).length,
@@ -107,7 +138,10 @@ export async function onRequestGet({ request, env }) {
       "85-100": resumes.filter((item) => item.analysis.score >= 85).length
     },
     recentResumeRecords: resumes.slice(0, 20).map((item) => ({
-      candidateId: item.userId || candidateLabel(item.clientHash),
+      id: item.reportId || "",
+      candidateId: item.candidateId || item.userId || candidateLabel(item.clientHash),
+      systemUserId: item.userId,
+      reportId: item.reportId || "",
       userId: item.userId,
       targetRole: item.targetRole,
       currentTitle: item.profile.currentTitle,
@@ -122,7 +156,12 @@ export async function onRequestGet({ request, env }) {
     })),
     recentWaitlistSignups: waitlist.slice(0, 20).map((item) => ({
       id: item.id,
+      leadId: item.leadId,
+      contactId: item.contactId,
+      organizationId: item.organizationId,
+      candidateId: item.candidateId,
       name: item.name,
+      userType: item.userType,
       organization: item.organization,
       organizationType: item.organizationType,
       role: item.role,
@@ -133,6 +172,12 @@ export async function onRequestGet({ request, env }) {
       betaInterest: Boolean(item.betaInterest),
       pilotInterest: Boolean(item.pilotInterest),
       budgetInterest: Boolean(item.budgetInterest),
+      referralSource: item.referralSource,
+      buyingAuthority: item.buyingAuthority,
+      timeline: item.timeline,
+      leadScore: Number(item.leadScore || 0),
+      leadPriority: item.leadPriority,
+      recommendedAction: item.recommendedAction,
       status: item.status,
       createdAt: item.createdAt
     }))
@@ -171,6 +216,8 @@ function parseResumeRow(row) {
     const parsed = {
       clientHash: row.clientHash,
       userId: row.userId,
+      candidateId: row.candidateId || "",
+      reportId: row.reportId || "",
       targetRole: row.targetRole || "",
       profile: JSON.parse(row.profileJson),
       analysis: JSON.parse(row.analysisJson),
@@ -221,15 +268,26 @@ function filterWaitlist(signups, query) {
   return signups.filter((item) =>
     [
       item.id,
+      item.leadId,
+      item.contactId,
+      item.organizationId,
+      item.candidateId,
       item.name,
       item.emailDomain,
       item.emailDomainType,
       item.organization,
       item.organizationType,
+      item.userType,
       item.role,
       item.city,
       item.state,
       item.country,
+      item.referralSource,
+      item.buyingAuthority,
+      item.timeline,
+      item.leadScore,
+      item.leadPriority,
+      item.recommendedAction,
       item.source,
       item.status
     ]
@@ -244,6 +302,8 @@ function searchableResumeText(item) {
   const analysis = item.analysis || {};
   return [
     item.userId,
+    item.candidateId,
+    item.reportId,
     item.clientHash,
     item.targetRole,
     item.emailDomain,

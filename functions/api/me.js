@@ -17,6 +17,7 @@ export async function onRequestGet({ request, env }) {
 
   return Response.json({
     userId: identity.userId,
+    candidateId: identity.candidateId || "",
     identifierType: identity.identifierType
   });
 }

@@ -11,12 +11,34 @@ const ORGANIZATION_TYPES = [
   "Other"
 ];
 
+const USER_TYPES = [
+  "Institution / Program Leader",
+  "Career Advisor",
+  "Workforce Partner",
+  "Employer",
+  "Student / Job Seeker",
+  "Other"
+];
+
+const BUYING_AUTHORITY = [
+  "Researching",
+  "Recommender",
+  "Evaluator",
+  "Budget Influencer",
+  "Decision Maker"
+];
+
+const TIMELINES = ["Immediately", "Within 3 months", "Within 6 months", "Within 12 months", "Just exploring"];
+
+const REFERRAL_SOURCES = ["Direct", "LinkedIn", "Referral", "WPI", "Conference / event", "Search", "Other"];
+
 export default function WaitlistScreen() {
   const [form, setForm] = useState({
     name: "",
     email: "",
     organization: "",
     organizationType: "",
+    userType: "Institution / Program Leader",
     role: "",
     city: "",
     state: "",
@@ -25,6 +47,9 @@ export default function WaitlistScreen() {
     biggestChallenge: "",
     currentTools: "",
     desiredFeatures: "",
+    referralSource: "Direct",
+    buyingAuthority: "Researching",
+    timeline: "Just exploring",
     interviewInterest: true,
     betaInterest: true,
     pilotInterest: false,
@@ -54,6 +79,7 @@ export default function WaitlistScreen() {
         email: "",
         organization: "",
         organizationType: "",
+        userType: "Institution / Program Leader",
         role: "",
         city: "",
         state: "",
@@ -62,6 +88,9 @@ export default function WaitlistScreen() {
         biggestChallenge: "",
         currentTools: "",
         desiredFeatures: "",
+        referralSource: "Direct",
+        buyingAuthority: "Researching",
+        timeline: "Just exploring",
         interviewInterest: true,
         betaInterest: true,
         pilotInterest: false,
@@ -158,6 +187,17 @@ export default function WaitlistScreen() {
           </select>
         </label>
         <label>
+          Joining as
+          <select
+            value={form.userType}
+            onChange={(event) => setForm({ ...form, userType: event.target.value })}
+          >
+            {USER_TYPES.map((item) => (
+              <option key={item}>{item}</option>
+            ))}
+          </select>
+        </label>
+        <label>
           Role
           <input value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })} />
         </label>
@@ -172,6 +212,17 @@ export default function WaitlistScreen() {
         <label>
           Country
           <input value={form.country} onChange={(event) => setForm({ ...form, country: event.target.value })} />
+        </label>
+        <label>
+          Referral source
+          <select
+            value={form.referralSource}
+            onChange={(event) => setForm({ ...form, referralSource: event.target.value })}
+          >
+            {REFERRAL_SOURCES.map((item) => (
+              <option key={item}>{item}</option>
+            ))}
+          </select>
         </label>
         <label className="wide-field">
           LinkedIn
@@ -207,6 +258,25 @@ export default function WaitlistScreen() {
             onChange={(event) => setForm({ ...form, desiredFeatures: event.target.value })}
             placeholder="Dashboards, resume scoring, advisor workflows, exports..."
           />
+        </label>
+        <label>
+          Buying role
+          <select
+            value={form.buyingAuthority}
+            onChange={(event) => setForm({ ...form, buyingAuthority: event.target.value })}
+          >
+            {BUYING_AUTHORITY.map((item) => (
+              <option key={item}>{item}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Timeline
+          <select value={form.timeline} onChange={(event) => setForm({ ...form, timeline: event.target.value })}>
+            {TIMELINES.map((item) => (
+              <option key={item}>{item}</option>
+            ))}
+          </select>
         </label>
 
         <div className="form-section-title">

@@ -310,6 +310,7 @@ export default function ApplicationTracker() {
               <div>
                 <strong>{item.title}</strong>
                 <span>{item.company} - {item.location || "Location not saved"}</span>
+                {item.applicationId && <small>{item.applicationId}</small>}
                 {item.salary && <span>Salary: {item.salary}</span>}
                 {item.notes && <p>{item.notes}</p>}
               </div>

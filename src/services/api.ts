@@ -59,11 +59,12 @@ export async function saveResumeRecord(input: {
     throw new Error(payload.error || "Could not save resume record.");
   }
 
-  return payload as { ok: boolean; id: string; savedAt: string };
+  return payload as { ok: boolean; id: string; reportId?: string; savedAt: string };
 }
 
 export type ApplicationRecord = {
   id: string;
+  applicationId?: string;
   title: string;
   company: string;
   location: string;
@@ -124,7 +125,7 @@ export async function saveApplicationRecord(input: Omit<ApplicationRecord, "id" 
     throw new Error(payload.error || "Could not save application.");
   }
 
-  return { ...application, syncedAt: payload.syncedAt } as ApplicationRecord;
+  return { ...application, applicationId: payload.applicationId, syncedAt: payload.syncedAt } as ApplicationRecord;
 }
 
 export async function updateApplicationStatus(id: string, status: string) {
@@ -163,7 +164,7 @@ export async function getCurrentUser() {
     throw new Error(payload.error || "Could not load user profile.");
   }
 
-  return payload as { userId: string; identifierType: "email" | "client" };
+  return payload as { userId: string; candidateId?: string; identifierType: "email" | "client" };
 }
 
 function getClientId() {

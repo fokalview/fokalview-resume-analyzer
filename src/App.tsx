@@ -26,7 +26,7 @@ export default function App() {
 function ResumeApp() {
   const handoff = readJobHandoff();
   const [hasBetaAccess, setHasBetaAccess] = useState(Boolean(getStoredAccessCode()));
-  const [userIdentity, setUserIdentity] = useState<{ userId: string; identifierType: string } | null>(null);
+  const [userIdentity, setUserIdentity] = useState<{ userId: string; candidateId?: string; identifierType: string } | null>(null);
   const [screen, setScreen] = useState<Screen>("upload");
   const [analysis, setAnalysis] = useState<ResumeAnalysis | null>(null);
   const [resumeText, setResumeText] = useState("");
@@ -93,10 +93,13 @@ function ResumeApp() {
             <strong>Candidate ID</strong>
             <button
               className="candidate-id-button"
-              onClick={() => userIdentity?.userId && navigator.clipboard?.writeText(userIdentity.userId)}
+              onClick={() => {
+                const identifier = userIdentity?.candidateId || userIdentity?.userId || "";
+                if (identifier) void navigator.clipboard?.writeText(identifier);
+              }}
               title="Copy candidate ID"
             >
-              {userIdentity?.userId || "Loading..."}
+              {userIdentity?.candidateId || userIdentity?.userId || "Loading..."}
             </button>
             <small>{userIdentity?.identifierType === "email" ? "Email-linked profile" : "Device-linked profile"}</small>
           </div>

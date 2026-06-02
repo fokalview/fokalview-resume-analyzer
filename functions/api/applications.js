@@ -1,4 +1,5 @@
 import { ensureUser } from "./identity.js";
+import { nextPlatformId, tableColumns } from "./ids.js";
 
 const CONSENT_VERSION = "ferpa-minimum-necessary-v1";
 const STATUSES = new Set([
@@ -24,9 +25,11 @@ export async function onRequestGet({ request, env }) {
   const identity = await ensureUser(request, env);
   if (!identity) return json({ error: "Missing user identifier." }, 400);
 
-  const canStoreSalary = await hasSalaryColumn(env.DB);
+  const columns = await tableColumns(env.DB, "application_captures");
+  const canStoreSalary = columns.has("salary");
+  const applicationIdSelect = columns.has("application_id") ? "application_id AS applicationId," : "'' AS applicationId,";
   const rows = await env.DB.prepare(
-    `SELECT id, user_id AS userId, title, company, location, ${canStoreSalary ? "salary" : "''"} AS salary, status, notes, url, source, captured_at AS createdAt,
+    `SELECT id, ${applicationIdSelect} user_id AS userId, title, company, location, ${canStoreSalary ? "salary" : "''"} AS salary, status, notes, url, source, captured_at AS createdAt,
       updated_at AS updatedAt, synced_at AS syncedAt
      FROM application_captures
      WHERE user_id = ?
@@ -56,9 +59,52 @@ export async function onRequestPost({ request, env }) {
 
     const application = normalizeApplication(body.application);
     const syncedAt = new Date().toISOString();
-    const canStoreSalary = await hasSalaryColumn(env.DB);
+    const columns = await tableColumns(env.DB, "application_captures");
+    const canStoreSalary = columns.has("salary");
+    const canStoreApplicationId = columns.has("application_id");
+    const applicationId = canStoreApplicationId ? await nextPlatformId(env.DB, "application") : "";
 
-    if (canStoreSalary) {
+    if (canStoreSalary && canStoreApplicationId) {
+      await env.DB.prepare(
+        `INSERT INTO application_captures (
+          id, application_id, client_hash, user_id, title, company, location, salary, status, notes, url, source,
+          data_category, consent_version, captured_at, updated_at, synced_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'job_application_context', ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          application_id = COALESCE(application_captures.application_id, excluded.application_id),
+          title = excluded.title,
+          company = excluded.company,
+          location = excluded.location,
+          salary = excluded.salary,
+          status = excluded.status,
+          notes = excluded.notes,
+          url = excluded.url,
+          source = excluded.source,
+          consent_version = excluded.consent_version,
+          updated_at = excluded.updated_at,
+          synced_at = excluded.synced_at`
+      )
+        .bind(
+          application.id,
+          applicationId,
+          identity.clientHash,
+          identity.userId,
+          application.title,
+          application.company,
+          application.location,
+          application.salary,
+          application.status,
+          application.notes,
+          application.url,
+          application.source,
+          CONSENT_VERSION,
+          application.createdAt,
+          application.updatedAt,
+          syncedAt
+        )
+        .run();
+    } else if (canStoreSalary) {
       await env.DB.prepare(
         `INSERT INTO application_captures (
           id, client_hash, user_id, title, company, location, salary, status, notes, url, source,
@@ -86,6 +132,44 @@ export async function onRequestPost({ request, env }) {
           application.company,
           application.location,
           application.salary,
+          application.status,
+          application.notes,
+          application.url,
+          application.source,
+          CONSENT_VERSION,
+          application.createdAt,
+          application.updatedAt,
+          syncedAt
+        )
+        .run();
+    } else if (canStoreApplicationId) {
+      await env.DB.prepare(
+        `INSERT INTO application_captures (
+          id, application_id, client_hash, user_id, title, company, location, status, notes, url, source,
+          data_category, consent_version, captured_at, updated_at, synced_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'job_application_context', ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          application_id = COALESCE(application_captures.application_id, excluded.application_id),
+          title = excluded.title,
+          company = excluded.company,
+          location = excluded.location,
+          status = excluded.status,
+          notes = excluded.notes,
+          url = excluded.url,
+          source = excluded.source,
+          consent_version = excluded.consent_version,
+          updated_at = excluded.updated_at,
+          synced_at = excluded.synced_at`
+      )
+        .bind(
+          application.id,
+          applicationId,
+          identity.clientHash,
+          identity.userId,
+          application.title,
+          application.company,
+          application.location,
           application.status,
           application.notes,
           application.url,
@@ -134,7 +218,14 @@ export async function onRequestPost({ request, env }) {
         .run();
     }
 
-    return json({ ok: true, id: application.id, syncedAt });
+    const saved = canStoreApplicationId
+      ? await env.DB.prepare("SELECT application_id AS applicationId FROM application_captures WHERE id = ?")
+          .bind(application.id)
+          .first()
+          .catch(() => null)
+      : null;
+
+    return json({ ok: true, id: application.id, applicationId: saved?.applicationId || applicationId, syncedAt });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Could not save application." }, 400);
   }
@@ -256,11 +347,6 @@ function cleanUrl(value) {
 function cleanDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
-}
-
-async function hasSalaryColumn(db) {
-  const columns = await db.prepare("PRAGMA table_info(application_captures)").all();
-  return (columns.results || []).some((column) => column.name === "salary");
 }
 
 function json(payload, status = 200) {

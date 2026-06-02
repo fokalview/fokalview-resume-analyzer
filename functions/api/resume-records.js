@@ -1,4 +1,5 @@
 import { ensureUser } from "./identity.js";
+import { nextPlatformId, tableColumns } from "./ids.js";
 
 const CONSENT_VERSION = "workforce-resume-profile-v1";
 const MAX_RAW_RESUME_LENGTH = 50000;
@@ -13,8 +14,10 @@ export async function onRequestGet({ request, env }) {
   const identity = await ensureUser(request, env);
   if (!identity) return json({ error: "Missing user identifier." }, 400);
 
+  const columns = await tableColumns(env.DB, "resume_records");
+  const reportIdSelect = columns.has("report_id") ? "report_id AS reportId," : "'' AS reportId,";
   const rows = await env.DB.prepare(
-    `SELECT id, user_id AS userId, target_role AS targetRole, profile_json AS profileJson,
+    `SELECT id, ${reportIdSelect} user_id AS userId, target_role AS targetRole, profile_json AS profileJson,
       analysis_json AS analysisJson, raw_resume_retained AS rawResumeRetained,
       data_category AS dataCategory, consent_version AS consentVersion,
       captured_at AS capturedAt, updated_at AS updatedAt
@@ -55,32 +58,62 @@ export async function onRequestPost({ request, env }) {
 
     const record = normalizeResumeRecord(body);
     const now = new Date().toISOString();
+    const columns = await tableColumns(env.DB, "resume_records");
+    const canStoreReportId = columns.has("report_id");
+    const reportId = canStoreReportId ? await nextPlatformId(env.DB, "report") : "";
 
-    await env.DB.prepare(
-      `INSERT INTO resume_records (
-        id, client_hash, user_id, target_role, job_context, profile_json, analysis_json,
-        raw_resume_text, raw_resume_retained, data_category, consent_version,
-        captured_at, updated_at
+    if (canStoreReportId) {
+      await env.DB.prepare(
+        `INSERT INTO resume_records (
+          id, report_id, client_hash, user_id, target_role, job_context, profile_json, analysis_json,
+          raw_resume_text, raw_resume_retained, data_category, consent_version,
+          captured_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'workforce_resume_profile', ?, ?, ?)`
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'workforce_resume_profile', ?, ?, ?)`
-    )
-      .bind(
-        record.id,
-        identity.clientHash,
-        identity.userId,
-        record.targetRole,
-        record.jobContext,
-        JSON.stringify(record.profile),
-        JSON.stringify(record.analysis),
-        record.rawResumeText,
-        record.rawResumeText ? 1 : 0,
-        CONSENT_VERSION,
-        now,
-        now
+        .bind(
+          record.id,
+          reportId,
+          identity.clientHash,
+          identity.userId,
+          record.targetRole,
+          record.jobContext,
+          JSON.stringify(record.profile),
+          JSON.stringify(record.analysis),
+          record.rawResumeText,
+          record.rawResumeText ? 1 : 0,
+          CONSENT_VERSION,
+          now,
+          now
+        )
+        .run();
+    } else {
+      await env.DB.prepare(
+        `INSERT INTO resume_records (
+          id, client_hash, user_id, target_role, job_context, profile_json, analysis_json,
+          raw_resume_text, raw_resume_retained, data_category, consent_version,
+          captured_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'workforce_resume_profile', ?, ?, ?)`
       )
-      .run();
+        .bind(
+          record.id,
+          identity.clientHash,
+          identity.userId,
+          record.targetRole,
+          record.jobContext,
+          JSON.stringify(record.profile),
+          JSON.stringify(record.analysis),
+          record.rawResumeText,
+          record.rawResumeText ? 1 : 0,
+          CONSENT_VERSION,
+          now,
+          now
+        )
+        .run();
+    }
 
-    return json({ ok: true, id: record.id, savedAt: now });
+    return json({ ok: true, id: record.id, reportId, savedAt: now });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Could not save resume record." }, 400);
   }

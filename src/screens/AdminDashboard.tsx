@@ -13,6 +13,7 @@ type AdminSummary = {
     interviewVolunteers: number;
     pilotProspects: number;
     budgetQualified: number;
+    averageLeadScore?: number;
     uniqueUsers: number;
     rawResumeRecords: number;
     averageReadinessScore: number;
@@ -28,12 +29,18 @@ type AdminSummary = {
   applicationSources: CountItem[];
   waitlistOrganizationTypes: CountItem[];
   waitlistSources: CountItem[];
+  waitlistUserTypes?: CountItem[];
+  waitlistReferralSources?: CountItem[];
+  waitlistLeadPriorities?: Record<string, number>;
   waitlistInterest: Record<string, number>;
   emailDomains: CountItem[];
   emailDomainTypes: Record<string, number>;
   countries: CountItem[];
   readinessBands: Record<string, number>;
   recentResumeRecords: Array<{
+    id?: string;
+    reportId?: string;
+    systemUserId?: string;
     candidateId: string;
     targetRole: string;
     currentTitle: string;
@@ -48,7 +55,12 @@ type AdminSummary = {
   }>;
   recentWaitlistSignups: Array<{
     id: string;
+    leadId?: string;
+    contactId?: string;
+    organizationId?: string;
+    candidateId?: string;
     name: string;
+    userType?: string;
     organization: string;
     organizationType: string;
     role: string;
@@ -59,6 +71,12 @@ type AdminSummary = {
     betaInterest: boolean;
     pilotInterest: boolean;
     budgetInterest: boolean;
+    referralSource?: string;
+    buyingAuthority?: string;
+    timeline?: string;
+    leadScore?: number;
+    leadPriority?: string;
+    recommendedAction?: string;
     status: string;
     createdAt: string;
   }>;
@@ -164,7 +182,7 @@ export default function AdminDashboard() {
             <Metric label="Waitlist signups" value={summary.totals.waitlistSignups || 0} note="Discovery pipeline" />
             <Metric label="Interview volunteers" value={summary.totals.interviewVolunteers || 0} note="Customer discovery" />
             <Metric label="Pilot prospects" value={summary.totals.pilotProspects || 0} note="Institutional leads" />
-            <Metric label="Budget signals" value={summary.totals.budgetQualified || 0} note="Buying influence" />
+            <Metric label="Avg lead score" value={summary.totals.averageLeadScore || 0} note="Rules-based priority" />
           </section>
 
           <section className="admin-grid">
@@ -177,6 +195,9 @@ export default function AdminDashboard() {
             <SortablePanel title="Top Tools" items={summary.topTools} />
             <ChartPanel title="Opportunity Sources" items={summary.applicationSources} />
             <ChartPanel title="Waitlist Organization Types" items={summary.waitlistOrganizationTypes || []} />
+            <ChartPanel title="Waitlist User Types" items={summary.waitlistUserTypes || []} />
+            <ChartPanel title="Lead Priorities" items={toCountItems(summary.waitlistLeadPriorities || {})} />
+            <ChartPanel title="Referral Sources" items={summary.waitlistReferralSources || []} />
             <ChartPanel title="Waitlist Sources" items={summary.waitlistSources || []} />
             <ChartPanel title="Waitlist Interest" items={toCountItems(summary.waitlistInterest || {})} />
             <ChartPanel title="Email Domains" items={summary.emailDomains} />
@@ -197,6 +218,7 @@ export default function AdminDashboard() {
                     <div>
                       <strong>{record.currentTitle || record.candidateId}</strong>
                       <span>{record.candidateId}</span>
+                      {record.reportId && <small>{record.reportId}</small>}
                       {(record.emailDomain || record.country) && (
                         <small>{[record.emailDomain, record.country].filter(Boolean).join(" - ")}</small>
                       )}
@@ -225,12 +247,15 @@ export default function AdminDashboard() {
                       <span className="avatar">{initials(signup.name)}</span>
                       <div>
                         <strong>{signup.name}</strong>
+                        {signup.leadId && <span>{signup.leadId}</span>}
                         <span>{[signup.organization, signup.organizationType].filter(Boolean).join(" - ") || "No organization"}</span>
-                        <small>{[signup.emailDomain, signup.country].filter(Boolean).join(" - ")}</small>
+                        <small>{[signup.userType, signup.emailDomain, signup.country].filter(Boolean).join(" - ")}</small>
                       </div>
                     </div>
                     <span>{signup.role || "Role not saved"}</span>
-                    <span>{interestLabels(signup).join(", ") || "No interest flags"}</span>
+                    <span>
+                      {signup.leadScore ? `${signup.leadScore} - ${signup.leadPriority || "Scored"}` : interestLabels(signup).join(", ") || "No interest flags"}
+                    </span>
                     <span>{formatDate(signup.createdAt)}</span>
                     <span className="status-pill applied">{signup.status || "New"}</span>
                   </article>
