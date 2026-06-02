@@ -32,6 +32,9 @@ type AdminSummary = {
   waitlistUserTypes?: CountItem[];
   waitlistReferralSources?: CountItem[];
   waitlistLeadPriorities?: Record<string, number>;
+  waitlistBranchStatuses?: CountItem[];
+  waitlistTargetIndustries?: CountItem[];
+  waitlistCurrentProcesses?: CountItem[];
   waitlistInterest: Record<string, number>;
   emailDomains: CountItem[];
   emailDomainTypes: Record<string, number>;
@@ -74,6 +77,12 @@ type AdminSummary = {
     referralSource?: string;
     buyingAuthority?: string;
     timeline?: string;
+    branchStatus?: string;
+    targetRole?: string;
+    targetIndustry?: string;
+    currentProcess?: string;
+    populationServed?: string;
+    reportingWish?: string;
     leadScore?: number;
     leadPriority?: string;
     recommendedAction?: string;
@@ -198,6 +207,9 @@ export default function AdminDashboard() {
             <ChartPanel title="Waitlist User Types" items={summary.waitlistUserTypes || []} />
             <ChartPanel title="Lead Priorities" items={toCountItems(summary.waitlistLeadPriorities || {})} />
             <ChartPanel title="Referral Sources" items={summary.waitlistReferralSources || []} />
+            <ChartPanel title="Branch Statuses" items={summary.waitlistBranchStatuses || []} />
+            <ChartPanel title="Target Industries" items={summary.waitlistTargetIndustries || []} />
+            <ChartPanel title="Current Processes" items={summary.waitlistCurrentProcesses || []} />
             <ChartPanel title="Waitlist Sources" items={summary.waitlistSources || []} />
             <ChartPanel title="Waitlist Interest" items={toCountItems(summary.waitlistInterest || {})} />
             <ChartPanel title="Email Domains" items={summary.emailDomains} />
@@ -252,12 +264,12 @@ export default function AdminDashboard() {
                         <small>{[signup.userType, signup.emailDomain, signup.country].filter(Boolean).join(" - ")}</small>
                       </div>
                     </div>
-                    <span>{signup.role || "Role not saved"}</span>
+                    <span>{signup.targetRole || signup.role || "Role not saved"}</span>
                     <span>
                       {signup.leadScore ? `${signup.leadScore} - ${signup.leadPriority || "Scored"}` : interestLabels(signup).join(", ") || "No interest flags"}
                     </span>
                     <span>{formatDate(signup.createdAt)}</span>
-                    <span className="status-pill applied">{signup.status || "New"}</span>
+                    <span className="status-pill applied">{signup.branchStatus || signup.status || "New"}</span>
                   </article>
                 ))
               ) : (

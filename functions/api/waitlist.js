@@ -24,7 +24,9 @@ export async function onRequestPost({ request, env }) {
     const now = new Date().toISOString();
     const columns = await tableColumns(env.DB, "waitlist_signups");
 
-    if (columns.has("lead_id")) {
+    if (columns.has("branch_profile_json")) {
+      await insertBranchedSignup(env.DB, record, now);
+    } else if (columns.has("lead_id")) {
       await insertExtendedSignup(env.DB, record, now);
     } else {
       await insertBasicSignup(env.DB, record, now);
@@ -72,6 +74,8 @@ async function normalizeSignup(body, request, env) {
     state: clean(body.state, 80),
     country: clean(body.country, 80) || countryFromEdge,
     linkedinUrl: cleanUrl(body.linkedinUrl),
+    zipPostal: clean(body.zipPostal, 40),
+    preferredContactMethod: clean(body.preferredContactMethod, 80),
     biggestChallenge: clean(body.biggestChallenge, 1200),
     currentTools: clean(body.currentTools, 800),
     desiredFeatures: clean(body.desiredFeatures, 1200),
@@ -83,6 +87,14 @@ async function normalizeSignup(body, request, env) {
     referralSource: clean(body.referralSource, 80) || "Direct",
     buyingAuthority: clean(body.buyingAuthority, 80),
     timeline: clean(body.timeline, 80),
+    branchStatus: branchStatus(body),
+    targetRole: clean(body.targetRole, 180),
+    targetIndustry: clean(body.targetIndustry, 120),
+    experienceLevel: clean(body.experienceLevel, 80),
+    currentProcess: clean(body.currentProcess, 120),
+    populationServed: clean(body.populationServed, 80),
+    reportingWish: clean(body.reportingWish, 1600),
+    branchProfile: buildBranchProfile(body),
     source: clean(body.source, 120) || "waitlist",
     ...scoring
   };
@@ -189,6 +201,70 @@ async function insertExtendedSignup(db, record, now) {
     .run();
 }
 
+async function insertBranchedSignup(db, record, now) {
+  await db.prepare(
+    `INSERT INTO waitlist_signups (
+      id, lead_id, contact_id, organization_id, candidate_id, name, email_hash,
+      email_domain, email_domain_type, organization, organization_type, user_type, role,
+      city, state, country, zip_postal, preferred_contact_method, linkedin_url,
+      biggest_challenge, current_tools, desired_features, interview_interest,
+      beta_interest, pilot_interest, budget_interest, source, referral_source,
+      buying_authority, timeline, lead_score, lead_priority, recommended_action,
+      score_breakdown_json, branch_status, target_role, target_industry, experience_level,
+      current_process, population_served, reporting_wish, branch_profile_json,
+      status, created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', ?, ?)`
+  )
+    .bind(
+      record.id,
+      record.leadId,
+      record.contactId,
+      record.organizationId,
+      record.candidateId,
+      record.name,
+      record.emailHash,
+      record.emailDomain,
+      record.emailDomainType,
+      record.organization,
+      record.organizationType,
+      record.userType,
+      record.role,
+      record.city,
+      record.state,
+      record.country,
+      record.zipPostal,
+      record.preferredContactMethod,
+      record.linkedinUrl,
+      record.biggestChallenge,
+      record.currentTools,
+      record.desiredFeatures,
+      record.interviewInterest ? 1 : 0,
+      record.betaInterest ? 1 : 0,
+      record.pilotInterest ? 1 : 0,
+      record.budgetInterest ? 1 : 0,
+      record.source,
+      record.referralSource,
+      record.buyingAuthority,
+      record.timeline,
+      record.leadScore,
+      record.leadPriority,
+      record.recommendedAction,
+      JSON.stringify(record.scoreBreakdown),
+      record.branchStatus,
+      record.targetRole,
+      record.targetIndustry,
+      record.experienceLevel,
+      record.currentProcess,
+      record.populationServed,
+      record.reportingWish,
+      JSON.stringify(record.branchProfile),
+      now,
+      now
+    )
+    .run();
+}
+
 function scoreLead(body) {
   const factors = [];
   let score = 0;
@@ -232,6 +308,80 @@ function scoreLead(body) {
     recommendedAction: actionForScore(score),
     scoreBreakdown: factors
   };
+}
+
+function branchStatus(body) {
+  const userType = clean(body.userType, 80);
+  if (userType === "Individual Job Seeker") return clean(body.currentStatus, 120);
+  if (userType === "Student") return clean(body.careerStage, 120) || clean(body.studentType, 120);
+  if (userType === "Employer / Hiring Partner") return clean(body.hiringVolume, 120);
+  return clean(body.pilotInterestLevel, 120) || clean(body.currentProcess, 120);
+}
+
+function buildBranchProfile(body) {
+  const userType = clean(body.userType, 80);
+  return compactObject({
+    userType,
+    currentStatus: clean(body.currentStatus, 160),
+    targetRole: clean(body.targetRole, 180),
+    targetIndustry: clean(body.targetIndustry, 120),
+    experienceLevel: clean(body.experienceLevel, 80),
+    currentIncomeRange: clean(body.currentIncomeRange, 120),
+    minimumSalary: clean(body.minimumSalary, 120),
+    targetSalary: clean(body.targetSalary, 120),
+    dreamSalary: clean(body.dreamSalary, 120),
+    studentType: clean(body.studentType, 120),
+    degreeProgram: clean(body.degreeProgram, 180),
+    majorField: clean(body.majorField, 180),
+    expectedGraduationYear: clean(body.expectedGraduationYear, 40),
+    careerStage: clean(body.careerStage, 120),
+    primaryPopulation: cleanList(body.primaryPopulation, 20, 120),
+    currentProcess: clean(body.currentProcess, 120),
+    populationServed: clean(body.populationServed, 80),
+    reportingWish: clean(body.reportingWish, 1600),
+    geographicReach: clean(body.geographicReach, 80),
+    advisingStaffCount: clean(body.advisingStaffCount, 80),
+    programType: clean(body.programType, 120),
+    fundingSource: clean(body.fundingSource, 120),
+    companySize: clean(body.companySize, 80),
+    hiringVolume: clean(body.hiringVolume, 80),
+    rolesHiringFor: clean(body.rolesHiringFor, 800),
+    skillsHardToFind: clean(body.skillsHardToFind, 800),
+    pilotInterestLevel: clean(body.pilotInterestLevel, 120),
+    individualChallenges: cleanList(body.individualChallenges, 20, 160),
+    individualTools: cleanList(body.individualTools, 20, 120),
+    studentChallenges: cleanList(body.studentChallenges, 20, 160),
+    studentTools: cleanList(body.studentTools, 20, 120),
+    operationalChallenges: cleanList(body.operationalChallenges, 30, 160),
+    employerPainPoints: cleanList(body.employerPainPoints, 20, 160),
+    employerInterestTypes: cleanList(body.employerInterestTypes, 20, 160),
+    interests: compactObject({
+      resumeAnalysis: body.resumeAnalysisInterest === true,
+      applicationTracker: body.applicationTrackerInterest === true,
+      productUpdates: body.productUpdatesInterest === true,
+      feedback: body.feedbackInterest === true,
+      interview: body.interviewInterest === true,
+      beta: body.betaInterest === true,
+      pilot: body.pilotInterest === true,
+      budget: body.budgetInterest === true
+    })
+  });
+}
+
+function compactObject(value) {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entry]) => {
+      if (Array.isArray(entry)) return entry.length > 0;
+      if (typeof entry === "boolean") return entry === true;
+      return Boolean(entry);
+    })
+  );
+}
+
+function cleanList(value, maxItems, maxLength) {
+  return Array.isArray(value)
+    ? value.map((item) => clean(item, maxLength)).filter(Boolean).slice(0, maxItems)
+    : [];
 }
 
 function priorityForScore(score) {
