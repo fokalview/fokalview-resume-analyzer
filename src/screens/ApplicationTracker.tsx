@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { BriefcaseBusiness, CalendarClock, Edit3, ExternalLink, Plus, RefreshCw, X } from "lucide-react";
 import {
+  deleteApplicationRecord,
   getApplications,
   saveApplicationRecord,
   updateApplicationStatus,
@@ -131,6 +132,21 @@ export default function ApplicationTracker() {
       );
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Could not update status.");
+    }
+  }
+
+  async function deleteApplication(item: ApplicationRecord) {
+    const label = [item.title, item.company].filter(Boolean).join(" at ");
+    const confirmed = window.confirm(`Delete ${label || "this opportunity"}? This removes it from your tracker.`);
+    if (!confirmed) return;
+
+    setError("");
+    try {
+      await deleteApplicationRecord(item.id);
+      setApplications((current) => current.filter((entry) => entry.id !== item.id));
+      if (editingId === item.id) resetForm();
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "Could not delete application.");
     }
   }
 
@@ -335,6 +351,10 @@ export default function ApplicationTracker() {
               <button className="secondary-action compact-action" onClick={() => editApplication(item)}>
                 <Edit3 size={15} />
                 Edit
+              </button>
+              <button className="secondary-action compact-action danger-action" onClick={() => void deleteApplication(item)}>
+                <X size={15} />
+                Delete
               </button>
             </article>
           ))

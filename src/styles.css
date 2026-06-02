@@ -1162,7 +1162,7 @@ textarea:focus {
 
 .application-list article {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 132px 128px 36px 86px;
+  grid-template-columns: minmax(0, 1fr) 132px 128px 36px 86px 96px;
   align-items: center;
   gap: 14px;
   padding: 14px 16px;
@@ -1172,6 +1172,15 @@ textarea:focus {
 .compact-action {
   min-height: 34px;
   padding: 0 10px;
+}
+
+.danger-action {
+  border-color: #b91c1c;
+  color: #b91c1c;
+}
+
+.danger-action:hover {
+  background: #fef2f2;
 }
 
 .application-list article:last-child {

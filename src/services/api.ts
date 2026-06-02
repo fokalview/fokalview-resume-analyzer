@@ -149,6 +149,26 @@ export async function updateApplicationStatus(id: string, status: string) {
   return payload as { ok: boolean; id: string; status: string; updatedAt: string };
 }
 
+export async function deleteApplicationRecord(id: string) {
+  const clientId = getClientId();
+  const params = new URLSearchParams({ id });
+  const response = await fetch(`/api/applications?${params}`, {
+    method: "DELETE",
+    headers: {
+      "X-Beta-Access-Code": getStoredAccessCode(),
+      "X-FokalView-User-Email": getStoredUserEmail(),
+      "X-FokalView-Client-ID": clientId
+    }
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.error || "Could not delete application.");
+  }
+
+  return payload as { ok: boolean };
+}
+
 export async function getCurrentUser() {
   const clientId = getClientId();
   const response = await fetch("/api/me", {
