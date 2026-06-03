@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BriefcaseBusiness, FileText, Gauge, MessageSquareText, Sparkles } from "lucide-react";
+import { BriefcaseBusiness, FileText, Gauge, MessageSquareText, Moon, Sparkles, Sun } from "lucide-react";
 import UploadScreen from "./screens/UploadScreen";
 import ResultsScreen from "./screens/ResultsScreen";
 import FeedbackScreen from "./screens/FeedbackScreen";
@@ -31,6 +31,7 @@ export default function App() {
 
 function ResumeApp() {
   const handoff = readJobHandoff();
+  const [theme, setTheme] = useState<"light" | "dark">(() => getStoredTheme());
   const [hasBetaAccess, setHasBetaAccess] = useState(Boolean(getStoredAccessCode()));
   const [userIdentity, setUserIdentity] = useState<{ userId: string; candidateId?: string; identifierType: string } | null>(null);
   const [screen, setScreen] = useState<Screen>("dashboard");
@@ -40,6 +41,10 @@ function ResumeApp() {
   const [jobContext, setJobContext] = useState(handoff.jobContext);
 
   useEffect(() => {
+    localStorage.setItem("sagittaiq_theme", theme);
+  }, [theme]);
+
+  useEffect(() => {
     if (!hasBetaAccess) return;
     void getCurrentUser()
       .then(setUserIdentity)
@@ -47,11 +52,17 @@ function ResumeApp() {
   }, [hasBetaAccess]);
 
   if (!hasBetaAccess) {
-    return <WelcomeScreen onAccessGranted={() => setHasBetaAccess(true)} />;
+    return (
+      <WelcomeScreen
+        theme={theme}
+        onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
+        onAccessGranted={() => setHasBetaAccess(true)}
+      />
+    );
   }
 
   return (
-    <main className="app-shell">
+    <main className="app-shell" data-theme={theme}>
       <aside className="sidebar" aria-label="Workflow">
         <div className="brand">
           <div className="brand-mark">
@@ -96,6 +107,11 @@ function ResumeApp() {
             Opportunities
           </button>
         </nav>
+
+        <button className="mode-toggle sidebar-mode-toggle" type="button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+          {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+          {theme === "dark" ? "Light mode" : "Dark mode"}
+        </button>
 
         <div className="api-status">
           <span />
@@ -174,4 +190,10 @@ function readJobHandoff() {
     .join("\n");
 
   return { targetRole, jobContext, title, company, location, salary, url, notes, source };
+}
+
+function getStoredTheme() {
+  const saved = localStorage.getItem("sagittaiq_theme");
+  if (saved === "dark" || saved === "light") return saved;
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }

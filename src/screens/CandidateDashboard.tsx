@@ -46,6 +46,8 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
   const profile = currentAnalysis?.profile || latestRecord?.profile;
   const nextSteps = useMemo(() => buildNextSteps(currentAnalysis, applications), [currentAnalysis, applications]);
   const stats = applicationStats(applications);
+  const statusCounts = applicationStatusCounts(applications);
+  const readinessDrivers = readinessDriverScores(currentAnalysis);
   const timeline = buildTimeline(resumeRecords, applications, userIdentity);
 
   return (
@@ -107,7 +109,11 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
             <h3>Score History</h3>
           </div>
           {resumeRecords.length ? (
-            <div className="score-history" aria-label="Resume score history">
+            <div className="score-history-wrap">
+              <div className="score-history-threshold" aria-hidden="true">
+                <span>85 strong match</span>
+              </div>
+              <div className="score-history" role="img" aria-label="Resume score history with 85 percent strong match threshold">
               {resumeRecords.slice(0, 8).reverse().map((record) => (
                 <span
                   key={record.id}
@@ -115,6 +121,7 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
                   title={`${formatDate(record.updatedAt)}: ${record.analysis.score}%`}
                 />
               ))}
+              </div>
             </div>
           ) : (
             <EmptyState icon={FileText} title="No score history yet" detail="Analyze a resume to start tracking progress." />
@@ -131,6 +138,15 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
             <Metric label="Interviews" value={stats.interviews} />
             <Metric label="Offers" value={stats.offers} />
             <Metric label="Response rate" value={`${stats.responseRate}%`} />
+          </div>
+          <div className="status-mix-chart" aria-label="Opportunity status mix">
+            {statusCounts.map((item) => (
+              <div key={item.label}>
+                <span>{item.label}</span>
+                <meter min="0" max={Math.max(...statusCounts.map((entry) => entry.count), 1)} value={item.count} />
+                <strong>{item.count}</strong>
+              </div>
+            ))}
           </div>
           <button className="secondary-action" onClick={() => onNavigate("applications")}>
             Open tracker
@@ -175,7 +191,16 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
         <article className="dashboard-panel alignment-panel">
           <div className="panel-title">
             <Target size={18} />
-            <h3>Role Alignment</h3>
+            <h3>Readiness Drivers</h3>
+          </div>
+          <div className="driver-chart" role="img" aria-label="Readiness driver scores by resume section">
+            {readinessDrivers.map((driver) => (
+              <div key={driver.label}>
+                <span>{driver.label}</span>
+                <meter min="0" max="100" value={driver.score} />
+                <strong>{driver.score}%</strong>
+              </div>
+            ))}
           </div>
           <div className="alignment-groups">
             <div>
@@ -191,6 +216,47 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
       </section>
     </section>
   );
+}
+
+function applicationStatusCounts(applications: ApplicationRecord[]) {
+  const labels = ["Interested", "Applied", "Interviewing", "Offer", "Accepted"];
+  const counts = applications.reduce<Record<string, number>>((nextCounts, item) => {
+    const normalized = normalizeApplicationStatus(item.status);
+    nextCounts[normalized] = (nextCounts[normalized] || 0) + 1;
+    return nextCounts;
+  }, {});
+
+  return labels.map((label) => ({ label, count: counts[label] || 0 }));
+}
+
+function normalizeApplicationStatus(status: string) {
+  const value = status.toLowerCase();
+  if (value.includes("accept")) return "Accepted";
+  if (value.includes("offer")) return "Offer";
+  if (value.includes("interview") || value.includes("screen")) return "Interviewing";
+  if (value.includes("applied")) return "Applied";
+  return "Interested";
+}
+
+function readinessDriverScores(analysis: ResumeAnalysis | null) {
+  if (!analysis) {
+    return [
+      { label: "Skills", score: 0 },
+      { label: "Experience", score: 0 },
+      { label: "Education", score: 0 },
+      { label: "ATS Match", score: 0 }
+    ];
+  }
+
+  const sectionScore = (name: string, fallback: number) =>
+    analysis.sections.find((section) => section.name.toLowerCase().includes(name))?.score ?? fallback;
+
+  return [
+    { label: "Skills", score: sectionScore("skill", Math.min(100, analysis.keywordAnalysis.matched.length * 10)) },
+    { label: "Experience", score: sectionScore("experience", analysis.score) },
+    { label: "Education", score: sectionScore("education", analysis.score) },
+    { label: "ATS Match", score: sectionScore("ats", analysis.score) }
+  ].map((item) => ({ ...item, score: Math.max(0, Math.min(100, Math.round(item.score))) }));
 }
 
 function buildNextSteps(analysis: ResumeAnalysis | null, applications: ApplicationRecord[]) {

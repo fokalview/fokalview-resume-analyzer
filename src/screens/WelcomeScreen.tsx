@@ -1,12 +1,14 @@
 import { FormEvent, useState } from "react";
-import { LockKeyhole, Sparkles } from "lucide-react";
+import { LockKeyhole, Moon, Sparkles, Sun } from "lucide-react";
 import { storeAccessCode, validateAccessCode } from "../services/access";
 
 type Props = {
+  theme: "light" | "dark";
+  onToggleTheme: () => void;
   onAccessGranted: () => void;
 };
 
-export default function WelcomeScreen({ onAccessGranted }: Props) {
+export default function WelcomeScreen({ theme, onToggleTheme, onAccessGranted }: Props) {
   const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
   const [userPin, setUserPin] = useState("");
@@ -32,7 +34,11 @@ export default function WelcomeScreen({ onAccessGranted }: Props) {
   }
 
   return (
-    <main className="welcome-shell">
+    <main className="welcome-shell" data-theme={theme}>
+      <button className="theme-toggle" type="button" onClick={onToggleTheme}>
+        {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+        {theme === "dark" ? "Light mode" : "Dark mode"}
+      </button>
       <section className="welcome-panel">
         <div className="welcome-mark">
           <Sparkles size={28} />

@@ -1,10 +1,18 @@
-import { useEffect, useState, type FormEvent } from "react";
-import { BarChart3, Download, LockKeyhole, RefreshCw, Search, Settings2 } from "lucide-react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { BarChart3, Download, ImageDown, LockKeyhole, Moon, RefreshCw, Search, Settings2, Sun } from "lucide-react";
 
 type CountItem = { label: string; count: number; percentAffected?: number };
 type UsageDay = { date: string; resumes: number; applications: number; uniqueUsers: number };
 type FunnelItem = { label: string; count: number; rate: number };
 type ConversionMetric = { label: string; value: number; detail: string };
+type ActionQueueItem = {
+  type: "lead" | "candidate" | "outcome" | "product";
+  priority: "High" | "Medium" | "Low";
+  title: string;
+  detail: string;
+  nextAction: string;
+};
+type ProductSignal = { label: string; value: string; detail: string };
 
 type AdminSummary = {
   meta: { readinessThreshold: number; lastLoadedAt: string; query?: string };
@@ -101,6 +109,7 @@ type AdminSummary = {
     populationServed?: string;
     reportingWish?: string;
     branchProfile?: Record<string, unknown>;
+    scoreBreakdown?: Record<string, unknown>;
     leadScore?: number;
     leadPriority?: string;
     recommendedAction?: string;
@@ -128,6 +137,7 @@ type AdminSummary = {
 
 export default function AdminDashboard() {
   const [code, setCode] = useState(sessionStorage.getItem("fokalview_admin_access_code") || "");
+  const [theme, setTheme] = useState<"light" | "dark">(() => getStoredTheme());
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [query, setQuery] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -141,6 +151,14 @@ export default function AdminDashboard() {
     }, 350);
     return () => window.clearTimeout(timeout);
   }, [query]);
+
+  useEffect(() => {
+    localStorage.setItem("sagittaiq_admin_theme", theme);
+  }, [theme]);
+
+  const briefing = useMemo(() => (summary ? buildAdminBriefing(summary) : []), [summary]);
+  const actionQueue = useMemo(() => (summary ? buildActionQueue(summary) : []), [summary]);
+  const productSignals = useMemo(() => (summary ? buildProductSignals(summary) : []), [summary]);
 
   async function loadSummary(event?: FormEvent, searchQuery = query) {
     event?.preventDefault();
@@ -170,7 +188,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <main className="admin-shell">
+    <main className="admin-shell" data-theme={theme}>
       <header className="admin-header">
         <div>
           <p className="eyebrow">Administrator</p>
@@ -197,6 +215,10 @@ export default function AdminDashboard() {
             <Download size={16} />
             Export all
           </button>
+          <button className="secondary-action" type="button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+            {theme === "dark" ? "Light" : "Dark"}
+          </button>
         </form>
       </header>
 
@@ -216,12 +238,56 @@ export default function AdminDashboard() {
 
       {summary && (
         <>
-          <section className="admin-metrics three">
-            <Metric label="Total users" value={summary.totals.uniqueUsers} note="Tracked profiles" />
-            <Metric label="Career records" value={summary.totals.resumeRecords} note="Active pool" />
-            <Metric label="Opportunities tracked" value={summary.totals.applicationCaptures} note="Linked records" />
+          <section className="admin-briefing" aria-label="Executive briefing">
+            {briefing.map((item) => (
+              <article key={item.label}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+                <p>{item.detail}</p>
+              </article>
+            ))}
+          </section>
+
+          <section className="admin-operating-layer" aria-label="Admin action queue and product discovery">
+            <ActionQueuePanel items={actionQueue} />
+            <ProductSignalsPanel items={productSignals} />
+          </section>
+
+          <SectionHeader
+            eyebrow="Executive overview"
+            title="Platform health"
+            detail="Candidate activity, workforce readiness, opportunity movement, and beta discovery signals."
+          />
+
+          <section className="admin-metrics four">
+            <Metric label="Tracked users" value={summary.totals.uniqueUsers} note="Profiles with saved activity" />
+            <Metric label="Career records" value={summary.totals.resumeRecords} note="Resume analyses retained" />
+            <Metric label="Opportunities tracked" value={summary.totals.applicationCaptures} note="Applications and opportunities" />
             <ReadinessMetric summary={summary} />
           </section>
+
+          <SectionHeader
+            eyebrow="Application metrics"
+            title="Candidate readiness and opportunity activity"
+            detail="Resume analyses, readiness bands, skill gaps, usage, application status, and career profile signals."
+          />
+
+          <section className="admin-grid">
+            <UsagePanel days={summary.usageByDay} />
+            <ReadinessBands bands={summary.readinessBands} total={summary.totals.resumeRecords} />
+            <ChartPanel title="Career Levels" items={toCountItems(summary.careerLevels)} showZeroRows />
+            <SkillGapPanel groups={summary.commonSkillGaps} total={summary.totals.resumeRecords} />
+            <ApplicationStatusPanel statuses={summary.applicationStatuses} />
+            <SortablePanel title="Top Skills" items={summary.topSkills} />
+            <SortablePanel title="Top Tools" items={summary.topTools} />
+            <ChartPanel title="Opportunity Sources" items={summary.applicationSources} />
+          </section>
+
+          <SectionHeader
+            eyebrow="Waitlist intelligence"
+            title="Discovery pipeline, lead quality, and market demand"
+            detail="Waitlist, lead scoring, follow-up, geography, source attribution, and organization signals are separated from application metrics."
+          />
 
           <section className="admin-metrics four">
             <Metric label="Waitlist signups" value={summary.totals.waitlistSignups || 0} note="Discovery pipeline" />
@@ -239,14 +305,6 @@ export default function AdminDashboard() {
             <FunnelPanel title="Follow-up Outcome Funnel" items={summary.followUpFunnel || []} />
             <ConversionPanel items={summary.conversionMetrics || []} />
             <ChartPanel title="Lead Score Bands" items={toCountItems(summary.waitlistLeadScoreBands || {})} />
-            <UsagePanel days={summary.usageByDay} />
-            <ReadinessBands bands={summary.readinessBands} total={summary.totals.resumeRecords} />
-            <ChartPanel title="Career Levels" items={toCountItems(summary.careerLevels)} showZeroRows />
-            <SkillGapPanel groups={summary.commonSkillGaps} total={summary.totals.resumeRecords} />
-            <ApplicationStatusPanel statuses={summary.applicationStatuses} />
-            <SortablePanel title="Top Skills" items={summary.topSkills} />
-            <SortablePanel title="Top Tools" items={summary.topTools} />
-            <ChartPanel title="Opportunity Sources" items={summary.applicationSources} />
             <ChartPanel title="Waitlist Organization Types" items={summary.waitlistOrganizationTypes || []} />
             <ChartPanel title="Waitlist User Types" items={summary.waitlistUserTypes || []} />
             <ChartPanel title="Lead Priorities" items={toCountItems(summary.waitlistLeadPriorities || {})} />
@@ -269,7 +327,10 @@ export default function AdminDashboard() {
           <section className="admin-table-panel">
             <div className="panel-heading">
               <h2>Recent Candidate Activity</h2>
-              <button className="panel-menu" aria-label="Candidate record options">...</button>
+              <button className="download-chart-button" type="button" onClick={() => exportDataset("candidate-activity", summary.recentResumeRecords)}>
+                <Download size={15} />
+                Export JSON
+              </button>
             </div>
             <div className="admin-table record-table">
               {summary.recentResumeRecords.map((record) => (
@@ -289,7 +350,7 @@ export default function AdminDashboard() {
                   <span className={`score-pill ${scoreClass(record.score)}`}>{record.score}%</span>
                   <span>{formatDate(record.capturedAt)}</span>
                   <span className="status-pill applied">Active</span>
-                  <button className="panel-menu" aria-label="Record actions">...</button>
+                  <span className="record-action-label">Saved</span>
                 </article>
               ))}
             </div>
@@ -298,7 +359,10 @@ export default function AdminDashboard() {
           <section className="admin-table-panel">
             <div className="panel-heading">
               <h2>Waitlist Discovery</h2>
-              <button className="panel-menu" aria-label="Waitlist options">...</button>
+              <button className="download-chart-button" type="button" onClick={() => exportDataset("waitlist-discovery", summary.recentWaitlistSignups)}>
+                <Download size={15} />
+                Export JSON
+              </button>
             </div>
             <div className="admin-table waitlist-table">
               {summary.recentWaitlistSignups?.length ? (
@@ -333,7 +397,10 @@ export default function AdminDashboard() {
           <section className="admin-table-panel">
             <div className="panel-heading">
               <h2>Recent Follow-ups</h2>
-              <button className="panel-menu" aria-label="Follow-up options">...</button>
+              <button className="download-chart-button" type="button" onClick={() => exportDataset("recent-follow-ups", summary.recentFollowUps || [])}>
+                <Download size={15} />
+                Export JSON
+              </button>
             </div>
             <div className="admin-table followup-table">
               {summary.recentFollowUps?.length ? (
@@ -401,6 +468,7 @@ export default function AdminDashboard() {
                   <Detail label="Population served" value={selectedWaitlist.populationServed} />
                   <Detail label="Reporting wish" value={selectedWaitlist.reportingWish} />
                 </dl>
+                <ScoreBreakdown breakdown={selectedWaitlist.scoreBreakdown} />
                 <div className="detail-json">
                   <strong>Branch profile</strong>
                   <pre>{JSON.stringify(selectedWaitlist.branchProfile || {}, null, 2)}</pre>
@@ -434,6 +502,82 @@ function Metric({ label, value, note }: { label: string; value: number | string;
   );
 }
 
+function ActionQueuePanel({ items }: { items: ActionQueueItem[] }) {
+  return (
+    <section className="admin-action-panel">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">Admin action queue</p>
+          <h2>What needs attention</h2>
+        </div>
+        <span className="queue-count">{items.length} actions</span>
+      </div>
+      <div className="action-list">
+        {items.map((item) => (
+          <article key={`${item.type}-${item.title}-${item.detail}`}>
+            <span className={`priority-dot ${item.priority.toLowerCase()}`} />
+            <div>
+              <strong>{item.title}</strong>
+              <p>{item.detail}</p>
+              <small>{item.nextAction}</small>
+            </div>
+            <span className={`priority-pill ${item.priority.toLowerCase()}`}>{item.priority}</span>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ProductSignalsPanel({ items }: { items: ProductSignal[] }) {
+  return (
+    <section className="admin-action-panel product-signal-panel">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">Product discovery</p>
+          <h2>Signals from users</h2>
+        </div>
+      </div>
+      <div className="product-signal-list">
+        {items.map((item) => (
+          <article key={item.label}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+            <p>{item.detail}</p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ScoreBreakdown({ breakdown }: { breakdown?: Record<string, unknown> }) {
+  const entries = Object.entries(breakdown || {}).filter(([, value]) => value !== null && value !== undefined && value !== "");
+  if (!entries.length) return null;
+
+  return (
+    <div className="score-breakdown">
+      <strong>Lead score reasoning</strong>
+      {entries.map(([key, value]) => (
+        <div key={key}>
+          <span>{humanizeKey(key)}</span>
+          <small>{String(value)}</small>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SectionHeader({ eyebrow, title, detail }: { eyebrow: string; title: string; detail: string }) {
+  return (
+    <div className="admin-section-header">
+      <p className="eyebrow">{eyebrow}</p>
+      <h2>{title}</h2>
+      <p>{detail}</p>
+    </div>
+  );
+}
+
 function ReadinessMetric({ summary }: { summary: AdminSummary }) {
   const score = summary.totals.averageReadinessScore;
   const delta = summary.totals.readinessDelta;
@@ -452,11 +596,21 @@ function ReadinessMetric({ summary }: { summary: AdminSummary }) {
 }
 
 function UsagePanel({ days }: { days: UsageDay[] }) {
+  const title = "Usage";
+  const panelId = panelIdFor(title);
   const max = Math.max(...days.map((day) => day.resumes + day.applications), 1);
+  const points = days.map((day, index) => {
+    const x = days.length <= 1 ? 0 : (index / (days.length - 1)) * 100;
+    const y = 100 - ((day.resumes + day.applications) / max) * 88;
+    return `${x},${Math.max(8, y)}`;
+  }).join(" ");
   return (
-    <section className="chart-panel">
-      <PanelHeading title="Usage" />
-      <div className="usage-chart">
+    <section className="chart-panel" id={panelId} aria-labelledby={`${panelId}-title`}>
+      <PanelHeading title={title} panelId={panelId} />
+      <svg className="line-chart" viewBox="0 0 100 100" role="img" aria-label="Usage trend line for the last fourteen days" preserveAspectRatio="none">
+        <polyline points={points} />
+      </svg>
+      <div className="usage-chart" role="img" aria-label="Fourteen day usage chart showing resume analyses and tracked applications">
         {days.map((day) => (
           <div key={day.date}>
             <span
@@ -474,13 +628,15 @@ function UsagePanel({ days }: { days: UsageDay[] }) {
 }
 
 function ReadinessBands({ bands, total }: { bands: Record<string, number>; total: number }) {
+  const title = "Readiness Bands";
+  const panelId = panelIdFor(title);
   const ordered = ["0-49", "50-69", "70-84", "85-100"].map((label) => ({
     label,
     count: bands[label] || 0
   }));
   return (
-    <section className="chart-panel">
-      <PanelHeading title="Readiness Bands" />
+    <section className="chart-panel" id={panelId} aria-labelledby={`${panelId}-title`}>
+      <PanelHeading title={title} panelId={panelId} />
       <div className="band-list">
         {ordered.map((item) => (
           <div className={`band-row band-${item.label.replace("-", "")}`} key={item.label}>
@@ -498,9 +654,11 @@ function ReadinessBands({ bands, total }: { bands: Record<string, number>; total
 }
 
 function SkillGapPanel({ groups, total }: { groups: Record<string, CountItem[]>; total: number }) {
+  const title = "Skill Gaps";
+  const panelId = panelIdFor(title);
   return (
-    <section className="chart-panel">
-      <PanelHeading title="Skill Gaps" />
+    <section className="chart-panel skill-gap-panel" id={panelId} aria-labelledby={`${panelId}-title`}>
+      <PanelHeading title={title} panelId={panelId} />
       <div className="skill-gap-groups">
         {Object.entries(groups).map(([group, items]) => (
           <details key={group} open>
@@ -524,16 +682,14 @@ function SkillGapPanel({ groups, total }: { groups: Record<string, CountItem[]>;
 }
 
 function ApplicationStatusPanel({ statuses }: { statuses: Record<string, number> }) {
+  const title = "Application Status Funnel";
+  const panelId = panelIdFor(title);
   const items = toCountItems(statuses);
   return (
-    <section className="chart-panel">
-      <PanelHeading title="Application Status Funnel" />
+    <section className="chart-panel" id={panelId} aria-labelledby={`${panelId}-title`}>
+      <PanelHeading title={title} panelId={panelId} />
       {items.length ? (
-        <div className="bar-list">
-          {items.map((item) => (
-            <BarRow key={item.label} item={item} max={Math.max(...items.map((entry) => entry.count), 1)} />
-          ))}
-        </div>
+        <VisualBarChart items={items} />
       ) : (
         <div className="empty-panel compact">
           <strong>No applications linked.</strong>
@@ -546,10 +702,11 @@ function ApplicationStatusPanel({ statuses }: { statuses: Record<string, number>
 }
 
 function FunnelPanel({ title, items }: { title: string; items: FunnelItem[] }) {
+  const panelId = panelIdFor(title);
   const max = Math.max(...items.map((item) => item.count), 1);
   return (
-    <section className="chart-panel funnel-panel">
-      <PanelHeading title={title} />
+    <section className="chart-panel funnel-panel" id={panelId} aria-labelledby={`${panelId}-title`}>
+      <PanelHeading title={title} panelId={panelId} />
       {items.length ? (
         <div className="funnel-list">
           {items.map((item) => (
@@ -573,9 +730,11 @@ function FunnelPanel({ title, items }: { title: string; items: FunnelItem[] }) {
 }
 
 function ConversionPanel({ items }: { items: ConversionMetric[] }) {
+  const title = "Conversion Signals";
+  const panelId = panelIdFor(title);
   return (
-    <section className="chart-panel conversion-panel">
-      <PanelHeading title="Conversion Signals" />
+    <section className="chart-panel conversion-panel" id={panelId} aria-labelledby={`${panelId}-title`}>
+      <PanelHeading title={title} panelId={panelId} />
       {items.length ? (
         <div className="conversion-grid">
           {items.map((item) => (
@@ -595,37 +754,48 @@ function ConversionPanel({ items }: { items: ConversionMetric[] }) {
 
 function SortablePanel({ title, items }: { title: string; items: CountItem[] }) {
   const [sort, setSort] = useState<"count" | "az">("count");
+  const panelId = panelIdFor(title);
   const sorted = [...items].sort((left, right) =>
     sort === "count" ? right.count - left.count || left.label.localeCompare(right.label) : left.label.localeCompare(right.label)
   );
   return (
-    <section className="chart-panel">
+    <section className="chart-panel" id={panelId} aria-labelledby={`${panelId}-title`}>
       <div className="panel-heading">
-        <h2>{title}</h2>
-        <select value={sort} onChange={(event) => setSort(event.target.value as "count" | "az")}>
-          <option value="count">Sort: Count</option>
-          <option value="az">Sort: A-Z</option>
-        </select>
+        <h2 id={`${panelId}-title`}>{title}</h2>
+        <div className="panel-actions">
+          <label>
+            <span className="sr-only">Sort {title}</span>
+            <select value={sort} onChange={(event) => setSort(event.target.value as "count" | "az")}>
+              <option value="count">Sort: Count</option>
+              <option value="az">Sort: A-Z</option>
+            </select>
+          </label>
+          <button className="download-chart-button no-export" type="button" onClick={() => void downloadElementPng(panelId, title)} aria-label={`Download ${title} chart as PNG`}>
+            <ImageDown size={15} />
+            Download PNG
+          </button>
+        </div>
       </div>
-      <BarList items={sorted} />
+      <VisualBarChart items={sorted} />
     </section>
   );
 }
 
 function ChartPanel({ title, items, showZeroRows = false }: { title: string; items: CountItem[]; showZeroRows?: boolean }) {
+  const panelId = panelIdFor(title);
   return (
-    <section className="chart-panel">
-      <PanelHeading title={title} />
-      <BarList items={items} showZeroRows={showZeroRows} />
+    <section className="chart-panel" id={panelId} aria-labelledby={`${panelId}-title`}>
+      <PanelHeading title={title} panelId={panelId} />
+      <VisualBarChart items={items} showZeroRows={showZeroRows} />
     </section>
   );
 }
 
-function BarList({ items, showZeroRows = false }: { items: CountItem[]; showZeroRows?: boolean }) {
+function VisualBarChart({ items, showZeroRows = false }: { items: CountItem[]; showZeroRows?: boolean }) {
   const visibleItems = showZeroRows ? items : items.filter((item) => item.count > 0);
   const max = Math.max(...visibleItems.map((item) => item.count), 1);
   return (
-    <div className="bar-list">
+    <div className="visual-bar-chart" role="img" aria-label="Horizontal bar chart">
       {visibleItems.length ? visibleItems.map((item) => <BarRow key={item.label} item={item} max={max} />) : <p>No data yet.</p>}
     </div>
   );
@@ -638,16 +808,21 @@ function BarRow({ item, max }: { item: CountItem; max: number }) {
         <span>{item.label}</span>
         <strong>{item.count}</strong>
       </div>
-      <meter min="0" max={max} value={item.count} />
+      <span className="bar-track" aria-hidden="true">
+        <i style={{ width: `${max ? Math.max(item.count ? 4 : 0, (item.count / max) * 100) : 0}%` }} />
+      </span>
     </div>
   );
 }
 
-function PanelHeading({ title }: { title: string }) {
+function PanelHeading({ title, panelId }: { title: string; panelId: string }) {
   return (
     <div className="panel-heading">
-      <h2>{title}</h2>
-      <button className="panel-menu" aria-label={`${title} options`}>...</button>
+      <h2 id={`${panelId}-title`}>{title}</h2>
+      <button className="download-chart-button no-export" type="button" onClick={() => void downloadElementPng(panelId, title)} aria-label={`Download ${title} chart as PNG`}>
+        <ImageDown size={15} />
+        Download PNG
+      </button>
     </div>
   );
 }
@@ -679,6 +854,7 @@ function exportResearchBundle(summary: AdminSummary) {
       populationServed: item.populationServed,
       leadScore: item.leadScore,
       leadPriority: item.leadPriority,
+      scoreBreakdown: item.scoreBreakdown,
       branchProfile: item.branchProfile,
       createdAt: item.createdAt
     })),
@@ -708,6 +884,225 @@ function exportResearchBundle(summary: AdminSummary) {
   link.download = `sagittaiq-research-export-${new Date().toISOString().slice(0, 10)}.json`;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function exportDataset(name: string, rows: unknown[]) {
+  const blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `sagittaiq-${name}-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function buildActionQueue(summary: AdminSummary): ActionQueueItem[] {
+  const items: ActionQueueItem[] = [];
+  const hotLead = [...summary.recentWaitlistSignups]
+    .filter((lead) => Number(lead.leadScore || 0) >= 75 || lead.pilotInterest || lead.budgetInterest)
+    .sort((left, right) => Number(right.leadScore || 0) - Number(left.leadScore || 0))[0];
+
+  if (hotLead) {
+    items.push({
+      type: "lead",
+      priority: Number(hotLead.leadScore || 0) >= 75 ? "High" : "Medium",
+      title: `Contact ${hotLead.name || hotLead.leadId || "high-signal lead"}`,
+      detail: [
+        hotLead.leadId,
+        hotLead.organization || hotLead.organizationType,
+        hotLead.leadScore ? `${hotLead.leadScore}/100 lead score` : "",
+        hotLead.leadPriority
+      ].filter(Boolean).join(" - "),
+      nextAction: hotLead.recommendedAction || "Schedule discovery outreach and confirm pilot/budget interest."
+    });
+  }
+
+  const lowReadiness = [...summary.recentResumeRecords]
+    .filter((record) => Number(record.score || 0) < 65)
+    .sort((left, right) => left.score - right.score)[0];
+
+  if (lowReadiness) {
+    items.push({
+      type: "candidate",
+      priority: "High",
+      title: `Review low-readiness candidate ${lowReadiness.candidateId}`,
+      detail: `${lowReadiness.score}% readiness for ${lowReadiness.targetRole || "target opportunity"}`,
+      nextAction: "Check skill gaps, feedback quality, and whether the user needs advisor support."
+    });
+  }
+
+  const followUpNeed = summary.totals.waitlistSignups - (summary.totals.followUpSurveys || 0);
+  if (followUpNeed > 0) {
+    items.push({
+      type: "outcome",
+      priority: followUpNeed >= 5 ? "High" : "Medium",
+      title: "Collect outcome follow-ups",
+      detail: `${followUpNeed} waitlist lead(s) do not yet have follow-up outcome data.`,
+      nextAction: "Send follow-up form to improve application, interview, offer, and placement reporting."
+    });
+  }
+
+  const productSignal = topLabel(summary.waitlistCurrentProcesses || []) || topLabel(summary.waitlistTargetIndustries || []);
+  if (productSignal) {
+    items.push({
+      type: "product",
+      priority: "Medium",
+      title: `Investigate ${productSignal}`,
+      detail: "This theme is surfacing in waitlist discovery data.",
+      nextAction: "Open recent waitlist records and tag repeated pain points or report requests."
+    });
+  }
+
+  if (!items.length) {
+    items.push({
+      type: "lead",
+      priority: "Low",
+      title: "No urgent admin actions",
+      detail: "The current dataset has no high-risk candidate or high-signal lead triggers.",
+      nextAction: "Refresh after new waitlist, resume, or follow-up activity."
+    });
+  }
+
+  return items.slice(0, 5);
+}
+
+function buildProductSignals(summary: AdminSummary): ProductSignal[] {
+  const mostCommonGap = Object.values(summary.commonSkillGaps || {})
+    .flat()
+    .sort((left, right) => right.count - left.count)[0];
+  const topIndustry = topLabel(summary.waitlistTargetIndustries || []);
+  const topProcess = topLabel(summary.waitlistCurrentProcesses || []);
+  const topRegion = topLabel(summary.waitlistWorkforceRegions || []);
+  const followUps = summary.totals.followUpSurveys || 0;
+  const offerRate = followUps ? Math.round(((summary.totals.followUpOffers || 0) / followUps) * 100) : 0;
+
+  return [
+    {
+      label: "Top readiness gap",
+      value: mostCommonGap?.label || "Building",
+      detail: mostCommonGap ? `${mostCommonGap.count} candidate record(s) show this gap.` : "More resume analyses will sharpen gap intelligence."
+    },
+    {
+      label: "Demand segment",
+      value: topIndustry || topProcess || "Building",
+      detail: topIndustry ? "Target industry demand is clustering here." : topProcess ? "Workflow/process demand is clustering here." : "Waitlist volume is still early."
+    },
+    {
+      label: "Regional signal",
+      value: topRegion || "Unknown",
+      detail: topRegion ? "Useful for local workforce-development outreach." : "Collect more city/state/region data for market targeting."
+    },
+    {
+      label: "Outcome quality",
+      value: `${offerRate}%`,
+      detail: "Offer rate across follow-up responses; improves as more users report outcomes."
+    }
+  ];
+}
+
+function buildAdminBriefing(summary: AdminSummary) {
+  const followUps = summary.totals.followUpSurveys || 0;
+  const waitlist = summary.totals.waitlistSignups || 0;
+  const interviews = summary.totals.followUpInterviews || 0;
+  const offers = summary.totals.followUpOffers || 0;
+  const strongestLeadGroup = topLabel(toCountItems(summary.waitlistLeadPriorities || {}));
+  const strongestIndustry = topLabel(summary.waitlistTargetIndustries || []);
+  const biggestGap = Object.values(summary.commonSkillGaps || {})
+    .flat()
+    .sort((left, right) => right.count - left.count)[0];
+
+  return [
+    {
+      label: "Pipeline pulse",
+      value: `${waitlist} leads`,
+      detail: strongestLeadGroup ? `${strongestLeadGroup} is the strongest lead priority signal.` : "Waitlist volume is the current top-of-funnel baseline."
+    },
+    {
+      label: "Outcome signal",
+      value: `${interviews}/${offers}`,
+      detail: `${interviews} interviews and ${offers} offers reported from ${followUps} follow-up responses.`
+    },
+    {
+      label: "Market signal",
+      value: strongestIndustry || "Building",
+      detail: strongestIndustry ? `${strongestIndustry} is leading current waitlist demand.` : "Target industry demand will sharpen as more leads sign up."
+    },
+    {
+      label: "Product focus",
+      value: biggestGap?.label || "Skills",
+      detail: biggestGap ? `${biggestGap.count} record(s) show this as a readiness gap.` : "Skill-gap intelligence will grow with resume volume."
+    }
+  ];
+}
+
+function topLabel(items: CountItem[]) {
+  return [...items].sort((left, right) => right.count - left.count)[0]?.label || "";
+}
+
+function humanizeKey(value: string) {
+  return value
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function panelIdFor(title: string) {
+  return `admin-panel-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+}
+
+async function downloadElementPng(elementId: string, title: string) {
+  const source = document.getElementById(elementId);
+  if (!source) return;
+
+  const clone = source.cloneNode(true) as HTMLElement;
+  clone.querySelectorAll(".no-export").forEach((node) => node.remove());
+  clone.style.margin = "0";
+  clone.style.width = `${source.getBoundingClientRect().width}px`;
+
+  const width = Math.ceil(source.getBoundingClientRect().width);
+  const height = Math.ceil(source.getBoundingClientRect().height);
+  const styles = Array.from(document.styleSheets)
+    .map((sheet) => {
+      try {
+        return Array.from(sheet.cssRules).map((rule) => rule.cssText).join("\n");
+      } catch {
+        return "";
+      }
+    })
+    .join("\n");
+  const markup = new XMLSerializer().serializeToString(clone);
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+      <foreignObject width="100%" height="100%">
+        <div xmlns="http://www.w3.org/1999/xhtml">
+          <style>${styles}</style>
+          ${markup}
+        </div>
+      </foreignObject>
+    </svg>`;
+
+  const image = new Image();
+  const svgUrl = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
+  await new Promise<void>((resolve, reject) => {
+    image.onload = () => resolve();
+    image.onerror = () => reject(new Error("Could not render chart image."));
+    image.src = svgUrl;
+  });
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width * 2;
+  canvas.height = height * 2;
+  const context = canvas.getContext("2d");
+  if (!context) return;
+  context.scale(2, 2);
+  context.drawImage(image, 0, 0);
+  URL.revokeObjectURL(svgUrl);
+
+  const pngUrl = canvas.toDataURL("image/png");
+  const link = document.createElement("a");
+  link.href = pngUrl;
+  link.download = `${panelIdFor(title)}-${new Date().toISOString().slice(0, 10)}.png`;
+  link.click();
 }
 
 function scoreClass(score: number) {
@@ -748,4 +1143,10 @@ function formatDateTime(value: string) {
   return Number.isNaN(date.getTime())
     ? "Unknown"
     : date.toLocaleString([], { dateStyle: "short", timeStyle: "short" });
+}
+
+function getStoredTheme() {
+  const saved = localStorage.getItem("sagittaiq_admin_theme");
+  if (saved === "dark" || saved === "light") return saved;
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }

@@ -233,6 +233,7 @@ export async function onRequestGet({ request, env }) {
       populationServed: item.populationServed,
       reportingWish: item.reportingWish,
       branchProfile: parseJsonObject(item.branchProfileJson),
+      scoreBreakdown: parseJsonObject(item.scoreBreakdownJson),
       leadScore: Number(item.leadScore || 0),
       leadPriority: item.leadPriority,
       recommendedAction: item.recommendedAction,
