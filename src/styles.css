@@ -932,11 +932,25 @@ button:disabled {
   box-shadow: none;
 }
 
+.admin-control-strip {
+  position: sticky;
+  top: 0;
+  z-index: 15;
+  display: grid;
+  gap: 10px;
+  margin: 18px 0 22px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg) 92%, #ffffff 8%);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
+}
+
 .admin-filter-bar {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 18px 0;
+  margin: 0;
   padding: 0 14px;
   border: 1px solid #d8e0e8;
   border-radius: 8px;
@@ -951,6 +965,49 @@ button:disabled {
 
 .admin-filter-bar input:focus {
   box-shadow: none;
+}
+
+.admin-view-toggle {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+}
+
+.admin-view-toggle button {
+  display: grid;
+  min-height: 44px;
+  align-content: center;
+  justify-items: center;
+  gap: 2px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 900;
+  line-height: 1.1;
+  cursor: pointer;
+}
+
+.admin-view-toggle button:hover,
+.admin-view-toggle button:focus-visible {
+  color: var(--text);
+  box-shadow: inset 0 0 0 2px var(--brand);
+}
+
+.admin-view-toggle button.active {
+  background: var(--brand);
+  color: #ffffff;
+  box-shadow: 0 10px 20px rgba(15, 118, 110, 0.18);
+}
+
+.admin-view-toggle span {
+  font-size: 0.68rem;
+  font-weight: 800;
+  opacity: 0.82;
 }
 
 .admin-section-header {
@@ -2745,7 +2802,9 @@ meter {
 .app-shell[data-theme="dark"] .application-list,
 .app-shell[data-theme="dark"] .application-form,
 .app-shell[data-theme="dark"] .application-stats article,
+.admin-shell[data-theme="dark"] .admin-control-strip,
 .admin-shell[data-theme="dark"] .admin-filter-bar,
+.admin-shell[data-theme="dark"] .admin-view-toggle,
 .admin-shell[data-theme="dark"] .system-drawer,
 .admin-shell[data-theme="dark"] .conversion-grid article,
 .admin-shell[data-theme="dark"] .detail-drawer {

@@ -13,6 +13,7 @@ type ActionQueueItem = {
   nextAction: string;
 };
 type ProductSignal = { label: string; value: string; detail: string };
+type AdminView = "all" | "applications" | "waitlist";
 
 type AdminSummary = {
   meta: { readinessThreshold: number; lastLoadedAt: string; query?: string };
@@ -140,6 +141,7 @@ export default function AdminDashboard() {
   const [theme, setTheme] = useState<"light" | "dark">(() => getStoredTheme());
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [query, setQuery] = useState("");
+  const [adminView, setAdminView] = useState<AdminView>("all");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedWaitlist, setSelectedWaitlist] = useState<AdminSummary["recentWaitlistSignups"][number] | null>(null);
@@ -223,14 +225,30 @@ export default function AdminDashboard() {
       </header>
 
       {summary && (
-        <div className="admin-filter-bar">
-          <Search size={16} />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search candidate, role, company, skill, score, country, domain..."
-          />
-          {summary.meta.query && <span>Filtering: {summary.meta.query}</span>}
+        <div className="admin-control-strip">
+          <div className="admin-filter-bar">
+            <Search size={16} />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search candidate, role, company, skill, score, country, domain..."
+            />
+            {summary.meta.query && <span>Filtering: {summary.meta.query}</span>}
+          </div>
+          <div className="admin-view-toggle" role="tablist" aria-label="Admin dashboard view">
+            <button type="button" role="tab" aria-selected={adminView === "all"} className={adminView === "all" ? "active" : ""} onClick={() => setAdminView("all")}>
+              All
+              <span>{summary.totals.resumeRecords + summary.totals.waitlistSignups} records</span>
+            </button>
+            <button type="button" role="tab" aria-selected={adminView === "applications"} className={adminView === "applications" ? "active" : ""} onClick={() => setAdminView("applications")}>
+              Main application
+              <span>{summary.totals.resumeRecords} analyses</span>
+            </button>
+            <button type="button" role="tab" aria-selected={adminView === "waitlist"} className={adminView === "waitlist" ? "active" : ""} onClick={() => setAdminView("waitlist")}>
+              Waitlist
+              <span>{summary.totals.waitlistSignups} leads</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -238,93 +256,58 @@ export default function AdminDashboard() {
 
       {summary && (
         <>
-          <section className="admin-briefing" aria-label="Executive briefing">
-            {briefing.map((item) => (
-              <article key={item.label}>
-                <span>{item.label}</span>
-                <strong>{item.value}</strong>
-                <p>{item.detail}</p>
-              </article>
-            ))}
-          </section>
+          {adminView === "all" && (
+            <>
+              <section className="admin-briefing" aria-label="Executive briefing">
+                {briefing.map((item) => (
+                  <article key={item.label}>
+                    <span>{item.label}</span>
+                    <strong>{item.value}</strong>
+                    <p>{item.detail}</p>
+                  </article>
+                ))}
+              </section>
 
-          <section className="admin-operating-layer" aria-label="Admin action queue and product discovery">
-            <ActionQueuePanel items={actionQueue} />
-            <ProductSignalsPanel items={productSignals} />
-          </section>
+              <section className="admin-operating-layer" aria-label="Admin action queue and product discovery">
+                <ActionQueuePanel items={actionQueue} />
+                <ProductSignalsPanel items={productSignals} />
+              </section>
 
-          <SectionHeader
-            eyebrow="Executive overview"
-            title="Platform health"
-            detail="Candidate activity, workforce readiness, opportunity movement, and beta discovery signals."
-          />
+              <SectionHeader
+                eyebrow="Executive overview"
+                title="Platform health"
+                detail="Candidate activity, workforce readiness, opportunity movement, and beta discovery signals."
+              />
 
-          <section className="admin-metrics four">
-            <Metric label="Tracked users" value={summary.totals.uniqueUsers} note="Profiles with saved activity" />
-            <Metric label="Career records" value={summary.totals.resumeRecords} note="Resume analyses retained" />
-            <Metric label="Opportunities tracked" value={summary.totals.applicationCaptures} note="Applications and opportunities" />
-            <ReadinessMetric summary={summary} />
-          </section>
+              <section className="admin-metrics four">
+                <Metric label="Tracked users" value={summary.totals.uniqueUsers} note="Profiles with saved activity" />
+                <Metric label="Career records" value={summary.totals.resumeRecords} note="Resume analyses retained" />
+                <Metric label="Opportunities tracked" value={summary.totals.applicationCaptures} note="Applications and opportunities" />
+                <ReadinessMetric summary={summary} />
+              </section>
+            </>
+          )}
 
-          <SectionHeader
-            eyebrow="Application metrics"
-            title="Candidate readiness and opportunity activity"
-            detail="Resume analyses, readiness bands, skill gaps, usage, application status, and career profile signals."
-          />
+          {(adminView === "all" || adminView === "applications") && (
+            <>
+              <SectionHeader
+                eyebrow="Application metrics"
+                title="Candidate readiness and opportunity activity"
+                detail="Resume analyses, readiness bands, skill gaps, usage, application status, and career profile signals."
+              />
 
-          <section className="admin-grid">
-            <UsagePanel days={summary.usageByDay} />
-            <ReadinessBands bands={summary.readinessBands} total={summary.totals.resumeRecords} />
-            <ChartPanel title="Career Levels" items={toCountItems(summary.careerLevels)} showZeroRows />
-            <SkillGapPanel groups={summary.commonSkillGaps} total={summary.totals.resumeRecords} />
-            <ApplicationStatusPanel statuses={summary.applicationStatuses} />
-            <SortablePanel title="Top Skills" items={summary.topSkills} />
-            <SortablePanel title="Top Tools" items={summary.topTools} />
-            <ChartPanel title="Opportunity Sources" items={summary.applicationSources} />
-          </section>
+              <section className="admin-grid">
+                <UsagePanel days={summary.usageByDay} />
+                <ReadinessBands bands={summary.readinessBands} total={summary.totals.resumeRecords} />
+                <ChartPanel title="Career Levels" items={toCountItems(summary.careerLevels)} showZeroRows />
+                <SkillGapPanel groups={summary.commonSkillGaps} total={summary.totals.resumeRecords} />
+                <ApplicationStatusPanel statuses={summary.applicationStatuses} />
+                <SortablePanel title="Top Skills" items={summary.topSkills} />
+                <SortablePanel title="Top Tools" items={summary.topTools} />
+                <ChartPanel title="Opportunity Sources" items={summary.applicationSources} />
+              </section>
 
-          <SectionHeader
-            eyebrow="Waitlist intelligence"
-            title="Discovery pipeline, lead quality, and market demand"
-            detail="Waitlist, lead scoring, follow-up, geography, source attribution, and organization signals are separated from application metrics."
-          />
-
-          <section className="admin-metrics four">
-            <Metric label="Waitlist signups" value={summary.totals.waitlistSignups || 0} note="Discovery pipeline" />
-            <Metric label="Interview volunteers" value={summary.totals.interviewVolunteers || 0} note="Customer discovery" />
-            <Metric label="Pilot prospects" value={summary.totals.pilotProspects || 0} note="Institutional leads" />
-            <Metric label="Avg lead score" value={summary.totals.averageLeadScore || 0} note="Rules-based priority" />
-            <Metric label="Follow-ups" value={summary.totals.followUpSurveys || 0} note="Outcome signals" />
-            <Metric label="Applications reported" value={summary.totals.followUpApplications || 0} note="From follow-up surveys" />
-            <Metric label="Interviews reported" value={summary.totals.followUpInterviews || 0} note="Outcome momentum" />
-            <Metric label="Offers / placements" value={`${summary.totals.followUpOffers || 0} / ${summary.totals.followUpPlacements || 0}`} note="Career outcomes" />
-          </section>
-
-          <section className="admin-grid">
-            <FunnelPanel title="Waitlist Pipeline" items={summary.waitlistFunnel || []} />
-            <FunnelPanel title="Follow-up Outcome Funnel" items={summary.followUpFunnel || []} />
-            <ConversionPanel items={summary.conversionMetrics || []} />
-            <ChartPanel title="Lead Score Bands" items={toCountItems(summary.waitlistLeadScoreBands || {})} />
-            <ChartPanel title="Waitlist Organization Types" items={summary.waitlistOrganizationTypes || []} />
-            <ChartPanel title="Waitlist User Types" items={summary.waitlistUserTypes || []} />
-            <ChartPanel title="Lead Priorities" items={toCountItems(summary.waitlistLeadPriorities || {})} />
-            <ChartPanel title="Referral Sources" items={summary.waitlistReferralSources || []} />
-            <ChartPanel title="Branch Statuses" items={summary.waitlistBranchStatuses || []} />
-            <ChartPanel title="Target Industries" items={summary.waitlistTargetIndustries || []} />
-            <ChartPanel title="Current Processes" items={summary.waitlistCurrentProcesses || []} />
-            <ChartPanel title="Workforce Regions" items={summary.waitlistWorkforceRegions || []} />
-            <ChartPanel title="Follow-up Outcomes" items={toCountItems(summary.followUpOutcomes || {})} />
-            <ChartPanel title="Follow-up Statuses" items={toCountItems(summary.followUpStatuses || {})} />
-            <ChartPanel title="Follow-up Industries" items={summary.followUpIndustries || []} />
-            <ChartPanel title="Follow-up Salary Ranges" items={summary.followUpSalaryRanges || []} />
-            <ChartPanel title="Waitlist Sources" items={summary.waitlistSources || []} />
-            <ChartPanel title="Waitlist Interest" items={toCountItems(summary.waitlistInterest || {})} />
-            <ChartPanel title="Email Domains" items={summary.emailDomains} />
-            <ChartPanel title="Countries" items={summary.countries} />
-            <ChartPanel title="Email Domain Types" items={toCountItems(summary.emailDomainTypes)} />
-          </section>
-
-          <section className="admin-table-panel">
+              <section className="admin-table-panel">
             <div className="panel-heading">
               <h2>Recent Candidate Activity</h2>
               <button className="download-chart-button" type="button" onClick={() => exportDataset("candidate-activity", summary.recentResumeRecords)}>
@@ -354,9 +337,54 @@ export default function AdminDashboard() {
                 </article>
               ))}
             </div>
-          </section>
+              </section>
+            </>
+          )}
 
-          <section className="admin-table-panel">
+          {(adminView === "all" || adminView === "waitlist") && (
+            <>
+              <SectionHeader
+                eyebrow="Waitlist intelligence"
+                title="Discovery pipeline, lead quality, and market demand"
+                detail="Waitlist, lead scoring, follow-up, geography, source attribution, and organization signals are separated from application metrics."
+              />
+
+              <section className="admin-metrics four">
+                <Metric label="Waitlist signups" value={summary.totals.waitlistSignups || 0} note="Discovery pipeline" />
+                <Metric label="Interview volunteers" value={summary.totals.interviewVolunteers || 0} note="Customer discovery" />
+                <Metric label="Pilot prospects" value={summary.totals.pilotProspects || 0} note="Institutional leads" />
+                <Metric label="Avg lead score" value={summary.totals.averageLeadScore || 0} note="Rules-based priority" />
+                <Metric label="Follow-ups" value={summary.totals.followUpSurveys || 0} note="Outcome signals" />
+                <Metric label="Applications reported" value={summary.totals.followUpApplications || 0} note="From follow-up surveys" />
+                <Metric label="Interviews reported" value={summary.totals.followUpInterviews || 0} note="Outcome momentum" />
+                <Metric label="Offers / placements" value={`${summary.totals.followUpOffers || 0} / ${summary.totals.followUpPlacements || 0}`} note="Career outcomes" />
+              </section>
+
+              <section className="admin-grid">
+                <FunnelPanel title="Waitlist Pipeline" items={summary.waitlistFunnel || []} />
+                <FunnelPanel title="Follow-up Outcome Funnel" items={summary.followUpFunnel || []} />
+                <ConversionPanel items={summary.conversionMetrics || []} />
+                <ChartPanel title="Lead Score Bands" items={toCountItems(summary.waitlistLeadScoreBands || {})} />
+                <ChartPanel title="Waitlist Organization Types" items={summary.waitlistOrganizationTypes || []} />
+                <ChartPanel title="Waitlist User Types" items={summary.waitlistUserTypes || []} />
+                <ChartPanel title="Lead Priorities" items={toCountItems(summary.waitlistLeadPriorities || {})} />
+                <ChartPanel title="Referral Sources" items={summary.waitlistReferralSources || []} />
+                <ChartPanel title="Branch Statuses" items={summary.waitlistBranchStatuses || []} />
+                <ChartPanel title="Target Industries" items={summary.waitlistTargetIndustries || []} />
+                <ChartPanel title="Current Processes" items={summary.waitlistCurrentProcesses || []} />
+                <ChartPanel title="Workforce Regions" items={summary.waitlistWorkforceRegions || []} />
+                <ChartPanel title="Follow-up Outcomes" items={toCountItems(summary.followUpOutcomes || {})} />
+                <ChartPanel title="Follow-up Statuses" items={toCountItems(summary.followUpStatuses || {})} />
+                <ChartPanel title="Follow-up Industries" items={summary.followUpIndustries || []} />
+                <ChartPanel title="Follow-up Salary Ranges" items={summary.followUpSalaryRanges || []} />
+                <ChartPanel title="Waitlist Sources" items={summary.waitlistSources || []} />
+                <ChartPanel title="Waitlist Interest" items={toCountItems(summary.waitlistInterest || {})} />
+                <ChartPanel title="Email Domains" items={summary.emailDomains} />
+                <ChartPanel title="Countries" items={summary.countries} />
+                <ChartPanel title="Email Domain Types" items={toCountItems(summary.emailDomainTypes)} />
+              </section>
+
+              <section className="admin-table-panel">
             <div className="panel-heading">
               <h2>Waitlist Discovery</h2>
               <button className="download-chart-button" type="button" onClick={() => exportDataset("waitlist-discovery", summary.recentWaitlistSignups)}>
@@ -392,9 +420,9 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
-          </section>
+              </section>
 
-          <section className="admin-table-panel">
+              <section className="admin-table-panel">
             <div className="panel-heading">
               <h2>Recent Follow-ups</h2>
               <button className="download-chart-button" type="button" onClick={() => exportDataset("recent-follow-ups", summary.recentFollowUps || [])}>
@@ -423,7 +451,9 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
-          </section>
+              </section>
+            </>
+          )}
 
           <details className="system-drawer">
             <summary>
