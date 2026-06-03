@@ -130,6 +130,7 @@ export async function onRequestGet({ request, env }) {
   const averageReadinessScore = average(resumes.map((item) => item.analysis.score));
   const followUpTotals = buildFollowUpTotals(followups);
   const salaryStats = buildSalaryStats(followups);
+  const followUpQueues = buildFollowUpQueues(waitlist, followups);
   const uniqueUsers = new Set([
     ...resumes.map((item) => item.userId || item.clientHash),
     ...applications.map((item) => item.userId || item.clientHash)
@@ -151,6 +152,8 @@ export async function onRequestGet({ request, env }) {
       budgetQualified: waitlist.filter((item) => item.budgetInterest).length,
       averageLeadScore: average(waitlist.map((item) => Number(item.leadScore || 0))),
       followUpSurveys: followups.length,
+      pendingIntakeFollowUps: followUpQueues.pendingCount,
+      completedFollowUps: followUpQueues.completedCount,
       followUpApplications: followUpTotals.applications,
       followUpInterviews: followUpTotals.interviews,
       followUpOffers: followUpTotals.offers,
@@ -286,6 +289,53 @@ export async function onRequestGet({ request, env }) {
       recommendedAction: item.recommendedAction,
       status: item.status,
       createdAt: item.createdAt
+    })),
+    pendingIntakeFollowUps: followUpQueues.pending.map((item) => ({
+      id: item.id,
+      leadId: item.leadId,
+      candidateId: item.candidateId,
+      contactId: item.contactId,
+      name: item.name,
+      userType: item.userType,
+      organization: item.organization,
+      role: item.role,
+      emailDomain: item.emailDomain,
+      emailDomainType: item.emailDomainType,
+      targetRole: item.targetRole,
+      targetIndustry: item.targetIndustry,
+      schoolName: item.schoolName,
+      majorField: item.majorField,
+      classYear: item.classYear,
+      preferredContactMethod: item.preferredContactMethod,
+      leadScore: Number(item.leadScore || 0),
+      leadPriority: item.leadPriority,
+      recommendedAction: item.recommendedAction,
+      createdAt: item.createdAt
+    })),
+    completedFollowUps: followUpQueues.completed.map((item) => ({
+      leadId: item.leadId,
+      candidateId: item.candidateId,
+      contactId: item.contactId,
+      emailDomain: item.emailDomain,
+      emailDomainType: item.emailDomainType,
+      currentStatus: item.currentStatus,
+      applicationCount: Number(item.applicationCount || 0),
+      interviewCount: Number(item.interviewCount || 0),
+      offerCount: Number(item.offerCount || 0),
+      placementStatus: item.placementStatus,
+      currentRole: item.currentRole,
+      currentIndustry: item.currentIndustry,
+      salaryRange: item.salaryRange,
+      employer: item.employer,
+      jobTitle: item.jobTitle,
+      salaryAmount: Number(item.salaryAmount || 0),
+      salaryPeriod: item.salaryPeriod,
+      outcomeDate: item.outcomeDate,
+      jobLocation: item.jobLocation,
+      dataSource: item.dataSource,
+      verificationStatus: item.verificationStatus,
+      supportNeeded: item.supportNeeded,
+      submittedAt: item.submittedAt
     })),
     recentFollowUps: followups.slice(0, 20).map((item) => ({
       leadId: item.leadId,
@@ -616,6 +666,26 @@ function buildFollowUpTotals(followups) {
     },
     { applications: 0, interviews: 0, offers: 0, placements: 0 }
   );
+}
+
+function buildFollowUpQueues(waitlist, followups) {
+  const completed = followups.slice(0, 250);
+  const completedKeys = new Set(
+    followups
+      .flatMap((item) => [item.leadId, item.candidateId, item.contactId, item.emailDomain])
+      .filter(Boolean)
+  );
+  const allPending = waitlist
+    .filter((item) => Boolean(item.interviewInterest))
+    .filter((item) => ![item.leadId, item.candidateId, item.contactId, item.emailDomain].some((value) => value && completedKeys.has(value)))
+    .sort((left, right) => Number(right.leadScore || 0) - Number(left.leadScore || 0) || String(right.createdAt || "").localeCompare(String(left.createdAt || "")));
+
+  return {
+    pending: allPending.slice(0, 250),
+    completed,
+    pendingCount: allPending.length,
+    completedCount: followups.length
+  };
 }
 
 function buildSalaryStats(followups) {

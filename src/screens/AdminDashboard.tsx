@@ -5,6 +5,31 @@ type CountItem = { label: string; count: number; percentAffected?: number };
 type UsageDay = { date: string; resumes: number; applications: number; uniqueUsers: number };
 type FunnelItem = { label: string; count: number; rate: number };
 type ConversionMetric = { label: string; value: number; detail: string };
+type FollowUpRecord = {
+  leadId?: string;
+  candidateId?: string;
+  contactId?: string;
+  emailDomain?: string;
+  emailDomainType?: string;
+  currentStatus?: string;
+  applicationCount: number;
+  interviewCount: number;
+  offerCount: number;
+  placementStatus?: string;
+  currentRole?: string;
+  currentIndustry?: string;
+  salaryRange?: string;
+  employer?: string;
+  jobTitle?: string;
+  salaryAmount?: number;
+  salaryPeriod?: string;
+  outcomeDate?: string;
+  jobLocation?: string;
+  dataSource?: string;
+  verificationStatus?: string;
+  supportNeeded?: string;
+  submittedAt?: string;
+};
 type ActionQueueItem = {
   type: "lead" | "candidate" | "outcome" | "product";
   priority: "High" | "Medium" | "Low";
@@ -13,7 +38,7 @@ type ActionQueueItem = {
   nextAction: string;
 };
 type ProductSignal = { label: string; value: string; detail: string };
-type AdminView = "all" | "institutional" | "applications" | "waitlist";
+type AdminView = "all" | "institutional" | "applications" | "waitlist" | "followups";
 
 const DEFAULT_ADMIN_VIEW: AdminView = "waitlist";
 const ADMIN_VIEW_ITEMS: Array<{ id: AdminView; label: string; count: (summary: AdminSummary) => string }> = [
@@ -36,6 +61,11 @@ const ADMIN_VIEW_ITEMS: Array<{ id: AdminView; label: string; count: (summary: A
     id: "waitlist",
     label: "Waitlist",
     count: (summary) => `${summary.totals.waitlistSignups} leads`
+  },
+  {
+    id: "followups",
+    label: "Follow-ups",
+    count: (summary) => `${summary.totals.pendingIntakeFollowUps || 0} pending`
   }
 ];
 
@@ -50,6 +80,8 @@ type AdminSummary = {
     budgetQualified: number;
     averageLeadScore?: number;
     followUpSurveys?: number;
+    pendingIntakeFollowUps?: number;
+    completedFollowUps?: number;
     followUpApplications?: number;
     followUpInterviews?: number;
     followUpOffers?: number;
@@ -169,31 +201,30 @@ type AdminSummary = {
     status: string;
     createdAt: string;
   }>;
-  recentFollowUps?: Array<{
+  pendingIntakeFollowUps?: Array<{
+    id?: string;
     leadId?: string;
     candidateId?: string;
     contactId?: string;
+    name?: string;
+    userType?: string;
+    organization?: string;
+    role?: string;
     emailDomain?: string;
     emailDomainType?: string;
-    currentStatus?: string;
-    applicationCount: number;
-    interviewCount: number;
-    offerCount: number;
-    placementStatus?: string;
-    currentRole?: string;
-    currentIndustry?: string;
-    salaryRange?: string;
-    employer?: string;
-    jobTitle?: string;
-    salaryAmount?: number;
-    salaryPeriod?: string;
-    outcomeDate?: string;
-    jobLocation?: string;
-    dataSource?: string;
-    verificationStatus?: string;
-    supportNeeded?: string;
-    submittedAt?: string;
+    targetRole?: string;
+    targetIndustry?: string;
+    schoolName?: string;
+    majorField?: string;
+    classYear?: string;
+    preferredContactMethod?: string;
+    leadScore?: number;
+    leadPriority?: string;
+    recommendedAction?: string;
+    createdAt?: string;
   }>;
+  completedFollowUps?: FollowUpRecord[];
+  recentFollowUps?: FollowUpRecord[];
 };
 
 export default function AdminDashboard() {
@@ -550,6 +581,89 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
+              </section>
+            </>
+          )}
+
+          {(adminView === "all" || adminView === "followups") && (
+            <>
+              <SectionHeader
+                eyebrow="Follow-up workflow"
+                title="Intake interviews and completed updates"
+                detail="Track who still needs an intake conversation and who has already submitted follow-up outcome data."
+              />
+
+              <section className="admin-metrics four">
+                <Metric label="Pending intake interviews" value={summary.totals.pendingIntakeFollowUps || 0} note="Interview volunteers without follow-up yet" />
+                <Metric label="Completed follow-ups" value={summary.totals.completedFollowUps || 0} note="Submitted outcome updates" />
+                <Metric label="Interviews reported" value={summary.totals.followUpInterviews || 0} note="From completed follow-ups" />
+                <Metric label="Offers / placements" value={`${summary.totals.followUpOffers || 0} / ${summary.totals.followUpPlacements || 0}`} note="Reported outcomes" />
+              </section>
+
+              <section className="admin-table-panel">
+                <div className="panel-heading">
+                  <h2>Pending Intake Interviews</h2>
+                  <button className="download-chart-button" type="button" onClick={() => exportDataset("pending-intake-follow-ups", summary.pendingIntakeFollowUps || [])}>
+                    <Download size={15} />
+                    Export pending
+                  </button>
+                </div>
+                <div className="admin-table waitlist-table">
+                  {summary.pendingIntakeFollowUps?.length ? (
+                    summary.pendingIntakeFollowUps.map((item, index) => (
+                      <article key={`${item.leadId || item.candidateId || item.id || index}-pending`}>
+                        <div className="candidate-cell">
+                          <span className="avatar">{initials(item.name || item.leadId || "FV")}</span>
+                          <div>
+                            <strong>{item.name || item.leadId || "Unnamed lead"}</strong>
+                            <span>{[item.leadId, item.candidateId, item.contactId].filter(Boolean).join(" - ")}</span>
+                            <small>{[item.emailDomain, item.emailDomainType].filter(Boolean).join(" - ")}</small>
+                          </div>
+                        </div>
+                        <span>{item.targetRole || item.role || "Role not saved"}</span>
+                        <span>{[item.schoolName, item.majorField, item.classYear].filter(Boolean).join(" - ") || item.organization || "No school/org saved"}</span>
+                        <span>{item.leadScore ? `${item.leadScore} - ${item.leadPriority || "Scored"}` : item.recommendedAction || "Needs intake"}</span>
+                        <span>{formatDate(item.createdAt || "")}</span>
+                      </article>
+                    ))
+                  ) : (
+                    <div className="empty-panel compact">
+                      <strong>No pending intake interviews.</strong>
+                      <span>Everyone who opted into an intake appears to have a follow-up record or no one has opted in yet.</span>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="admin-table-panel">
+                <div className="panel-heading">
+                  <h2>Completed Follow-ups</h2>
+                  <button className="download-chart-button" type="button" onClick={() => exportDataset("completed-follow-ups", summary.completedFollowUps || [])}>
+                    <Download size={15} />
+                    Export completed
+                  </button>
+                </div>
+                <div className="admin-table followup-table">
+                  {summary.completedFollowUps?.length ? (
+                    summary.completedFollowUps.map((item, index) => (
+                      <article key={`${item.leadId || item.candidateId || index}-${item.submittedAt}-completed`}>
+                        <div>
+                          <strong>{item.candidateId || item.leadId || item.contactId || "Unlinked follow-up"}</strong>
+                          <span>{[item.employer, item.jobTitle || item.currentRole].filter(Boolean).join(" - ") || "No employer/title saved"}</span>
+                        </div>
+                        <span>{item.currentStatus || "Status not saved"}</span>
+                        <span>{item.placementStatus || "No outcome"}</span>
+                        <span>{`${item.applicationCount} apps / ${item.interviewCount} interviews / ${item.offerCount} offers`}</span>
+                        <span>{formatDate(item.submittedAt || "")}</span>
+                      </article>
+                    ))
+                  ) : (
+                    <div className="empty-panel compact">
+                      <strong>No completed follow-ups yet.</strong>
+                      <span>Completed updates appear here after someone submits the follow-up form.</span>
+                    </div>
+                  )}
+                </div>
               </section>
             </>
           )}
@@ -1046,6 +1160,8 @@ function exportResearchBundle(summary: AdminSummary) {
       createdAt: item.createdAt
     })),
     followUps: summary.recentFollowUps || [],
+    pendingIntakeFollowUps: summary.pendingIntakeFollowUps || [],
+    completedFollowUps: summary.completedFollowUps || [],
     aggregatePanels: {
       waitlistUserTypes: summary.waitlistUserTypes,
       waitlistReferralSources: summary.waitlistReferralSources,
