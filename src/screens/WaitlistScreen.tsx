@@ -107,7 +107,9 @@ const INITIAL_FORM = {
   studentType: "",
   degreeProgram: "",
   majorField: "",
+  degreeLevel: "",
   expectedGraduationYear: "",
+  domesticInternational: "",
   careerStage: "",
   populationServed: "",
   primaryPopulation: [] as string[],
@@ -523,7 +525,21 @@ function StudentBranch({ form, setField }: BranchProps) {
       <TextField label="School / institution" value={form.organization} onChange={(value) => setField("organization", value)} />
       <TextField label="Degree / program" value={form.degreeProgram} onChange={(value) => setField("degreeProgram", value)} />
       <TextField label="Major / field" value={form.majorField} onChange={(value) => setField("majorField", value)} />
+      <SelectField label="Degree level" value={form.degreeLevel} onChange={(value) => setField("degreeLevel", value)} options={[
+        "Certificate",
+        "Associate",
+        "Bachelor's",
+        "Master's",
+        "Doctoral",
+        "Bootcamp",
+        "Other"
+      ]} />
       <TextField label="Expected graduation year" value={form.expectedGraduationYear} onChange={(value) => setField("expectedGraduationYear", value)} />
+      <SelectField label="Domestic / international" value={form.domesticInternational} onChange={(value) => setField("domesticInternational", value)} options={[
+        "Domestic",
+        "International",
+        "Prefer not to say"
+      ]} />
       <TextField label="Target role" value={form.targetRole} onChange={(value) => setField("targetRole", value)} />
       <SelectField label="Target industry" value={form.targetIndustry} onChange={(value) => setField("targetIndustry", value)} options={TARGET_INDUSTRIES} />
       <SelectField label="Career stage" value={form.careerStage} onChange={(value) => setField("careerStage", value)} options={[

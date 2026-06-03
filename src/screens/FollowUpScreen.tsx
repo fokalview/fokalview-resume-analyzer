@@ -14,6 +14,8 @@ const CURRENT_STATUSES = [
 const PLACEMENT_STATUSES = ["Not placed", "Interviewing", "Offer received", "Placed", "Prefer not to say"];
 const INDUSTRIES = ["Technology", "Healthcare", "Finance", "Education", "Government", "Manufacturing", "Creative or Media", "Skilled Trades", "Other"];
 const SALARY_RANGES = ["Under $40k", "$40k to $60k", "$60k to $80k", "$80k to $100k", "$100k to $150k", "$150k+", "Prefer not to say"];
+const SALARY_PERIODS = ["Annual", "Hourly", "Monthly", "Stipend", "Other"];
+const VERIFICATION_STATUSES = ["Self-reported", "Advisor verified", "Employer verified", "Imported", "Unknown"];
 
 export default function FollowUpScreen() {
   const params = new URLSearchParams(window.location.search);
@@ -30,6 +32,14 @@ export default function FollowUpScreen() {
     currentRole: "",
     currentIndustry: "",
     salaryRange: "",
+    employer: "",
+    jobTitle: "",
+    salaryAmount: "",
+    salaryPeriod: "Annual",
+    outcomeDate: "",
+    jobLocation: "",
+    dataSource: "Self-reported follow-up",
+    verificationStatus: "Self-reported",
     supportNeeded: "",
     notes: ""
   });
@@ -109,6 +119,14 @@ export default function FollowUpScreen() {
           <TextField label="Current role" value={form.currentRole} onChange={(value) => updateField("currentRole", value)} />
           <SelectField label="Current industry" value={form.currentIndustry} onChange={(value) => updateField("currentIndustry", value)} options={INDUSTRIES} />
           <SelectField label="Salary range" value={form.salaryRange} onChange={(value) => updateField("salaryRange", value)} options={SALARY_RANGES} />
+          <TextField label="Employer" value={form.employer} onChange={(value) => updateField("employer", value)} placeholder="Company or organization" />
+          <TextField label="Job title" value={form.jobTitle} onChange={(value) => updateField("jobTitle", value)} placeholder="Software Engineer, Data Analyst..." />
+          <TextField label="Salary amount" value={form.salaryAmount} onChange={(value) => updateField("salaryAmount", value)} type="number" placeholder="103400" />
+          <SelectField label="Salary period" value={form.salaryPeriod} onChange={(value) => updateField("salaryPeriod", value)} options={SALARY_PERIODS} />
+          <TextField label="Outcome date" value={form.outcomeDate} onChange={(value) => updateField("outcomeDate", value)} type="date" />
+          <TextField label="Job location" value={form.jobLocation} onChange={(value) => updateField("jobLocation", value)} placeholder="Boston, MA / Remote" />
+          <SelectField label="Verification status" value={form.verificationStatus} onChange={(value) => updateField("verificationStatus", value)} options={VERIFICATION_STATUSES} />
+          <TextField label="Data source" value={form.dataSource} onChange={(value) => updateField("dataSource", value)} placeholder="Self-reported follow-up" />
           <label className="wide-field">
             <span>Support needed</span>
             <textarea

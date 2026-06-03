@@ -44,6 +44,13 @@ export async function onRequestGet({ request, env }) {
        ${waitlistColumns.has("target_role") ? "target_role" : "''"} AS targetRole,
        ${waitlistColumns.has("target_industry") ? "target_industry" : "''"} AS targetIndustry,
        ${waitlistColumns.has("experience_level") ? "experience_level" : "''"} AS experienceLevel,
+       ${waitlistColumns.has("program_name") ? "program_name" : "''"} AS programName,
+       ${waitlistColumns.has("major_field") ? "major_field" : "''"} AS majorField,
+       ${waitlistColumns.has("degree_level") ? "degree_level" : "''"} AS degreeLevel,
+       ${waitlistColumns.has("class_year") ? "class_year" : "''"} AS classYear,
+       ${waitlistColumns.has("student_status") ? "student_status" : "''"} AS studentStatus,
+       ${waitlistColumns.has("seeking_status") ? "seeking_status" : "''"} AS seekingStatus,
+       ${waitlistColumns.has("domestic_international") ? "domestic_international" : "''"} AS domesticInternational,
        ${waitlistColumns.has("current_process") ? "current_process" : "''"} AS currentProcess,
        ${waitlistColumns.has("population_served") ? "population_served" : "''"} AS populationServed,
        ${waitlistColumns.has("reporting_wish") ? "reporting_wish" : "''"} AS reportingWish,
@@ -63,8 +70,16 @@ export async function onRequestGet({ request, env }) {
        interview_count AS interviewCount, offer_count AS offerCount,
        placement_status AS placementStatus, current_role AS currentRole,
        current_industry AS currentIndustry, salary_range AS salaryRange,
+       ${followupColumns.has("employer") ? "employer" : "''"} AS employer,
+       ${followupColumns.has("job_title") ? "job_title" : "''"} AS jobTitle,
+       ${followupColumns.has("salary_amount") ? "salary_amount" : "NULL"} AS salaryAmount,
+       ${followupColumns.has("salary_period") ? "salary_period" : "''"} AS salaryPeriod,
+       ${followupColumns.has("outcome_date") ? "outcome_date" : "''"} AS outcomeDate,
+       ${followupColumns.has("job_location") ? "job_location" : "''"} AS jobLocation,
+       ${followupColumns.has("data_source") ? "data_source" : "''"} AS dataSource,
+       ${followupColumns.has("verification_status") ? "verification_status" : "''"} AS verificationStatus,
        support_needed AS supportNeeded, submitted_at AS submittedAt`
-    : "'' AS leadId, '' AS candidateId, '' AS contactId, '' AS emailDomain, '' AS emailDomainType, '' AS currentStatus, 0 AS applicationCount, 0 AS interviewCount, 0 AS offerCount, '' AS placementStatus, '' AS currentRole, '' AS currentIndustry, '' AS salaryRange, '' AS supportNeeded, '' AS submittedAt";
+    : "'' AS leadId, '' AS candidateId, '' AS contactId, '' AS emailDomain, '' AS emailDomainType, '' AS currentStatus, 0 AS applicationCount, 0 AS interviewCount, 0 AS offerCount, '' AS placementStatus, '' AS currentRole, '' AS currentIndustry, '' AS salaryRange, '' AS employer, '' AS jobTitle, NULL AS salaryAmount, '' AS salaryPeriod, '' AS outcomeDate, '' AS jobLocation, '' AS dataSource, '' AS verificationStatus, '' AS supportNeeded, '' AS submittedAt";
 
   const [resumeRows, applicationRows, waitlistRows, followupRows] = await Promise.all([
     env.DB.prepare(
@@ -111,6 +126,7 @@ export async function onRequestGet({ request, env }) {
   const readinessThreshold = Number(env.READINESS_THRESHOLD || 85);
   const averageReadinessScore = average(resumes.map((item) => item.analysis.score));
   const followUpTotals = buildFollowUpTotals(followups);
+  const salaryStats = buildSalaryStats(followups);
   const uniqueUsers = new Set([
     ...resumes.map((item) => item.userId || item.clientHash),
     ...applications.map((item) => item.userId || item.clientHash)
@@ -136,6 +152,9 @@ export async function onRequestGet({ request, env }) {
       followUpInterviews: followUpTotals.interviews,
       followUpOffers: followUpTotals.offers,
       followUpPlacements: followUpTotals.placements,
+      salaryResponses: salaryStats.count,
+      medianSalary: salaryStats.median,
+      averageSalary: salaryStats.average,
       uniqueUsers,
       rawResumeRecords: resumes.filter((item) => item.rawResumeRetained).length,
       averageReadinessScore,
@@ -155,6 +174,8 @@ export async function onRequestGet({ request, env }) {
     commonSkillGaps: groupSkillGaps(allGapItems, resumes.length),
     applicationStatuses: countBy(applications.map((item) => item.status || "Unknown")),
     applicationSources: topCounts(applications.map((item) => item.source).filter(Boolean), 12),
+    applicationEmployers: topCounts(applications.map((item) => item.company).filter(Boolean), 12),
+    applicationTitles: topCounts(applications.map((item) => item.title).filter(Boolean), 12),
     waitlistOrganizationTypes: topCounts(waitlist.map((item) => item.organizationType).filter(Boolean), 12),
     waitlistSources: topCounts(waitlist.map((item) => item.source).filter(Boolean), 12),
     waitlistUserTypes: topCounts(waitlist.map((item) => item.userType).filter(Boolean), 12),
@@ -168,6 +189,16 @@ export async function onRequestGet({ request, env }) {
     followUpStatuses: countBy(followups.map((item) => item.currentStatus).filter(Boolean)),
     followUpIndustries: topCounts(followups.map((item) => item.currentIndustry).filter(Boolean), 12),
     followUpSalaryRanges: topCounts(followups.map((item) => item.salaryRange).filter(Boolean), 12),
+    followUpEmployers: topCounts(followups.map((item) => item.employer).filter(Boolean), 12),
+    followUpJobTitles: topCounts(followups.map((item) => item.jobTitle || item.currentRole).filter(Boolean), 12),
+    followUpVerificationStatuses: topCounts(followups.map((item) => item.verificationStatus).filter(Boolean), 12),
+    waitlistPrograms: topCounts(waitlist.map((item) => item.programName).filter(Boolean), 12),
+    waitlistMajors: topCounts(waitlist.map((item) => item.majorField).filter(Boolean), 12),
+    waitlistDegreeLevels: topCounts(waitlist.map((item) => item.degreeLevel).filter(Boolean), 12),
+    waitlistClassYears: topCounts(waitlist.map((item) => item.classYear).filter(Boolean), 12),
+    waitlistStudentStatuses: topCounts(waitlist.map((item) => item.studentStatus).filter(Boolean), 12),
+    waitlistSeekingStatuses: topCounts(waitlist.map((item) => item.seekingStatus).filter(Boolean), 12),
+    waitlistDomesticInternational: topCounts(waitlist.map((item) => item.domesticInternational).filter(Boolean), 12),
     waitlistLeadScoreBands: buildLeadScoreBands(waitlist),
     waitlistFunnel: buildWaitlistFunnel(waitlist, followups),
     followUpFunnel: buildFollowUpFunnel(waitlist, followups, followUpTotals),
@@ -228,6 +259,13 @@ export async function onRequestGet({ request, env }) {
       branchStatus: item.branchStatus,
       targetRole: item.targetRole,
       targetIndustry: item.targetIndustry,
+      programName: item.programName,
+      majorField: item.majorField,
+      degreeLevel: item.degreeLevel,
+      classYear: item.classYear,
+      studentStatus: item.studentStatus,
+      seekingStatus: item.seekingStatus,
+      domesticInternational: item.domesticInternational,
       workforceRegion: item.workforceRegion,
       currentProcess: item.currentProcess,
       populationServed: item.populationServed,
@@ -254,6 +292,14 @@ export async function onRequestGet({ request, env }) {
       currentRole: item.currentRole,
       currentIndustry: item.currentIndustry,
       salaryRange: item.salaryRange,
+      employer: item.employer,
+      jobTitle: item.jobTitle,
+      salaryAmount: Number(item.salaryAmount || 0),
+      salaryPeriod: item.salaryPeriod,
+      outcomeDate: item.outcomeDate,
+      jobLocation: item.jobLocation,
+      dataSource: item.dataSource,
+      verificationStatus: item.verificationStatus,
       supportNeeded: item.supportNeeded,
       submittedAt: item.submittedAt
     }))
@@ -374,6 +420,13 @@ function filterWaitlist(signups, query) {
       item.targetRole,
       item.targetIndustry,
       item.experienceLevel,
+      item.programName,
+      item.majorField,
+      item.degreeLevel,
+      item.classYear,
+      item.studentStatus,
+      item.seekingStatus,
+      item.domesticInternational,
       item.workforceRegion,
       item.currentProcess,
       item.populationServed,
@@ -405,6 +458,14 @@ function filterFollowups(followups, query) {
       item.currentRole,
       item.currentIndustry,
       item.salaryRange,
+      item.employer,
+      item.jobTitle,
+      item.salaryAmount,
+      item.salaryPeriod,
+      item.outcomeDate,
+      item.jobLocation,
+      item.dataSource,
+      item.verificationStatus,
       item.supportNeeded
     ]
       .join(" ")
@@ -544,6 +605,23 @@ function buildFollowUpTotals(followups) {
     },
     { applications: 0, interviews: 0, offers: 0, placements: 0 }
   );
+}
+
+function buildSalaryStats(followups) {
+  const values = followups
+    .map((item) => Number(item.salaryAmount || 0))
+    .filter((value) => Number.isFinite(value) && value > 0)
+    .sort((left, right) => left - right);
+
+  if (!values.length) return { count: 0, median: 0, average: 0 };
+
+  const midpoint = Math.floor(values.length / 2);
+  const median = values.length % 2
+    ? values[midpoint]
+    : Math.round((values[midpoint - 1] + values[midpoint]) / 2);
+  const averageValue = Math.round(values.reduce((sum, value) => sum + value, 0) / values.length);
+
+  return { count: values.length, median, average: averageValue };
 }
 
 function buildLeadScoreBands(waitlist) {

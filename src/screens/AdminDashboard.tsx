@@ -13,7 +13,31 @@ type ActionQueueItem = {
   nextAction: string;
 };
 type ProductSignal = { label: string; value: string; detail: string };
-type AdminView = "all" | "applications" | "waitlist";
+type AdminView = "all" | "institutional" | "applications" | "waitlist";
+
+const DEFAULT_ADMIN_VIEW: AdminView = "waitlist";
+const ADMIN_VIEW_ITEMS: Array<{ id: AdminView; label: string; count: (summary: AdminSummary) => string }> = [
+  {
+    id: "all",
+    label: "All",
+    count: (summary) => `${summary.totals.resumeRecords + summary.totals.waitlistSignups} records`
+  },
+  {
+    id: "institutional",
+    label: "Institutional reporting",
+    count: (summary) => `${summary.totals.followUpSurveys || 0} outcomes`
+  },
+  {
+    id: "applications",
+    label: "Main application",
+    count: (summary) => `${summary.totals.resumeRecords} analyses`
+  },
+  {
+    id: "waitlist",
+    label: "Waitlist",
+    count: (summary) => `${summary.totals.waitlistSignups} leads`
+  }
+];
 
 type AdminSummary = {
   meta: { readinessThreshold: number; lastLoadedAt: string; query?: string };
@@ -30,6 +54,9 @@ type AdminSummary = {
     followUpInterviews?: number;
     followUpOffers?: number;
     followUpPlacements?: number;
+    salaryResponses?: number;
+    medianSalary?: number;
+    averageSalary?: number;
     uniqueUsers: number;
     rawResumeRecords: number;
     averageReadinessScore: number;
@@ -43,6 +70,8 @@ type AdminSummary = {
   commonSkillGaps: Record<string, CountItem[]>;
   applicationStatuses: Record<string, number>;
   applicationSources: CountItem[];
+  applicationEmployers?: CountItem[];
+  applicationTitles?: CountItem[];
   waitlistOrganizationTypes: CountItem[];
   waitlistSources: CountItem[];
   waitlistUserTypes?: CountItem[];
@@ -56,6 +85,16 @@ type AdminSummary = {
   followUpStatuses?: Record<string, number>;
   followUpIndustries?: CountItem[];
   followUpSalaryRanges?: CountItem[];
+  followUpEmployers?: CountItem[];
+  followUpJobTitles?: CountItem[];
+  followUpVerificationStatuses?: CountItem[];
+  waitlistPrograms?: CountItem[];
+  waitlistMajors?: CountItem[];
+  waitlistDegreeLevels?: CountItem[];
+  waitlistClassYears?: CountItem[];
+  waitlistStudentStatuses?: CountItem[];
+  waitlistSeekingStatuses?: CountItem[];
+  waitlistDomesticInternational?: CountItem[];
   waitlistLeadScoreBands?: Record<string, number>;
   waitlistFunnel?: FunnelItem[];
   followUpFunnel?: FunnelItem[];
@@ -105,6 +144,13 @@ type AdminSummary = {
     branchStatus?: string;
     targetRole?: string;
     targetIndustry?: string;
+    programName?: string;
+    majorField?: string;
+    degreeLevel?: string;
+    classYear?: string;
+    studentStatus?: string;
+    seekingStatus?: string;
+    domesticInternational?: string;
     workforceRegion?: string;
     currentProcess?: string;
     populationServed?: string;
@@ -131,6 +177,14 @@ type AdminSummary = {
     currentRole?: string;
     currentIndustry?: string;
     salaryRange?: string;
+    employer?: string;
+    jobTitle?: string;
+    salaryAmount?: number;
+    salaryPeriod?: string;
+    outcomeDate?: string;
+    jobLocation?: string;
+    dataSource?: string;
+    verificationStatus?: string;
     supportNeeded?: string;
     submittedAt?: string;
   }>;
@@ -141,7 +195,7 @@ export default function AdminDashboard() {
   const [theme, setTheme] = useState<"light" | "dark">(() => getStoredTheme());
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [query, setQuery] = useState("");
-  const [adminView, setAdminView] = useState<AdminView>("all");
+  const [adminView, setAdminView] = useState<AdminView>(DEFAULT_ADMIN_VIEW);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedWaitlist, setSelectedWaitlist] = useState<AdminSummary["recentWaitlistSignups"][number] | null>(null);
@@ -231,18 +285,19 @@ export default function AdminDashboard() {
           <aside className="admin-view-sidebar" aria-label="Admin dashboard sections">
             <p className="eyebrow">Dashboard view</p>
             <div className="admin-view-toggle" role="tablist" aria-label="Admin dashboard view">
-              <button type="button" role="tab" aria-selected={adminView === "all"} className={adminView === "all" ? "active" : ""} onClick={() => setAdminView("all")}>
-                All
-                <span>{summary.totals.resumeRecords + summary.totals.waitlistSignups} records</span>
-              </button>
-              <button type="button" role="tab" aria-selected={adminView === "applications"} className={adminView === "applications" ? "active" : ""} onClick={() => setAdminView("applications")}>
-                Main application
-                <span>{summary.totals.resumeRecords} analyses</span>
-              </button>
-              <button type="button" role="tab" aria-selected={adminView === "waitlist"} className={adminView === "waitlist" ? "active" : ""} onClick={() => setAdminView("waitlist")}>
-                Waitlist
-                <span>{summary.totals.waitlistSignups} leads</span>
-              </button>
+              {ADMIN_VIEW_ITEMS.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={adminView === item.id}
+                  className={adminView === item.id ? "active" : ""}
+                  onClick={() => setAdminView(item.id)}
+                >
+                  {item.label}
+                  <span>{item.count(summary)}</span>
+                </button>
+              ))}
             </div>
           </aside>
 
@@ -287,6 +342,38 @@ export default function AdminDashboard() {
                 <Metric label="Career records" value={summary.totals.resumeRecords} note="Resume analyses retained" />
                 <Metric label="Opportunities tracked" value={summary.totals.applicationCaptures} note="Applications and opportunities" />
                 <ReadinessMetric summary={summary} />
+              </section>
+            </>
+          )}
+
+          {(adminView === "all" || adminView === "institutional") && (
+            <>
+              <SectionHeader
+                eyebrow="Institutional reporting"
+                title="Outcome reporting snapshot"
+                detail="Program-style aggregate reporting for employers, roles, outcomes, salary signals, geography, and demand. Small-group suppression should be added before external sharing."
+              />
+
+              <section className="admin-metrics four">
+                <Metric label="Knowledge proxy" value={`${percent(summary.totals.followUpSurveys || 0, Math.max(summary.totals.waitlistSignups, 1))}%`} note="Follow-ups collected vs waitlist leads" />
+                <Metric label="Outcome proxy" value={`${percent((summary.totals.followUpPlacements || 0) + (summary.totals.followUpOffers || 0), Math.max(summary.totals.followUpSurveys || 0, 1))}%`} note="Offers or placements per follow-up" />
+                <Metric label="Median salary" value={formatCurrency(summary.totals.medianSalary || 0)} note={`${summary.totals.salaryResponses || 0} salary responses`} />
+                <Metric label="Average salary" value={formatCurrency(summary.totals.averageSalary || 0)} note={`${summary.totals.salaryResponses || 0} salary responses`} />
+              </section>
+
+              <section className="admin-grid">
+                <ChartPanel title="Sample Employers" items={mergeCountItems(summary.followUpEmployers || [], summary.applicationEmployers || [])} />
+                <ChartPanel title="Sample Job Positions" items={mergeCountItems(summary.followUpJobTitles || [], summary.applicationTitles || [])} />
+                <ChartPanel title="Programs" items={summary.waitlistPrograms || []} />
+                <ChartPanel title="Majors / Fields" items={summary.waitlistMajors || []} />
+                <ChartPanel title="Degree Levels" items={summary.waitlistDegreeLevels || []} />
+                <ChartPanel title="Class Years" items={summary.waitlistClassYears || []} />
+                <ChartPanel title="Domestic / International" items={summary.waitlistDomesticInternational || []} />
+                <ChartPanel title="Verification Status" items={summary.followUpVerificationStatuses || []} />
+                <ChartPanel title="Target Industries" items={summary.waitlistTargetIndustries || []} />
+                <ChartPanel title="Follow-up Salary Ranges" items={summary.followUpSalaryRanges || []} />
+                <ChartPanel title="Countries" items={summary.countries} />
+                <ChartPanel title="Email Domain Types" items={toCountItems(summary.emailDomainTypes)} />
               </section>
             </>
           )}
@@ -496,6 +583,13 @@ export default function AdminDashboard() {
                   <Detail label="Recommended action" value={selectedWaitlist.recommendedAction} />
                   <Detail label="Branch status" value={selectedWaitlist.branchStatus} />
                   <Detail label="Target industry" value={selectedWaitlist.targetIndustry} />
+                  <Detail label="Program" value={selectedWaitlist.programName} />
+                  <Detail label="Major / field" value={selectedWaitlist.majorField} />
+                  <Detail label="Degree level" value={selectedWaitlist.degreeLevel} />
+                  <Detail label="Class year" value={selectedWaitlist.classYear} />
+                  <Detail label="Student status" value={selectedWaitlist.studentStatus} />
+                  <Detail label="Seeking status" value={selectedWaitlist.seekingStatus} />
+                  <Detail label="Domestic / international" value={selectedWaitlist.domesticInternational} />
                   <Detail label="Workforce region" value={selectedWaitlist.workforceRegion} />
                   <Detail label="Current process" value={selectedWaitlist.currentProcess} />
                   <Detail label="Population served" value={selectedWaitlist.populationServed} />
@@ -1194,6 +1288,27 @@ function scoreClass(score: number) {
 
 function percent(count: number, total: number) {
   return total ? Math.round((count / total) * 100) : 0;
+}
+
+function formatCurrency(value: number) {
+  if (!value) return "Pending";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0
+  }).format(value);
+}
+
+function mergeCountItems(...groups: CountItem[][]) {
+  const counts = new Map<string, number>();
+  groups.flat().forEach((item) => {
+    if (!item.label) return;
+    counts.set(item.label, (counts.get(item.label) || 0) + item.count);
+  });
+  return [...counts.entries()]
+    .map(([label, count]) => ({ label, count }))
+    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))
+    .slice(0, 12);
 }
 
 function initials(value: string) {

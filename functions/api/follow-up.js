@@ -1,3 +1,5 @@
+import { tableColumns } from "./ids.js";
+
 const PERSONAL_DOMAINS = new Set([
   "gmail.com",
   "googlemail.com",
@@ -22,6 +24,52 @@ export async function onRequestPost({ request, env }) {
     const emailDomain = domainFromEmail(email);
     const emailDomainType = classifyEmailDomain(emailDomain);
     const now = new Date().toISOString();
+    const columns = await tableColumns(env.DB, "waitlist_followups");
+
+    if (columns.has("salary_amount")) {
+      await env.DB.prepare(
+        `INSERT INTO waitlist_followups (
+          id, lead_id, candidate_id, contact_id, email_hash, email_domain, email_domain_type,
+          current_status, application_count, interview_count, offer_count, placement_status,
+          current_role, current_industry, salary_range, employer, job_title, salary_amount,
+          salary_period, outcome_date, job_location, data_source, verification_status,
+          support_needed, notes, source, submitted_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+        .bind(
+          crypto.randomUUID(),
+          clean(body.leadId, 80),
+          clean(body.candidateId, 80),
+          clean(body.contactId, 80),
+          email ? await hashEmail(email, env) : "",
+          emailDomainType === "personal" ? "personal_email" : emailDomain,
+          emailDomainType,
+          clean(body.currentStatus, 160),
+          clampInteger(body.applicationCount, 0, 999),
+          clampInteger(body.interviewCount, 0, 999),
+          clampInteger(body.offerCount, 0, 999),
+          clean(body.placementStatus, 120),
+          clean(body.currentRole, 180),
+          clean(body.currentIndustry, 120),
+          clean(body.salaryRange, 120),
+          clean(body.employer, 180),
+          clean(body.jobTitle, 180),
+          clampOptionalInteger(body.salaryAmount, 0, 10000000),
+          clean(body.salaryPeriod, 80) || "Annual",
+          clean(body.outcomeDate, 40),
+          clean(body.jobLocation, 180),
+          clean(body.dataSource, 120) || "Self-reported follow-up",
+          clean(body.verificationStatus, 120) || "Self-reported",
+          clean(body.supportNeeded, 1200),
+          clean(body.notes, 1600),
+          clean(body.source, 120) || "public_follow_up",
+          now
+        )
+        .run();
+
+      return json({ ok: true, submittedAt: now });
+    }
 
     await env.DB.prepare(
       `INSERT INTO waitlist_followups (
@@ -102,6 +150,13 @@ function clean(value, maxLength) {
 function clampInteger(value, min, max) {
   const number = Number.parseInt(String(value || 0), 10);
   if (Number.isNaN(number)) return min;
+  return Math.min(max, Math.max(min, number));
+}
+
+function clampOptionalInteger(value, min, max) {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  const number = Number.parseInt(String(value).replace(/[$,]/g, ""), 10);
+  if (Number.isNaN(number)) return null;
   return Math.min(max, Math.max(min, number));
 }
 
