@@ -224,8 +224,29 @@ export default function AdminDashboard() {
         </form>
       </header>
 
+      {!summary && error && <p className="error-message">{error}</p>}
+
       {summary && (
-        <div className="admin-control-strip">
+        <div className="admin-dashboard-layout">
+          <aside className="admin-view-sidebar" aria-label="Admin dashboard sections">
+            <p className="eyebrow">Dashboard view</p>
+            <div className="admin-view-toggle" role="tablist" aria-label="Admin dashboard view">
+              <button type="button" role="tab" aria-selected={adminView === "all"} className={adminView === "all" ? "active" : ""} onClick={() => setAdminView("all")}>
+                All
+                <span>{summary.totals.resumeRecords + summary.totals.waitlistSignups} records</span>
+              </button>
+              <button type="button" role="tab" aria-selected={adminView === "applications"} className={adminView === "applications" ? "active" : ""} onClick={() => setAdminView("applications")}>
+                Main application
+                <span>{summary.totals.resumeRecords} analyses</span>
+              </button>
+              <button type="button" role="tab" aria-selected={adminView === "waitlist"} className={adminView === "waitlist" ? "active" : ""} onClick={() => setAdminView("waitlist")}>
+                Waitlist
+                <span>{summary.totals.waitlistSignups} leads</span>
+              </button>
+            </div>
+          </aside>
+
+          <div className="admin-dashboard-content">
           <div className="admin-filter-bar">
             <Search size={16} />
             <input
@@ -235,27 +256,9 @@ export default function AdminDashboard() {
             />
             {summary.meta.query && <span>Filtering: {summary.meta.query}</span>}
           </div>
-          <div className="admin-view-toggle" role="tablist" aria-label="Admin dashboard view">
-            <button type="button" role="tab" aria-selected={adminView === "all"} className={adminView === "all" ? "active" : ""} onClick={() => setAdminView("all")}>
-              All
-              <span>{summary.totals.resumeRecords + summary.totals.waitlistSignups} records</span>
-            </button>
-            <button type="button" role="tab" aria-selected={adminView === "applications"} className={adminView === "applications" ? "active" : ""} onClick={() => setAdminView("applications")}>
-              Main application
-              <span>{summary.totals.resumeRecords} analyses</span>
-            </button>
-            <button type="button" role="tab" aria-selected={adminView === "waitlist"} className={adminView === "waitlist" ? "active" : ""} onClick={() => setAdminView("waitlist")}>
-              Waitlist
-              <span>{summary.totals.waitlistSignups} leads</span>
-            </button>
-          </div>
-        </div>
-      )}
 
-      {error && <p className="error-message">{error}</p>}
+          {error && <p className="error-message">{error}</p>}
 
-      {summary && (
-        <>
           {adminView === "all" && (
             <>
               <section className="admin-briefing" aria-label="Executive briefing">
@@ -506,7 +509,8 @@ export default function AdminDashboard() {
               </aside>
             </div>
           )}
-        </>
+          </div>
+        </div>
       )}
     </main>
   );
