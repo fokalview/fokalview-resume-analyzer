@@ -105,8 +105,11 @@ const INITIAL_FORM = {
   targetSalary: "",
   dreamSalary: "",
   studentType: "",
+  schoolName: "",
   degreeProgram: "",
   majorField: "",
+  gpa: "",
+  certifications: "",
   degreeLevel: "",
   expectedGraduationYear: "",
   domesticInternational: "",
@@ -522,9 +525,23 @@ function StudentBranch({ form, setField }: BranchProps) {
         "Certificate or bootcamp student",
         "Other"
       ]} />
-      <TextField label="School / institution" value={form.organization} onChange={(value) => setField("organization", value)} />
+      <TextField
+        label="School / institution"
+        value={form.schoolName || form.organization}
+        onChange={(value) => {
+          setField("schoolName", value);
+          setField("organization", value);
+        }}
+      />
       <TextField label="Degree / program" value={form.degreeProgram} onChange={(value) => setField("degreeProgram", value)} />
       <TextField label="Major / field" value={form.majorField} onChange={(value) => setField("majorField", value)} />
+      <TextField label="GPA optional" value={form.gpa} onChange={(value) => setField("gpa", value)} placeholder="3.7" />
+      <TextArea
+        label="Certifications"
+        value={form.certifications}
+        onChange={(value) => setField("certifications", value)}
+        placeholder="AWS Cloud Practitioner, CAPM, Security+, bootcamp certificate..."
+      />
       <SelectField label="Degree level" value={form.degreeLevel} onChange={(value) => setField("degreeLevel", value)} options={[
         "Certificate",
         "Associate",

@@ -90,6 +90,9 @@ type AdminSummary = {
   followUpVerificationStatuses?: CountItem[];
   waitlistPrograms?: CountItem[];
   waitlistMajors?: CountItem[];
+  waitlistSchools?: CountItem[];
+  waitlistGpaBands?: Record<string, number>;
+  waitlistCertifications?: CountItem[];
   waitlistDegreeLevels?: CountItem[];
   waitlistClassYears?: CountItem[];
   waitlistStudentStatuses?: CountItem[];
@@ -146,6 +149,9 @@ type AdminSummary = {
     targetIndustry?: string;
     programName?: string;
     majorField?: string;
+    schoolName?: string;
+    gpa?: number;
+    certifications?: string;
     degreeLevel?: string;
     classYear?: string;
     studentStatus?: string;
@@ -364,8 +370,11 @@ export default function AdminDashboard() {
               <section className="admin-grid">
                 <ChartPanel title="Sample Employers" items={mergeCountItems(summary.followUpEmployers || [], summary.applicationEmployers || [])} />
                 <ChartPanel title="Sample Job Positions" items={mergeCountItems(summary.followUpJobTitles || [], summary.applicationTitles || [])} />
+                <ChartPanel title="Schools" items={summary.waitlistSchools || []} />
                 <ChartPanel title="Programs" items={summary.waitlistPrograms || []} />
                 <ChartPanel title="Majors / Fields" items={summary.waitlistMajors || []} />
+                <ChartPanel title="GPA Bands" items={toCountItems(summary.waitlistGpaBands || {})} />
+                <ChartPanel title="Certifications" items={summary.waitlistCertifications || []} />
                 <ChartPanel title="Degree Levels" items={summary.waitlistDegreeLevels || []} />
                 <ChartPanel title="Class Years" items={summary.waitlistClassYears || []} />
                 <ChartPanel title="Domestic / International" items={summary.waitlistDomesticInternational || []} />
@@ -585,6 +594,9 @@ export default function AdminDashboard() {
                   <Detail label="Target industry" value={selectedWaitlist.targetIndustry} />
                   <Detail label="Program" value={selectedWaitlist.programName} />
                   <Detail label="Major / field" value={selectedWaitlist.majorField} />
+                  <Detail label="School" value={selectedWaitlist.schoolName} />
+                  <Detail label="GPA" value={selectedWaitlist.gpa || undefined} />
+                  <Detail label="Certifications" value={selectedWaitlist.certifications} />
                   <Detail label="Degree level" value={selectedWaitlist.degreeLevel} />
                   <Detail label="Class year" value={selectedWaitlist.classYear} />
                   <Detail label="Student status" value={selectedWaitlist.studentStatus} />

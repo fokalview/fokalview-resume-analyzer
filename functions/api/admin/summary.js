@@ -46,6 +46,9 @@ export async function onRequestGet({ request, env }) {
        ${waitlistColumns.has("experience_level") ? "experience_level" : "''"} AS experienceLevel,
        ${waitlistColumns.has("program_name") ? "program_name" : "''"} AS programName,
        ${waitlistColumns.has("major_field") ? "major_field" : "''"} AS majorField,
+       ${waitlistColumns.has("school_name") ? "school_name" : "''"} AS schoolName,
+       ${waitlistColumns.has("gpa") ? "gpa" : "NULL"} AS gpa,
+       ${waitlistColumns.has("certifications") ? "certifications" : "''"} AS certifications,
        ${waitlistColumns.has("degree_level") ? "degree_level" : "''"} AS degreeLevel,
        ${waitlistColumns.has("class_year") ? "class_year" : "''"} AS classYear,
        ${waitlistColumns.has("student_status") ? "student_status" : "''"} AS studentStatus,
@@ -194,6 +197,9 @@ export async function onRequestGet({ request, env }) {
     followUpVerificationStatuses: topCounts(followups.map((item) => item.verificationStatus).filter(Boolean), 12),
     waitlistPrograms: topCounts(waitlist.map((item) => item.programName).filter(Boolean), 12),
     waitlistMajors: topCounts(waitlist.map((item) => item.majorField).filter(Boolean), 12),
+    waitlistSchools: topCounts(waitlist.map((item) => item.schoolName || item.organization).filter(Boolean), 12),
+    waitlistGpaBands: buildGpaBands(waitlist),
+    waitlistCertifications: topCounts(waitlist.flatMap((item) => splitDelimited(item.certifications)), 12),
     waitlistDegreeLevels: topCounts(waitlist.map((item) => item.degreeLevel).filter(Boolean), 12),
     waitlistClassYears: topCounts(waitlist.map((item) => item.classYear).filter(Boolean), 12),
     waitlistStudentStatuses: topCounts(waitlist.map((item) => item.studentStatus).filter(Boolean), 12),
@@ -261,6 +267,9 @@ export async function onRequestGet({ request, env }) {
       targetIndustry: item.targetIndustry,
       programName: item.programName,
       majorField: item.majorField,
+      schoolName: item.schoolName,
+      gpa: Number(item.gpa || 0),
+      certifications: item.certifications,
       degreeLevel: item.degreeLevel,
       classYear: item.classYear,
       studentStatus: item.studentStatus,
@@ -422,6 +431,8 @@ function filterWaitlist(signups, query) {
       item.experienceLevel,
       item.programName,
       item.majorField,
+      item.schoolName,
+      item.certifications,
       item.degreeLevel,
       item.classYear,
       item.studentStatus,
@@ -624,6 +635,19 @@ function buildSalaryStats(followups) {
   return { count: values.length, median, average: averageValue };
 }
 
+function buildGpaBands(waitlist) {
+  const gpas = waitlist
+    .map((item) => Number(item.gpa || 0))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  return {
+    "0.00-2.49": gpas.filter((value) => value < 2.5).length,
+    "2.50-2.99": gpas.filter((value) => value >= 2.5 && value < 3).length,
+    "3.00-3.49": gpas.filter((value) => value >= 3 && value < 3.5).length,
+    "3.50-4.00": gpas.filter((value) => value >= 3.5 && value <= 4).length,
+    "4.00+": gpas.filter((value) => value > 4).length
+  };
+}
+
 function buildLeadScoreBands(waitlist) {
   return {
     "0-24": waitlist.filter((item) => Number(item.leadScore || 0) < 25).length,
@@ -729,6 +753,13 @@ function topCounts(values, limit) {
     .map(([label, count]) => ({ label, count }))
     .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))
     .slice(0, limit);
+}
+
+function splitDelimited(value) {
+  return String(value || "")
+    .split(/[,;\n]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 async function hasUserMetadataColumns(db) {

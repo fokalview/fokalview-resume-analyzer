@@ -24,7 +24,9 @@ export async function onRequestPost({ request, env }) {
     const now = new Date().toISOString();
     const columns = await tableColumns(env.DB, "waitlist_signups");
 
-    if (columns.has("program_name")) {
+    if (columns.has("school_name") && columns.has("program_name")) {
+      await insertAcademicSignup(env.DB, record, now);
+    } else if (columns.has("program_name")) {
       await insertInstitutionalSignup(env.DB, record, now);
     } else if (columns.has("workforce_region")) {
       await insertResearchSignup(env.DB, record, now);
@@ -101,6 +103,9 @@ async function normalizeSignup(body, request, env) {
     experienceLevel: clean(body.experienceLevel, 80),
     programName: clean(body.degreeProgram || body.programName || body.programType, 180),
     majorField: clean(body.majorField, 180),
+    schoolName: clean(body.schoolName || body.organization, 180),
+    gpa: cleanGpa(body.gpa),
+    certifications: clean(body.certifications, 1200),
     degreeLevel: clean(body.degreeLevel || body.studentType, 120),
     classYear: clean(body.expectedGraduationYear || body.classYear, 40),
     studentStatus: clean(body.careerStage || body.studentStatus, 120),
@@ -422,6 +427,84 @@ async function insertInstitutionalSignup(db, record, now) {
     .run();
 }
 
+async function insertAcademicSignup(db, record, now) {
+  await db.prepare(
+    `INSERT INTO waitlist_signups (
+      id, lead_id, contact_id, organization_id, candidate_id, name, email_hash,
+      email_domain, email_domain_type, organization, organization_type, user_type, role,
+      city, state, country, zip_postal, county, metro_area, workforce_region,
+      preferred_contact_method, linkedin_url, biggest_challenge, current_tools,
+      desired_features, interview_interest, beta_interest, pilot_interest, budget_interest,
+      source, referral_source, buying_authority, timeline, lead_score, lead_priority,
+      recommended_action, score_breakdown_json, branch_status, target_role, target_industry,
+      experience_level, program_name, major_field, school_name, gpa, certifications, degree_level,
+      class_year, student_status, seeking_status, domestic_international, current_process,
+      population_served, reporting_wish, branch_profile_json, status, created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', ?, ?)`
+  )
+    .bind(
+      record.id,
+      record.leadId,
+      record.contactId,
+      record.organizationId,
+      record.candidateId,
+      record.name,
+      record.emailHash,
+      record.emailDomain,
+      record.emailDomainType,
+      record.organization,
+      record.organizationType,
+      record.userType,
+      record.role,
+      record.city,
+      record.state,
+      record.country,
+      record.zipPostal,
+      record.county,
+      record.metroArea,
+      record.workforceRegion,
+      record.preferredContactMethod,
+      record.linkedinUrl,
+      record.biggestChallenge,
+      record.currentTools,
+      record.desiredFeatures,
+      record.interviewInterest ? 1 : 0,
+      record.betaInterest ? 1 : 0,
+      record.pilotInterest ? 1 : 0,
+      record.budgetInterest ? 1 : 0,
+      record.source,
+      record.referralSource,
+      record.buyingAuthority,
+      record.timeline,
+      record.leadScore,
+      record.leadPriority,
+      record.recommendedAction,
+      JSON.stringify(record.scoreBreakdown),
+      record.branchStatus,
+      record.targetRole,
+      record.targetIndustry,
+      record.experienceLevel,
+      record.programName,
+      record.majorField,
+      record.schoolName,
+      record.gpa,
+      record.certifications,
+      record.degreeLevel,
+      record.classYear,
+      record.studentStatus,
+      record.seekingStatus,
+      record.domesticInternational,
+      record.currentProcess,
+      record.populationServed,
+      record.reportingWish,
+      JSON.stringify(record.branchProfile),
+      now,
+      now
+    )
+    .run();
+}
+
 function scoreLead(body) {
   const factors = [];
   let score = 0;
@@ -491,6 +574,9 @@ function buildBranchProfile(body, location) {
     studentType: clean(body.studentType, 120),
     degreeProgram: clean(body.degreeProgram, 180),
     majorField: clean(body.majorField, 180),
+    schoolName: clean(body.schoolName || body.organization, 180),
+    gpa: cleanGpa(body.gpa),
+    certifications: clean(body.certifications, 1200),
     degreeLevel: clean(body.degreeLevel, 120),
     expectedGraduationYear: clean(body.expectedGraduationYear, 40),
     domesticInternational: clean(body.domesticInternational, 80),
@@ -621,6 +707,14 @@ function clean(value, maxLength, required = false) {
   const next = String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
   if (required && !next) throw new Error("Name is required.");
   return next;
+}
+
+function cleanGpa(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const parsed = Number.parseFloat(raw);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 4.5) return null;
+  return Math.round(parsed * 100) / 100;
 }
 
 function cleanUrl(value) {
