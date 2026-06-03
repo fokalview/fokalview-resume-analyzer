@@ -688,13 +688,24 @@ function ReadinessBands({ bands, total }: { bands: Record<string, number>; total
 }
 
 function SkillGapPanel({ groups, total }: { groups: Record<string, CountItem[]>; total: number }) {
+  const [expanded, setExpanded] = useState(false);
   const title = "Skill Gaps";
   const panelId = panelIdFor(title);
+  const rankedItems = Object.entries(groups)
+    .flatMap(([group, items]) => items.map((item) => ({ group, item })))
+    .sort((left, right) => right.item.count - left.item.count || left.item.label.localeCompare(right.item.label));
+  const visibleItems = expanded ? rankedItems : rankedItems.slice(0, 10);
+  const visibleGroups = visibleItems.reduce<Record<string, CountItem[]>>((nextGroups, { group, item }) => {
+    nextGroups[group] = [...(nextGroups[group] || []), item];
+    return nextGroups;
+  }, {});
+  const hiddenCount = Math.max(0, rankedItems.length - visibleItems.length);
+
   return (
     <section className="chart-panel skill-gap-panel" id={panelId} aria-labelledby={`${panelId}-title`}>
       <PanelHeading title={title} panelId={panelId} />
       <div className="skill-gap-groups">
-        {Object.entries(groups).map(([group, items]) => (
+        {Object.entries(visibleGroups).map(([group, items]) => (
           <details key={group} open>
             <summary>{group}</summary>
             {items.length ? (
@@ -710,7 +721,14 @@ function SkillGapPanel({ groups, total }: { groups: Record<string, CountItem[]>;
             )}
           </details>
         ))}
+        {!rankedItems.length && <p>No keyword gaps yet.</p>}
       </div>
+      <ListLimitToggle
+        expanded={expanded}
+        hiddenCount={hiddenCount}
+        itemName="keyword gaps"
+        onToggle={() => setExpanded((current) => !current)}
+      />
     </section>
   );
 }
@@ -788,10 +806,14 @@ function ConversionPanel({ items }: { items: ConversionMetric[] }) {
 
 function SortablePanel({ title, items }: { title: string; items: CountItem[] }) {
   const [sort, setSort] = useState<"count" | "az">("count");
+  const [expanded, setExpanded] = useState(false);
   const panelId = panelIdFor(title);
   const sorted = [...items].sort((left, right) =>
     sort === "count" ? right.count - left.count || left.label.localeCompare(right.label) : left.label.localeCompare(right.label)
   );
+  const visibleItems = expanded ? sorted : sorted.slice(0, 10);
+  const hiddenCount = Math.max(0, sorted.length - visibleItems.length);
+
   return (
     <section className="chart-panel" id={panelId} aria-labelledby={`${panelId}-title`}>
       <div className="panel-heading">
@@ -810,8 +832,33 @@ function SortablePanel({ title, items }: { title: string; items: CountItem[] }) 
           </button>
         </div>
       </div>
-      <VisualBarChart items={sorted} />
+      <VisualBarChart items={visibleItems} />
+      <ListLimitToggle
+        expanded={expanded}
+        hiddenCount={hiddenCount}
+        itemName={title.toLowerCase()}
+        onToggle={() => setExpanded((current) => !current)}
+      />
     </section>
+  );
+}
+
+function ListLimitToggle({
+  expanded,
+  hiddenCount,
+  itemName,
+  onToggle
+}: {
+  expanded: boolean;
+  hiddenCount: number;
+  itemName: string;
+  onToggle: () => void;
+}) {
+  if (!expanded && hiddenCount <= 0) return null;
+  return (
+    <button className="list-limit-toggle" type="button" onClick={onToggle}>
+      {expanded ? "Show top 10" : `Show ${hiddenCount} more ${itemName}`}
+    </button>
   );
 }
 
