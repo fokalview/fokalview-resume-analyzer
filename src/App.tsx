@@ -10,10 +10,12 @@ import CandidateDashboard from "./screens/CandidateDashboard";
 import FollowUpScreen from "./screens/FollowUpScreen";
 import WaitlistScreen from "./screens/WaitlistScreen";
 import { getStoredAccessCode } from "./services/access";
-import { getCurrentUser } from "./services/api";
+import { getCurrentUser, recordUserEvent } from "./services/api";
 import type { ResumeAnalysis, Screen } from "./types";
 
 export default function App() {
+  useSessionTracking();
+
   if (window.location.pathname === "/admin") {
     return <AdminDashboard />;
   }
@@ -196,4 +198,70 @@ function getStoredTheme() {
   const saved = localStorage.getItem("sagittaiq_theme");
   if (saved === "dark" || saved === "light") return saved;
   return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function useSessionTracking() {
+  useEffect(() => {
+    if (window.location.pathname === "/admin") return;
+
+    const sessionId = crypto.randomUUID();
+    const startedAt = Date.now();
+    const eventSource = eventSourceForPath(window.location.pathname);
+    const campaign = campaignFromUrl();
+    let completed = false;
+
+    const durationSeconds = () => Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+    const send = (eventType: "session_started" | "session_heartbeat" | "session_completed") => {
+      void recordUserEvent({
+        eventType,
+        eventSource,
+        pagePath: window.location.pathname,
+        sessionId,
+        durationSeconds: durationSeconds(),
+        campaign,
+        metadata: {
+          utmSource: new URLSearchParams(window.location.search).get("utm_source") || "",
+          utmMedium: new URLSearchParams(window.location.search).get("utm_medium") || "",
+          referrer: document.referrer,
+          userAgent: navigator.userAgent.slice(0, 180)
+        }
+      }).catch(() => undefined);
+    };
+
+    send("session_started");
+    const heartbeat = window.setInterval(() => send("session_heartbeat"), 30000);
+
+    const complete = () => {
+      if (completed) return;
+      completed = true;
+      send("session_completed");
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") send("session_heartbeat");
+    };
+
+    window.addEventListener("pagehide", complete);
+    window.addEventListener("beforeunload", complete);
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      window.clearInterval(heartbeat);
+      window.removeEventListener("pagehide", complete);
+      window.removeEventListener("beforeunload", complete);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      complete();
+    };
+  }, []);
+}
+
+function eventSourceForPath(pathname: string) {
+  if (pathname === "/waitlist") return "waitlist";
+  if (pathname === "/follow-up") return "follow_up";
+  return "main_app";
+}
+
+function campaignFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("utm_campaign") || params.get("campaign") || params.get("source") || "";
 }

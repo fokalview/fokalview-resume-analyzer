@@ -219,7 +219,35 @@ export async function getCurrentUser() {
   return payload as { userId: string; candidateId?: string; identifierType: "email" | "client" };
 }
 
-function getClientId() {
+export async function recordUserEvent(input: {
+  eventType: string;
+  eventSource?: string;
+  pagePath?: string;
+  sessionId?: string;
+  durationSeconds?: number;
+  campaign?: string;
+  metadata?: Record<string, string | number | boolean | undefined>;
+}) {
+  const clientId = getClientId();
+  const response = await fetch("/api/events", {
+    method: "POST",
+    keepalive: true,
+    headers: {
+      "Content-Type": "application/json",
+      "X-Beta-Access-Code": getStoredAccessCode(),
+      "X-FokalView-User-Email": getStoredUserEmail(),
+      "X-FokalView-Client-ID": clientId
+    },
+    body: JSON.stringify(input)
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || "Could not save event.");
+  }
+}
+
+export function getClientId() {
   const storageKey = "fokalview_client_id";
   const existing = localStorage.getItem(storageKey);
   if (existing) return existing;

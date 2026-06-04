@@ -89,6 +89,9 @@ type AdminSummary = {
     salaryResponses?: number;
     medianSalary?: number;
     averageSalary?: number;
+    sessions?: number;
+    averageSessionSeconds?: number;
+    totalSessionMinutes?: number;
     uniqueUsers: number;
     rawResumeRecords: number;
     averageReadinessScore: number;
@@ -120,6 +123,10 @@ type AdminSummary = {
   followUpEmployers?: CountItem[];
   followUpJobTitles?: CountItem[];
   followUpVerificationStatuses?: CountItem[];
+  sessionSources?: CountItem[];
+  sessionPages?: CountItem[];
+  sessionCampaigns?: CountItem[];
+  userEventTypes?: Record<string, number>;
   waitlistPrograms?: CountItem[];
   waitlistMajors?: CountItem[];
   waitlistSchools?: CountItem[];
@@ -379,6 +386,10 @@ export default function AdminDashboard() {
                 <Metric label="Career records" value={summary.totals.resumeRecords} note="Resume analyses retained" />
                 <Metric label="Opportunities tracked" value={summary.totals.applicationCaptures} note="Applications and opportunities" />
                 <ReadinessMetric summary={summary} />
+                <Metric label="Sessions" value={summary.totals.sessions || 0} note="Tracked user visits" />
+                <Metric label="Avg session" value={formatDuration(summary.totals.averageSessionSeconds || 0)} note="Engagement time" />
+                <Metric label="Engaged minutes" value={summary.totals.totalSessionMinutes || 0} note="Total tracked time" />
+                <Metric label="Event types" value={Object.keys(summary.userEventTypes || {}).length} note="Behavior signals captured" />
               </section>
             </>
           )}
@@ -428,6 +439,10 @@ export default function AdminDashboard() {
 
               <section className="admin-grid">
                 <UsagePanel days={summary.usageByDay} />
+                <ChartPanel title="Session Sources" items={summary.sessionSources || []} />
+                <ChartPanel title="Session Pages" items={summary.sessionPages || []} />
+                <ChartPanel title="Session Campaigns" items={summary.sessionCampaigns || []} />
+                <ChartPanel title="User Event Types" items={toCountItems(summary.userEventTypes || {})} />
                 <ReadinessBands bands={summary.readinessBands} total={summary.totals.resumeRecords} />
                 <ChartPanel title="Career Levels" items={toCountItems(summary.careerLevels)} showZeroRows />
                 <SkillGapPanel groups={summary.commonSkillGaps} total={summary.totals.resumeRecords} />
@@ -1425,6 +1440,14 @@ function formatCurrency(value: number) {
     currency: "USD",
     maximumFractionDigits: 0
   }).format(value);
+}
+
+function formatDuration(seconds: number) {
+  if (!seconds) return "0s";
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (!minutes) return `${remainingSeconds}s`;
+  return `${minutes}m ${remainingSeconds}s`;
 }
 
 function mergeCountItems(...groups: CountItem[][]) {

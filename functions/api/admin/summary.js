@@ -7,12 +7,13 @@ export async function onRequestGet({ request, env }) {
   if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
 
   const query = new URL(request.url).searchParams.get("q") || "";
-  const [userColumns, resumeColumns, applicationColumns, waitlistColumns, followupColumns] = await Promise.all([
+  const [userColumns, resumeColumns, applicationColumns, waitlistColumns, followupColumns, eventColumns] = await Promise.all([
     tableColumns(env.DB, "users"),
     tableColumns(env.DB, "resume_records"),
     tableColumns(env.DB, "application_captures"),
     tableColumns(env.DB, "waitlist_signups"),
-    tableColumns(env.DB, "waitlist_followups")
+    tableColumns(env.DB, "waitlist_followups"),
+    tableColumns(env.DB, "user_events")
   ]);
   const hasUserMetadata =
     userColumns.has("email_domain") && userColumns.has("email_domain_type") && userColumns.has("country");
@@ -84,7 +85,14 @@ export async function onRequestGet({ request, env }) {
        support_needed AS supportNeeded, submitted_at AS submittedAt`
     : "'' AS leadId, '' AS candidateId, '' AS contactId, '' AS emailDomain, '' AS emailDomainType, '' AS currentStatus, 0 AS applicationCount, 0 AS interviewCount, 0 AS offerCount, '' AS placementStatus, '' AS currentRole, '' AS currentIndustry, '' AS salaryRange, '' AS employer, '' AS jobTitle, NULL AS salaryAmount, '' AS salaryPeriod, '' AS outcomeDate, '' AS jobLocation, '' AS dataSource, '' AS verificationStatus, '' AS supportNeeded, '' AS submittedAt";
 
-  const [resumeRows, applicationRows, waitlistRows, followupRows] = await Promise.all([
+  const eventSelect = eventColumns.has("event_type")
+    ? `user_id AS userId, candidate_id AS candidateId, lead_id AS leadId,
+       event_type AS eventType, event_source AS eventSource, page_path AS pagePath,
+       session_id AS sessionId, duration_seconds AS durationSeconds, campaign,
+       metadata_json AS metadataJson, created_at AS createdAt`
+    : "'' AS userId, '' AS candidateId, '' AS leadId, '' AS eventType, '' AS eventSource, '' AS pagePath, '' AS sessionId, 0 AS durationSeconds, '' AS campaign, '{}' AS metadataJson, '' AS createdAt";
+
+  const [resumeRows, applicationRows, waitlistRows, followupRows, eventRows] = await Promise.all([
     env.DB.prepare(
       `SELECT ${reportIdSelect} r.user_id AS userId, r.client_hash AS clientHash, r.target_role AS targetRole, r.profile_json AS profileJson,
         r.analysis_json AS analysisJson, r.raw_resume_retained AS rawResumeRetained, r.raw_resume_text AS rawResumeText,
@@ -116,7 +124,16 @@ export async function onRequestGet({ request, env }) {
        ORDER BY submitted_at DESC
        LIMIT 1000`
     ).all()
+      .catch(() => ({ results: [] })),
+    eventColumns.has("event_type")
+      ? env.DB.prepare(
+        `SELECT ${eventSelect}
+         FROM user_events
+         ORDER BY created_at DESC
+         LIMIT 3000`
+      ).all()
       .catch(() => ({ results: [] }))
+      : Promise.resolve({ results: [] })
   ]);
 
   const allResumes = (resumeRows.results || []).map(parseResumeRow).filter(Boolean);
@@ -126,6 +143,8 @@ export async function onRequestGet({ request, env }) {
   const allWaitlist = waitlistRows.results || [];
   const waitlist = filterWaitlist(allWaitlist, query);
   const followups = filterFollowups(followupRows.results || [], query);
+  const events = filterEvents(eventRows.results || [], query);
+  const sessionMetrics = buildSessionMetrics(events);
   const readinessThreshold = Number(env.READINESS_THRESHOLD || 85);
   const averageReadinessScore = average(resumes.map((item) => item.analysis.score));
   const followUpTotals = buildFollowUpTotals(followups);
@@ -161,6 +180,9 @@ export async function onRequestGet({ request, env }) {
       salaryResponses: salaryStats.count,
       medianSalary: salaryStats.median,
       averageSalary: salaryStats.average,
+      sessions: sessionMetrics.sessions,
+      averageSessionSeconds: sessionMetrics.averageSessionSeconds,
+      totalSessionMinutes: sessionMetrics.totalSessionMinutes,
       uniqueUsers,
       rawResumeRecords: resumes.filter((item) => item.rawResumeRetained).length,
       averageReadinessScore,
@@ -198,6 +220,10 @@ export async function onRequestGet({ request, env }) {
     followUpEmployers: topCounts(followups.map((item) => item.employer).filter(Boolean), 12),
     followUpJobTitles: topCounts(followups.map((item) => item.jobTitle || item.currentRole).filter(Boolean), 12),
     followUpVerificationStatuses: topCounts(followups.map((item) => item.verificationStatus).filter(Boolean), 12),
+    sessionSources: topCounts(sessionMetrics.sources, 12),
+    sessionPages: topCounts(sessionMetrics.pages, 12),
+    sessionCampaigns: topCounts(sessionMetrics.campaigns, 12),
+    userEventTypes: countBy(events.map((item) => item.eventType).filter(Boolean)),
     waitlistPrograms: topCounts(waitlist.map((item) => item.programName).filter(Boolean), 12),
     waitlistMajors: topCounts(waitlist.map((item) => item.majorField).filter(Boolean), 12),
     waitlistSchools: topCounts(waitlist.map((item) => item.schoolName || item.organization).filter(Boolean), 12),
@@ -535,6 +561,25 @@ function filterFollowups(followups, query) {
   );
 }
 
+function filterEvents(events, query) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return events;
+  return events.filter((item) =>
+    [
+      item.userId,
+      item.candidateId,
+      item.leadId,
+      item.eventType,
+      item.eventSource,
+      item.pagePath,
+      item.campaign
+    ]
+      .join(" ")
+      .toLowerCase()
+      .includes(needle)
+  );
+}
+
 function searchableResumeText(item) {
   const profile = item.profile || {};
   const analysis = item.analysis || {};
@@ -598,6 +643,36 @@ function buildUsageByDay(resumes, applications) {
   }
 
   return days;
+}
+
+function buildSessionMetrics(events) {
+  const sessions = new Map();
+  for (const event of events) {
+    if (!["session_started", "session_heartbeat", "session_completed"].includes(event.eventType)) continue;
+    const key = event.sessionId || `${event.userId || "unknown"}:${event.createdAt}`;
+    const current = sessions.get(key) || {
+      source: event.eventSource || "unknown",
+      page: event.pagePath || "unknown",
+      campaign: event.campaign || "",
+      duration: 0
+    };
+    current.duration = Math.max(current.duration, Number(event.durationSeconds || 0));
+    current.source = current.source || event.eventSource || "unknown";
+    current.page = current.page || event.pagePath || "unknown";
+    sessions.set(key, current);
+  }
+
+  const completedDurations = [...sessions.values()].map((item) => item.duration).filter((value) => value > 0);
+  const totalSeconds = completedDurations.reduce((sum, value) => sum + value, 0);
+
+  return {
+    sessions: sessions.size,
+    averageSessionSeconds: completedDurations.length ? Math.round(totalSeconds / completedDurations.length) : 0,
+    totalSessionMinutes: Math.round(totalSeconds / 60),
+    sources: [...sessions.values()].map((item) => item.source).filter(Boolean),
+    pages: [...sessions.values()].map((item) => item.page).filter(Boolean),
+    campaigns: [...sessions.values()].map((item) => item.campaign).filter(Boolean)
+  };
 }
 
 function dateKey(value) {
