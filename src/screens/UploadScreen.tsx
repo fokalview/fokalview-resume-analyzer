@@ -111,12 +111,12 @@ export default function UploadScreen({
         </label>
 
         <label className="field">
-          <span>Opportunity handoff</span>
+          <span>Job description</span>
           <textarea
             className="job-context"
             value={jobContext}
             onChange={(event) => onJobContextChange(event.target.value)}
-            placeholder="Send an opportunity from the Edge extension or paste the description here..."
+            placeholder="Paste the job description here or send one from the Edge extension..."
           />
         </label>
 
