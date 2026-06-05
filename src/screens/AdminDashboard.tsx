@@ -54,6 +54,14 @@ type ActionQueueItem = {
   nextAction: string;
 };
 type ProductSignal = { label: string; value: string; detail: string };
+type EnterpriseTileConfig = {
+  tone: "cyan" | "green" | "amber" | "red";
+  icon: ReactNode;
+  value: number | string;
+  label: string;
+  primaryAction: string;
+  secondaryAction: string;
+};
 type AdminView = "all" | "institutional" | "applications" | "waitlist" | "followups";
 
 const DEFAULT_ADMIN_VIEW: AdminView = "waitlist";
@@ -391,9 +399,7 @@ export default function AdminDashboard() {
 
           {error && <p className="error-message">{error}</p>}
 
-          {(adminView === "all" || adminView === "waitlist") && (
-            <EnterpriseDashboardHome summary={summary} actionQueue={actionQueue} />
-          )}
+          <EnterpriseDashboardHome summary={summary} actionQueue={actionQueue} view={adminView} />
 
           {adminView === "all" && (
             <>
@@ -808,45 +814,17 @@ function Metric({ label, value, note }: { label: string; value: number | string;
   );
 }
 
-function EnterpriseDashboardHome({ summary, actionQueue }: { summary: AdminSummary; actionQueue: ActionQueueItem[] }) {
+function EnterpriseDashboardHome({ summary, actionQueue, view }: { summary: AdminSummary; actionQueue: ActionQueueItem[]; view: AdminView }) {
   const recentActivity = buildRecentActivity(summary);
   const reportingLinks = buildReportingShortcuts(summary);
+  const tiles = buildEnterpriseTiles(summary, view);
 
   return (
     <section className="enterprise-dashboard-home" aria-label="Enterprise dashboard home">
       <div className="enterprise-kpi-grid">
-        <EnterpriseTile
-          tone="cyan"
-          icon={<Users size={44} />}
-          value={summary.totals.uniqueUsers}
-          label="Active participants"
-          primaryAction="Review participants"
-          secondaryAction={`${summary.totals.resumeRecords} career records`}
-        />
-        <EnterpriseTile
-          tone="green"
-          icon={<BriefcaseBusiness size={44} />}
-          value={summary.totals.applicationCaptures}
-          label="Tracked opportunities"
-          primaryAction="Open opportunity funnel"
-          secondaryAction={`${summary.totals.followUpInterviews || 0} interviews reported`}
-        />
-        <EnterpriseTile
-          tone="amber"
-          icon={<Building2 size={44} />}
-          value={summary.totals.waitlistSignups}
-          label="Discovery pipeline"
-          primaryAction="Review waitlist leads"
-          secondaryAction={`${summary.totals.pilotProspects || 0} pilot prospects`}
-        />
-        <EnterpriseTile
-          tone="red"
-          icon={<Activity size={44} />}
-          value={`${summary.totals.followUpOffers || 0}/${summary.totals.followUpPlacements || 0}`}
-          label="Offers / placements"
-          primaryAction="Check outcomes"
-          secondaryAction={`${summary.totals.followUpSurveys || 0} follow-ups`}
-        />
+        {tiles.map((tile) => (
+          <EnterpriseTile key={tile.label} {...tile} />
+        ))}
       </div>
 
       <div className="enterprise-work-grid">
@@ -1519,6 +1497,186 @@ function buildAdminBriefing(summary: AdminSummary) {
       detail: biggestGap ? `${biggestGap.count} record(s) show this as a readiness gap.` : "Skill-gap intelligence will grow with resume volume."
     }
   ];
+}
+
+function buildEnterpriseTiles(summary: AdminSummary, view: AdminView): EnterpriseTileConfig[] {
+  const baseTiles: EnterpriseTileConfig[] = [
+    {
+      tone: "cyan",
+      icon: <Users size={44} />,
+      value: summary.totals.uniqueUsers,
+      label: "Active participants",
+      primaryAction: "Review participants",
+      secondaryAction: `${summary.totals.resumeRecords} career records`
+    },
+    {
+      tone: "green",
+      icon: <BriefcaseBusiness size={44} />,
+      value: summary.totals.applicationCaptures,
+      label: "Tracked opportunities",
+      primaryAction: "Open opportunity funnel",
+      secondaryAction: `${summary.totals.followUpInterviews || 0} interviews reported`
+    },
+    {
+      tone: "amber",
+      icon: <Building2 size={44} />,
+      value: summary.totals.waitlistSignups,
+      label: "Discovery pipeline",
+      primaryAction: "Review waitlist leads",
+      secondaryAction: `${summary.totals.pilotProspects || 0} pilot prospects`
+    },
+    {
+      tone: "red",
+      icon: <Activity size={44} />,
+      value: `${summary.totals.followUpOffers || 0}/${summary.totals.followUpPlacements || 0}`,
+      label: "Offers / placements",
+      primaryAction: "Check outcomes",
+      secondaryAction: `${summary.totals.followUpSurveys || 0} follow-ups`
+    }
+  ];
+
+  if (view === "institutional") {
+    return [
+      {
+        tone: "cyan",
+        icon: <FileText size={44} />,
+        value: `${percent(summary.totals.followUpSurveys || 0, Math.max(summary.totals.waitlistSignups, 1))}%`,
+        label: "Knowledge proxy",
+        primaryAction: "Review reporting coverage",
+        secondaryAction: `${summary.totals.followUpSurveys || 0} follow-up responses`
+      },
+      {
+        tone: "green",
+        icon: <Activity size={44} />,
+        value: `${percent((summary.totals.followUpPlacements || 0) + (summary.totals.followUpOffers || 0), Math.max(summary.totals.followUpSurveys || 0, 1))}%`,
+        label: "Outcome proxy",
+        primaryAction: "Review outcomes",
+        secondaryAction: `${summary.totals.followUpOffers || 0} offers, ${summary.totals.followUpPlacements || 0} placements`
+      },
+      {
+        tone: "amber",
+        icon: <Building2 size={44} />,
+        value: formatCurrency(summary.totals.medianSalary || 0),
+        label: "Median salary",
+        primaryAction: "Open salary ranges",
+        secondaryAction: `${summary.totals.salaryResponses || 0} salary responses`
+      },
+      {
+        tone: "red",
+        icon: <BriefcaseBusiness size={44} />,
+        value: topLabel(mergeCountItems(summary.followUpEmployers || [], summary.applicationEmployers || [])) || "Building",
+        label: "Top employer signal",
+        primaryAction: "Review sample employers",
+        secondaryAction: "Useful for program reporting"
+      }
+    ];
+  }
+
+  if (view === "applications") {
+    return [
+      {
+        tone: "cyan",
+        icon: <FileText size={44} />,
+        value: summary.totals.resumeRecords,
+        label: "Resume reviews",
+        primaryAction: "Review candidate activity",
+        secondaryAction: `${summary.totals.uniqueUsers} tracked users`
+      },
+      {
+        tone: "green",
+        icon: <Activity size={44} />,
+        value: `${summary.totals.averageReadinessScore}%`,
+        label: "Average readiness",
+        primaryAction: "Open readiness bands",
+        secondaryAction: `${summary.totals.readinessDelta} pts from threshold`
+      },
+      {
+        tone: "amber",
+        icon: <BriefcaseBusiness size={44} />,
+        value: summary.totals.applicationCaptures,
+        label: "Opportunities tracked",
+        primaryAction: "Review application funnel",
+        secondaryAction: `${topLabel(toCountItems(summary.applicationStatuses)) || "No"} leading status`
+      },
+      {
+        tone: "red",
+        icon: <ClipboardList size={44} />,
+        value: topLabel(Object.values(summary.commonSkillGaps || {}).flat()) || "Building",
+        label: "Top skill gap",
+        primaryAction: "Review keyword gaps",
+        secondaryAction: "Use this to shape advisor guidance"
+      }
+    ];
+  }
+
+  if (view === "followups") {
+    return [
+      {
+        tone: "cyan",
+        icon: <ClipboardList size={44} />,
+        value: summary.totals.pendingIntakeFollowUps || 0,
+        label: "Pending intakes",
+        primaryAction: "Export pending list",
+        secondaryAction: "Interview volunteers needing outreach"
+      },
+      {
+        tone: "green",
+        icon: <Activity size={44} />,
+        value: summary.totals.completedFollowUps || 0,
+        label: "Completed follow-ups",
+        primaryAction: "Review completed updates",
+        secondaryAction: `${summary.totals.followUpApplications || 0} applications reported`
+      },
+      {
+        tone: "amber",
+        icon: <BriefcaseBusiness size={44} />,
+        value: summary.totals.followUpInterviews || 0,
+        label: "Interview signals",
+        primaryAction: "Open outcome funnel",
+        secondaryAction: `${summary.totals.followUpOffers || 0} offers reported`
+      },
+      {
+        tone: "red",
+        icon: <Building2 size={44} />,
+        value: topLabel(summary.followUpSalaryRanges || []) || "Building",
+        label: "Salary signal",
+        primaryAction: "Review salary ranges",
+        secondaryAction: `${summary.totals.salaryResponses || 0} salary responses`
+      }
+    ];
+  }
+
+  if (view === "waitlist") {
+    return [
+      baseTiles[2],
+      {
+        tone: "green",
+        icon: <ClipboardList size={44} />,
+        value: summary.totals.interviewVolunteers || 0,
+        label: "Discovery volunteers",
+        primaryAction: "Schedule interviews",
+        secondaryAction: `${summary.totals.pendingIntakeFollowUps || 0} pending intakes`
+      },
+      {
+        tone: "amber",
+        icon: <Building2 size={44} />,
+        value: summary.totals.pilotProspects || 0,
+        label: "Pilot prospects",
+        primaryAction: "Review institutional leads",
+        secondaryAction: `${summary.totals.budgetQualified || 0} budget qualified`
+      },
+      {
+        tone: "red",
+        icon: <Activity size={44} />,
+        value: summary.totals.averageLeadScore || 0,
+        label: "Average lead score",
+        primaryAction: "Prioritize outreach",
+        secondaryAction: `${topLabel(toCountItems(summary.waitlistLeadPriorities || {})) || "No"} lead priority`
+      }
+    ];
+  }
+
+  return baseTiles;
 }
 
 function buildRecentActivity(summary: AdminSummary) {
