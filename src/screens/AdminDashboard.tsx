@@ -1,5 +1,21 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { BarChart3, Download, ImageDown, LockKeyhole, Moon, RefreshCw, Search, Settings2, Sun } from "lucide-react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import {
+  Activity,
+  BarChart3,
+  BriefcaseBusiness,
+  Building2,
+  ClipboardList,
+  Download,
+  FileText,
+  ImageDown,
+  LockKeyhole,
+  Moon,
+  RefreshCw,
+  Search,
+  Settings2,
+  Sun,
+  Users
+} from "lucide-react";
 
 type CountItem = { label: string; count: number; percentAffected?: number };
 type UsageDay = { date: string; resumes: number; applications: number; uniqueUsers: number };
@@ -327,7 +343,14 @@ export default function AdminDashboard() {
       {summary && (
         <div className="admin-dashboard-layout">
           <aside className="admin-view-sidebar" aria-label="Admin dashboard sections">
-            <p className="eyebrow">Dashboard view</p>
+            <div className="admin-brand-panel">
+              <span className="admin-brand-mark">S</span>
+              <div>
+                <strong>SagittaIQ</strong>
+                <small>Workforce intelligence</small>
+              </div>
+            </div>
+            <p className="eyebrow">Main navigation</p>
             <div className="admin-view-toggle" role="tablist" aria-label="Admin dashboard view">
               {ADMIN_VIEW_ITEMS.map((item) => (
                 <button
@@ -338,10 +361,20 @@ export default function AdminDashboard() {
                   className={adminView === item.id ? "active" : ""}
                   onClick={() => setAdminView(item.id)}
                 >
-                  {item.label}
-                  <span>{item.count(summary)}</span>
+                  {viewIcon(item.id)}
+                  <span>
+                    <strong>{item.label}</strong>
+                    <small>{item.count(summary)}</small>
+                  </span>
                 </button>
               ))}
+            </div>
+            <div className="admin-sidebar-status">
+              <span />
+              <div>
+                <strong>Connected</strong>
+                <small>{formatDateTime(summary.meta.lastLoadedAt)}</small>
+              </div>
             </div>
           </aside>
 
@@ -357,6 +390,10 @@ export default function AdminDashboard() {
           </div>
 
           {error && <p className="error-message">{error}</p>}
+
+          {(adminView === "all" || adminView === "waitlist") && (
+            <EnterpriseDashboardHome summary={summary} actionQueue={actionQueue} />
+          )}
 
           {adminView === "all" && (
             <>
@@ -768,6 +805,137 @@ function Metric({ label, value, note }: { label: string; value: number | string;
       <span>{label}</span>
       {note && <small>{note}</small>}
     </article>
+  );
+}
+
+function EnterpriseDashboardHome({ summary, actionQueue }: { summary: AdminSummary; actionQueue: ActionQueueItem[] }) {
+  const recentActivity = buildRecentActivity(summary);
+  const reportingLinks = buildReportingShortcuts(summary);
+
+  return (
+    <section className="enterprise-dashboard-home" aria-label="Enterprise dashboard home">
+      <div className="enterprise-kpi-grid">
+        <EnterpriseTile
+          tone="cyan"
+          icon={<Users size={44} />}
+          value={summary.totals.uniqueUsers}
+          label="Active participants"
+          primaryAction="Review participants"
+          secondaryAction={`${summary.totals.resumeRecords} career records`}
+        />
+        <EnterpriseTile
+          tone="green"
+          icon={<BriefcaseBusiness size={44} />}
+          value={summary.totals.applicationCaptures}
+          label="Tracked opportunities"
+          primaryAction="Open opportunity funnel"
+          secondaryAction={`${summary.totals.followUpInterviews || 0} interviews reported`}
+        />
+        <EnterpriseTile
+          tone="amber"
+          icon={<Building2 size={44} />}
+          value={summary.totals.waitlistSignups}
+          label="Discovery pipeline"
+          primaryAction="Review waitlist leads"
+          secondaryAction={`${summary.totals.pilotProspects || 0} pilot prospects`}
+        />
+        <EnterpriseTile
+          tone="red"
+          icon={<Activity size={44} />}
+          value={`${summary.totals.followUpOffers || 0}/${summary.totals.followUpPlacements || 0}`}
+          label="Offers / placements"
+          primaryAction="Check outcomes"
+          secondaryAction={`${summary.totals.followUpSurveys || 0} follow-ups`}
+        />
+      </div>
+
+      <div className="enterprise-work-grid">
+        <section className="enterprise-work-panel">
+          <PanelTitle icon={<ClipboardList size={18} />} title="Advisor To-Do List" />
+          <div className="enterprise-task-list">
+            {actionQueue.slice(0, 5).map((item) => (
+              <article key={`${item.type}-${item.title}`}>
+                <span className={`priority-dot ${item.priority.toLowerCase()}`} />
+                <div>
+                  <strong>{item.title}</strong>
+                  <small>{item.nextAction}</small>
+                </div>
+                <em>{item.priority}</em>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="enterprise-work-panel">
+          <PanelTitle icon={<Activity size={18} />} title="Recent User Activity" />
+          <div className="enterprise-activity-list">
+            {recentActivity.map((item) => (
+              <article key={`${item.label}-${item.detail}`}>
+                <span className="activity-dot" />
+                <div>
+                  <strong>{item.label}</strong>
+                  <small>{item.detail}</small>
+                </div>
+                <time>{item.time}</time>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="enterprise-work-panel">
+          <PanelTitle icon={<FileText size={18} />} title="Reporting Shortcuts" />
+          <div className="enterprise-report-list">
+            {reportingLinks.map((item) => (
+              <article key={item.label}>
+                <strong>{item.label}</strong>
+                <span>{item.value}</span>
+                <small>{item.detail}</small>
+              </article>
+            ))}
+          </div>
+        </section>
+      </div>
+    </section>
+  );
+}
+
+function EnterpriseTile({
+  tone,
+  icon,
+  value,
+  label,
+  primaryAction,
+  secondaryAction
+}: {
+  tone: "cyan" | "green" | "amber" | "red";
+  icon: ReactNode;
+  value: number | string;
+  label: string;
+  primaryAction: string;
+  secondaryAction: string;
+}) {
+  return (
+    <article className={`enterprise-tile ${tone}`}>
+      <div>
+        <strong>{value}</strong>
+        <span>{label}</span>
+      </div>
+      <div className="enterprise-tile-icon" aria-hidden="true">{icon}</div>
+      <footer>
+        <span>{primaryAction}</span>
+        <small>{secondaryAction}</small>
+      </footer>
+    </article>
+  );
+}
+
+function PanelTitle({ icon, title }: { icon: ReactNode; title: string }) {
+  return (
+    <div className="enterprise-panel-title">
+      <span>{icon}</span>
+      <h2>{title}</h2>
+      <Settings2 size={17} aria-hidden="true" />
+    </div>
   );
 }
 
@@ -1351,6 +1519,80 @@ function buildAdminBriefing(summary: AdminSummary) {
       detail: biggestGap ? `${biggestGap.count} record(s) show this as a readiness gap.` : "Skill-gap intelligence will grow with resume volume."
     }
   ];
+}
+
+function buildRecentActivity(summary: AdminSummary) {
+  const resumeItems = summary.recentResumeRecords.slice(0, 4).map((record) => ({
+    label: `${record.currentTitle || "Candidate"} ran a readiness review`,
+    detail: `${record.score}% for ${record.targetRole || "target opportunity"}`,
+    time: formatDate(record.capturedAt),
+    sortAt: record.capturedAt
+  }));
+  const waitlistItems = summary.recentWaitlistSignups.slice(0, 4).map((signup) => ({
+    label: `${signup.name || signup.leadId || "Lead"} joined the waitlist`,
+    detail: [signup.userType, signup.targetIndustry, signup.workforceRegion].filter(Boolean).join(" - ") || "Discovery profile captured",
+    time: formatDate(signup.createdAt),
+    sortAt: signup.createdAt
+  }));
+  const followUpItems = (summary.recentFollowUps || []).slice(0, 4).map((item) => ({
+    label: `${item.candidateId || item.leadId || "User"} submitted a follow-up`,
+    detail: [item.currentStatus, item.placementStatus, item.employer].filter(Boolean).join(" - ") || "Outcome update captured",
+    time: formatDate(item.submittedAt || ""),
+    sortAt: item.submittedAt || ""
+  }));
+
+  const items = [...resumeItems, ...waitlistItems, ...followUpItems]
+    .sort((left, right) => new Date(right.sortAt).getTime() - new Date(left.sortAt).getTime())
+    .slice(0, 6);
+
+  return items.length ? items : [{
+    label: "No recent activity yet",
+    detail: "New analyses, waitlist signups, and follow-ups will appear here.",
+    time: "Now",
+    sortAt: new Date().toISOString()
+  }];
+}
+
+function buildReportingShortcuts(summary: AdminSummary) {
+  return [
+    {
+      label: "Readiness report",
+      value: `${summary.totals.averageReadinessScore}%`,
+      detail: `${summary.totals.readinessDelta} pts from strong-match threshold`
+    },
+    {
+      label: "Pipeline report",
+      value: `${summary.totals.waitlistSignups} leads`,
+      detail: `${summary.totals.interviewVolunteers || 0} discovery volunteers`
+    },
+    {
+      label: "Outcome report",
+      value: `${summary.totals.followUpOffers || 0} offers`,
+      detail: `${summary.totals.followUpApplications || 0} applications reported from follow-ups`
+    },
+    {
+      label: "Market report",
+      value: topLabel(summary.followUpEmployers || summary.applicationEmployers || []) || "Building",
+      detail: "Employer and title signals for institutional reporting"
+    }
+  ];
+}
+
+function viewIcon(view: AdminView) {
+  switch (view) {
+    case "all":
+      return <BarChart3 size={18} />;
+    case "institutional":
+      return <Building2 size={18} />;
+    case "applications":
+      return <BriefcaseBusiness size={18} />;
+    case "waitlist":
+      return <Users size={18} />;
+    case "followups":
+      return <ClipboardList size={18} />;
+    default:
+      return <BarChart3 size={18} />;
+  }
 }
 
 function topLabel(items: CountItem[]) {
