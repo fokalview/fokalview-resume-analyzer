@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
-import { BriefcaseBusiness, FileText, Gauge, MessageSquareText, Moon, Sparkles, Sun } from "lucide-react";
+import { BriefcaseBusiness, FileText, Gauge, Moon, Sparkles, Sun } from "lucide-react";
 import UploadScreen from "./screens/UploadScreen";
 import ResultsScreen from "./screens/ResultsScreen";
-import FeedbackScreen from "./screens/FeedbackScreen";
 import WelcomeScreen from "./screens/WelcomeScreen";
 import AdminDashboard from "./screens/AdminDashboard";
 import ApplicationTracker from "./screens/ApplicationTracker";
@@ -96,17 +95,10 @@ function ResumeApp() {
             className={screen === "results" ? "active" : ""}
             disabled={!analysis}
             onClick={() => setScreen("results")}
+            title={analysis ? "Open career readiness report" : "Analyze career materials to unlock your report"}
           >
             <Sparkles size={18} />
-            Results
-          </button>
-          <button
-            className={screen === "feedback" ? "active" : ""}
-            disabled={!analysis}
-            onClick={() => setScreen("feedback")}
-          >
-            <MessageSquareText size={18} />
-            Feedback
+            Readiness report
           </button>
           <button
             className={screen === "applications" ? "active" : ""}
@@ -166,9 +158,8 @@ function ResumeApp() {
           />
         )}
         {screen === "results" && analysis && (
-          <ResultsScreen analysis={analysis} jobHandoff={{ ...handoff, targetRole, jobContext }} onNext={() => setScreen("feedback")} />
+          <ResultsScreen analysis={analysis} jobHandoff={{ ...handoff, targetRole, jobContext }} onOpenTracker={() => setScreen("applications")} />
         )}
-        {screen === "feedback" && analysis && <FeedbackScreen analysis={analysis} jobHandoff={{ ...handoff, targetRole, jobContext }} />}
         {screen === "applications" && <ApplicationTracker />}
       </section>
     </main>

@@ -1,4 +1,4 @@
-export type Screen = "dashboard" | "upload" | "results" | "feedback" | "applications";
+export type Screen = "dashboard" | "upload" | "results" | "applications";
 
 export type JobHandoff = {
   targetRole: string;

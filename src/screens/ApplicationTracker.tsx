@@ -8,6 +8,7 @@ import {
   type ApplicationRecord
 } from "../services/api";
 import { downloadResumeReport } from "../services/report";
+import { PageHeader, Toast } from "../components/ExperienceUI";
 
 const STATUSES = [
   "Interested",
@@ -45,6 +46,7 @@ export default function ApplicationTracker() {
   const [expandedNotes, setExpandedNotes] = useState<Record<string, boolean>>({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
 
   useEffect(() => {
     void loadApplications();
@@ -83,6 +85,7 @@ export default function ApplicationTracker() {
           : [saved, ...current]
       );
       resetForm();
+      setNotice(editingId ? "Opportunity updated." : "Opportunity added to your tracker.");
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Could not save application.");
     }
@@ -131,6 +134,7 @@ export default function ApplicationTracker() {
           item.id === id ? { ...item, status: result.status, updatedAt: result.updatedAt } : item
         )
       );
+      setNotice(`Status updated to ${result.status}.`);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Could not update status.");
     }
@@ -151,6 +155,7 @@ export default function ApplicationTracker() {
         return next;
       });
       if (editingId === item.id) resetForm();
+      setNotice("Opportunity deleted.");
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Could not delete application.");
     }
@@ -167,11 +172,13 @@ export default function ApplicationTracker() {
 
   return (
     <section className="screen applications-screen">
-      <div className="screen-heading">
-        <p className="eyebrow">Opportunities</p>
-        <h2>Career opportunity tracker.</h2>
-        <p>Opportunities are created when you analyze career materials against a target opportunity. Update milestones as they happen.</p>
-      </div>
+      <PageHeader
+        eyebrow="Opportunities"
+        title="Manage your active career opportunities."
+        description="Keep the next action, milestone, and outcome for every opportunity in one place."
+        actions={<button className="secondary-action" onClick={loadApplications} disabled={isLoading}><RefreshCw className={isLoading ? "spin" : ""} size={16} />Refresh</button>}
+      />
+      <Toast message={notice} onDismiss={() => setNotice("")} />
 
       <section className="application-stats">
         <Metric label="Total" value={applications.length} />
@@ -181,6 +188,13 @@ export default function ApplicationTracker() {
       </section>
 
       <form className="application-form" onSubmit={submit}>
+        <div className="form-intro">
+          <div>
+            <span className="eyebrow">{editingId ? "Editing opportunity" : "Add opportunity"}</span>
+            <h3>{editingId ? "Update the next milestone." : "Capture what you are pursuing."}</h3>
+          </div>
+          {editingId && <button type="button" className="secondary-action" onClick={resetForm}><X size={16} />Cancel edit</button>}
+        </div>
         <label>
           Role
           <input
@@ -299,12 +313,6 @@ export default function ApplicationTracker() {
           <Plus size={18} />
           {editingId ? "Save changes" : "Add application"}
         </button>
-        {editingId && (
-          <button type="button" className="secondary-action" onClick={resetForm}>
-            <X size={16} />
-            Cancel edit
-          </button>
-        )}
       </form>
 
       {error && <p className="error-message">{error}</p>}
@@ -317,10 +325,6 @@ export default function ApplicationTracker() {
             onClick={() => downloadResumeReport({ applications, title: "SagittaIQ Opportunity Tracker" })}
           >
             Download PDF
-          </button>
-          <button className="secondary-action" onClick={loadApplications} disabled={isLoading}>
-            <RefreshCw className={isLoading ? "spin" : ""} size={16} />
-            Refresh
           </button>
         </div>
       </div>

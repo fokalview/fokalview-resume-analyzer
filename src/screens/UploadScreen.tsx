@@ -4,6 +4,7 @@ import JSZip from "jszip";
 import * as pdfjsLib from "pdfjs-dist";
 import { analyzeResume, saveApplicationRecord, saveResumeRecord } from "../services/api";
 import type { JobHandoff, ResumeAnalysis } from "../types";
+import { InlineNotice, PageHeader } from "../components/ExperienceUI";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   "pdfjs-dist/build/pdf.worker.mjs",
@@ -87,18 +88,18 @@ export default function UploadScreen({
 
   return (
     <div className="screen upload-screen">
-      <div className="screen-heading">
-        <p className="eyebrow">Upload</p>
-        <h2>Evaluate career readiness against a target opportunity.</h2>
-        <p>
-          Paste career material text or upload a text-based resume. Opportunities sent from the tracker
-          are loaded here automatically and included in the career intelligence review.
-        </p>
-        <p className="format-note">
-          Supported uploads: PDF, DOCX, ODT, RTF, TXT, MD, and CSV. Scanned/image PDFs may not parse correctly.
-          Legacy DOC and Apple Pages files should be saved as DOCX, PDF, or RTF first.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="New readiness review"
+        title="Compare your career materials with one opportunity."
+        description="Add your resume and the job description. SagittaIQ will identify demonstrated strengths, important gaps, and the next improvements worth making."
+        meta={<span>PDF, DOCX, ODT, RTF, TXT, MD, and CSV supported</span>}
+      />
+
+      <ol className="workflow-steps" aria-label="Readiness review steps">
+        <li className={resumeText.trim().length >= 200 ? "complete" : "active"}><span>1</span><strong>Add career materials</strong></li>
+        <li className={jobContext.trim() ? "complete" : resumeText.trim().length >= 200 ? "active" : ""}><span>2</span><strong>Add opportunity</strong></li>
+        <li className={resumeText.trim().length >= 200 && jobContext.trim() ? "active" : ""}><span>3</span><strong>Run readiness review</strong></li>
+      </ol>
 
       <div className="upload-grid">
         <label className="field">
@@ -160,13 +161,9 @@ export default function UploadScreen({
           />
         </label>
 
-        <section className="storage-panel">
-          <strong>SagittaIQ beta data use</strong>
-          <p>
-            Career material text, job context, generated workforce profile, and analysis results are saved
-            under the beta Terms and Privacy Notice after analysis.
-          </p>
-        </section>
+        <InlineNotice title="Your progress is saved">
+          Career material text, job context, structured profile, and analysis results are retained under the beta Terms and Privacy Notice so you can return later.
+        </InlineNotice>
       </div>
 
       {error && <p className="error-message">{error}</p>}

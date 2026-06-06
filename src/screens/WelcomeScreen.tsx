@@ -51,6 +51,11 @@ export default function WelcomeScreen({ theme, onToggleTheme, onAccessGranted }:
           materials against target opportunities, and track progress from application to interview to
           offer. Entering your access code means you accept the beta Terms and Privacy Notice.
         </p>
+        <div className="welcome-trust-summary">
+          <span><strong>Your progress returns with you.</strong> Resume analysis and opportunity activity are saved to your beta profile.</span>
+          <span><strong>Your score is guidance.</strong> It estimates alignment and never predicts a hiring decision.</span>
+          <a href="/data-and-privacy">Review data and privacy details</a>
+        </div>
 
         <form className="access-form" onSubmit={submit}>
           <label>

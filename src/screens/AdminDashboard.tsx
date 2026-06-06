@@ -74,11 +74,11 @@ type EnterpriseTileConfig = {
 };
 type AdminView = "all" | "institutional" | "applications" | "waitlist" | "followups";
 
-const DEFAULT_ADMIN_VIEW: AdminView = "waitlist";
+const DEFAULT_ADMIN_VIEW: AdminView = "all";
 const ADMIN_VIEW_ITEMS: Array<{ id: AdminView; label: string; count: (summary: AdminSummary) => string }> = [
   {
     id: "all",
-    label: "All",
+    label: "Operations",
     count: (summary) => `${summary.totals.resumeRecords + summary.totals.waitlistSignups} records`
   },
   {
@@ -420,10 +420,7 @@ export default function AdminDashboard() {
                 ))}
               </section>
 
-              <section className="admin-operating-layer" aria-label="Admin action queue and product discovery">
-                <ActionQueuePanel items={actionQueue} />
-                <ProductSignalsPanel items={productSignals} />
-              </section>
+              <ProductSignalsPanel items={productSignals} />
 
               <SectionHeader
                 eyebrow="Executive overview"
@@ -444,7 +441,7 @@ export default function AdminDashboard() {
             </>
           )}
 
-          {(adminView === "all" || adminView === "institutional") && (
+          {adminView === "institutional" && (
             <>
               <SectionHeader
                 eyebrow="Institutional reporting"
@@ -479,7 +476,7 @@ export default function AdminDashboard() {
             </>
           )}
 
-          {(adminView === "all" || adminView === "applications") && (
+          {adminView === "applications" && (
             <>
               <SectionHeader
                 eyebrow="Application metrics"
@@ -536,7 +533,7 @@ export default function AdminDashboard() {
             </>
           )}
 
-          {(adminView === "all" || adminView === "waitlist") && (
+          {adminView === "waitlist" && (
             <>
               <SectionHeader
                 eyebrow="Waitlist intelligence"
@@ -650,7 +647,7 @@ export default function AdminDashboard() {
             </>
           )}
 
-          {(adminView === "all" || adminView === "followups") && (
+          {adminView === "followups" && (
             <>
               <SectionHeader
                 eyebrow="Follow-up workflow"
@@ -940,7 +937,7 @@ function DecisionSignalsPanel({ items }: { items: DecisionSignal[] }) {
           <article key={item.label} className={item.severity}>
             <div>
               <strong>{item.value}{item.unit === "%" ? "%" : ""}</strong>
-              <span>{item.unit === "%" ? item.label : `${item.label} · ${item.unit}`}</span>
+              <span>{item.unit === "%" ? item.label : `${item.label} / ${item.unit}`}</span>
             </div>
             <p>{item.detail}</p>
             <small>{item.action}</small>

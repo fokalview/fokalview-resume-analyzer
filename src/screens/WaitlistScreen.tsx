@@ -11,6 +11,7 @@ import {
   UsersRound
 } from "lucide-react";
 import { ProductBrand } from "../components/BrandFamily";
+import PublicSiteMenu from "../components/PublicSiteMenu";
 
 const USER_TYPES = [
   "Individual Job Seeker",
@@ -206,6 +207,7 @@ export default function WaitlistScreen() {
   return (
     <main className="waitlist-shell" data-theme={theme}>
       <a className="skip-link" href="#waitlist-form">Skip to waitlist form</a>
+      <PublicSiteMenu />
       <button className="theme-toggle" type="button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
         {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
         {theme === "dark" ? "Light mode" : "Dark mode"}

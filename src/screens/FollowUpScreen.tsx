@@ -1,6 +1,7 @@
 import { useId, useState, type FormEvent } from "react";
 import { ArrowRight, Moon, Sun } from "lucide-react";
 import { ProductBrand } from "../components/BrandFamily";
+import PublicSiteMenu from "../components/PublicSiteMenu";
 
 const CURRENT_STATUSES = [
   "Still exploring",
@@ -89,6 +90,7 @@ export default function FollowUpScreen() {
   return (
     <main className="waitlist-shell" data-theme={theme}>
       <a className="skip-link" href="#follow-up-form">Skip to follow-up form</a>
+      <PublicSiteMenu />
       <button className="theme-toggle" type="button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
         {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
         {theme === "dark" ? "Light mode" : "Dark mode"}
