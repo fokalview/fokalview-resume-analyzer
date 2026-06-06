@@ -2,7 +2,7 @@ import { FormEvent, useState } from "react";
 import { LockKeyhole, Moon, Sun } from "lucide-react";
 import { storeAccessCode, validateAccessCode } from "../services/access";
 import { ProductBrand } from "../components/BrandFamily";
-import PublicInfoDrawer from "../components/PublicInfoDrawer";
+import PublicSiteMenu from "../components/PublicSiteMenu";
 
 type Props = {
   theme: "light" | "dark";
@@ -37,7 +37,7 @@ export default function WelcomeScreen({ theme, onToggleTheme, onAccessGranted }:
 
   return (
     <main className="welcome-shell" data-theme={theme}>
-      <PublicInfoDrawer />
+      <PublicSiteMenu />
       <button className="theme-toggle" type="button" onClick={onToggleTheme}>
         {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
         {theme === "dark" ? "Light mode" : "Dark mode"}

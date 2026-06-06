@@ -9,6 +9,7 @@ import ApplicationTracker from "./screens/ApplicationTracker";
 import CandidateDashboard from "./screens/CandidateDashboard";
 import FollowUpScreen from "./screens/FollowUpScreen";
 import WaitlistScreen from "./screens/WaitlistScreen";
+import PublicInfoPage from "./screens/PublicInfoPage";
 import { getStoredAccessCode } from "./services/access";
 import { getCurrentUser, recordUserEvent } from "./services/api";
 import type { ResumeAnalysis, Screen } from "./types";
@@ -16,6 +17,11 @@ import { ProductBrand } from "./components/BrandFamily";
 
 export default function App() {
   useSessionTracking();
+  const publicPage = publicPageForPath(window.location.pathname);
+
+  if (publicPage) {
+    return <PublicInfoPage page={publicPage} />;
+  }
 
   if (window.location.pathname === "/admin") {
     return <AdminDashboard />;
@@ -30,6 +36,14 @@ export default function App() {
   }
 
   return <ResumeApp />;
+}
+
+function publicPageForPath(pathname: string) {
+  if (pathname === "/about") return "about" as const;
+  if (pathname === "/how-it-works") return "how-it-works" as const;
+  if (pathname === "/data-and-privacy") return "data-and-privacy" as const;
+  if (pathname === "/product-family") return "product-family" as const;
+  return null;
 }
 
 function ResumeApp() {
