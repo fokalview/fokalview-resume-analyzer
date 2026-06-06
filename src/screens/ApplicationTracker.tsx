@@ -33,6 +33,7 @@ export default function ApplicationTracker() {
     salary: "",
     status: "Applied",
     url: "",
+    jobDescription: "",
     notes: "",
     followUpDate: "",
     nextAction: "",
@@ -75,6 +76,7 @@ export default function ApplicationTracker() {
         salary: form.salary,
         status: form.status,
         url: form.url,
+        jobDescription: form.jobDescription,
         notes: combinedNotes(form),
         source: sourceFromUrl(form.url),
         ...(editingId ? { id: editingId } : {})
@@ -100,6 +102,7 @@ export default function ApplicationTracker() {
       salary: item.salary || "",
       status: item.status,
       url: item.url,
+      jobDescription: item.jobDescription || "",
       ...notesToForm(item.notes)
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -114,6 +117,7 @@ export default function ApplicationTracker() {
       salary: "",
       status: "Applied",
       url: "",
+      jobDescription: "",
       notes: "",
       followUpDate: "",
       nextAction: "",
@@ -246,6 +250,14 @@ export default function ApplicationTracker() {
           />
         </label>
         <label className="application-notes">
+          Job description
+          <textarea
+            value={form.jobDescription}
+            onChange={(event) => setForm({ ...form, jobDescription: event.target.value })}
+            placeholder="Paste the original job description. SagittaIQ uses this as the stable source for readiness scoring."
+          />
+        </label>
+        <label className="application-notes">
           Notes
           <textarea
             value={form.notes}
@@ -365,6 +377,12 @@ export default function ApplicationTracker() {
                       </details>
                     ) : null}
                   </div>
+                )}
+                {item.jobDescription && (
+                  <details className="opportunity-job-description">
+                    <summary>Job description</summary>
+                    <p>{item.jobDescription}</p>
+                  </details>
                 )}
                 {item.notes && (
                   <div className="application-note-preview">

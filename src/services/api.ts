@@ -72,6 +72,7 @@ export type ApplicationRecord = {
   location: string;
   salary: string;
   status: string;
+  jobDescription: string;
   notes: string;
   url: string;
   source: string;

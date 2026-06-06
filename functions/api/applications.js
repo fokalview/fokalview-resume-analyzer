@@ -27,6 +27,7 @@ export async function onRequestGet({ request, env }) {
 
   const columns = await tableColumns(env.DB, "application_captures");
   const canStoreSalary = columns.has("salary");
+  const jobDescriptionSelect = columns.has("job_description") ? "job_description AS jobDescription," : "'' AS jobDescription,";
   const applicationIdSelect = columns.has("application_id") ? "application_id AS applicationId," : "'' AS applicationId,";
   const readinessSelect = columns.has("latest_readiness_score")
     ? `latest_readiness_score AS latestReadinessScore, latest_analysis_json AS latestAnalysisJson,
@@ -34,7 +35,7 @@ export async function onRequestGet({ request, env }) {
        last_analyzed_at AS lastAnalyzedAt,`
     : "NULL AS latestReadinessScore, NULL AS latestAnalysisJson, NULL AS analysisHistoryJson, 0 AS analysisCount, NULL AS lastAnalyzedAt,";
   const rows = await env.DB.prepare(
-    `SELECT id, ${applicationIdSelect} ${readinessSelect} user_id AS userId, title, company, location, ${canStoreSalary ? "salary" : "''"} AS salary, status, notes, url, source, captured_at AS createdAt,
+    `SELECT id, ${applicationIdSelect} ${readinessSelect} ${jobDescriptionSelect} user_id AS userId, title, company, location, ${canStoreSalary ? "salary" : "''"} AS salary, status, notes, url, source, captured_at AS createdAt,
       updated_at AS updatedAt, synced_at AS syncedAt
      FROM application_captures
      WHERE user_id = ?
@@ -76,6 +77,7 @@ export async function onRequestPost({ request, env }) {
     const canStoreSalary = columns.has("salary");
     const canStoreApplicationId = columns.has("application_id");
     const canStoreReadiness = columns.has("latest_readiness_score");
+    const canStoreJobDescription = columns.has("job_description");
     const applicationId = canStoreApplicationId ? await nextPlatformId(env.DB, "application") : "";
 
     if (canStoreSalary && canStoreApplicationId) {
@@ -232,6 +234,14 @@ export async function onRequestPost({ request, env }) {
         .run();
     }
 
+    if (canStoreJobDescription) {
+      await env.DB.prepare(
+        "UPDATE application_captures SET job_description = ? WHERE id = ? AND user_id = ?"
+      )
+        .bind(application.jobDescription, application.id, identity.userId)
+        .run();
+    }
+
     const saved = canStoreApplicationId
       ? await env.DB.prepare("SELECT application_id AS applicationId FROM application_captures WHERE id = ?")
           .bind(application.id)
@@ -354,6 +364,7 @@ function normalizeApplication(input) {
     location: clean(application.location, 160),
     salary: clean(application.salary, 160),
     status: STATUSES.has(application.status) ? application.status : "Interested",
+    jobDescription: cleanMultiline(application.jobDescription, 30000),
     notes: clean(application.notes, 2000),
     url: cleanUrl(application.url),
     source: clean(application.source, 120),
@@ -404,6 +415,14 @@ async function requireAccess(request, env) {
 function clean(value, maxLength) {
   return String(value || "")
     .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, maxLength);
+}
+
+function cleanMultiline(value, maxLength) {
+  return String(value || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/[^\S\n]+/g, " ")
     .trim()
     .slice(0, maxLength);
 }

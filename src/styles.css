@@ -4453,6 +4453,26 @@ button {
   text-transform: uppercase;
 }
 
+.opportunity-job-description {
+  margin-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.65rem;
+}
+
+.opportunity-job-description summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.opportunity-job-description p {
+  max-height: 18rem;
+  overflow: auto;
+  margin: 0.7rem 0 0;
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+
 @media (max-width: 980px) {
   .experience-header {
     align-items: start;
