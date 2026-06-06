@@ -10,6 +10,7 @@ import {
   Target,
   UsersRound
 } from "lucide-react";
+import { ProductBrand } from "../components/BrandFamily";
 
 const USER_TYPES = [
   "Individual Job Seeker",
@@ -212,6 +213,7 @@ export default function WaitlistScreen() {
       <section className="waitlist-card">
         <div className="waitlist-hero">
           <div className="waitlist-copy">
+            <ProductBrand product="workforce" inverse />
             <p className="eyebrow">SagittaIQ - Early Access</p>
             <h1>Workforce readiness, built on real data.</h1>
             <p>

@@ -12,6 +12,7 @@ import WaitlistScreen from "./screens/WaitlistScreen";
 import { getStoredAccessCode } from "./services/access";
 import { getCurrentUser, recordUserEvent } from "./services/api";
 import type { ResumeAnalysis, Screen } from "./types";
+import { ProductBrand } from "./components/BrandFamily";
 
 export default function App() {
   useSessionTracking();
@@ -66,15 +67,7 @@ function ResumeApp() {
   return (
     <main className="app-shell" data-theme={theme}>
       <aside className="sidebar" aria-label="Workflow">
-        <div className="brand">
-          <div className="brand-mark">
-            <Sparkles size={22} />
-          </div>
-          <div>
-            <p className="eyebrow">SagittaIQ</p>
-            <h1>Career readiness assessment</h1>
-          </div>
-        </div>
+        <ProductBrand product="career" inverse />
 
         <nav className="step-list">
           <button className={screen === "dashboard" ? "active" : ""} onClick={() => setScreen("dashboard")}>

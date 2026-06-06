@@ -16,6 +16,7 @@ import {
   Sun,
   Users
 } from "lucide-react";
+import { ProductBrand } from "../components/BrandFamily";
 
 type CountItem = { label: string; count: number; percentAffected?: number };
 type UsageDay = { date: string; resumes: number; applications: number; uniqueUsers: number };
@@ -352,11 +353,7 @@ export default function AdminDashboard() {
         <div className="admin-dashboard-layout">
           <aside className="admin-view-sidebar" aria-label="Admin dashboard sections">
             <div className="admin-brand-panel">
-              <span className="admin-brand-mark">S</span>
-              <div>
-                <strong>SagittaIQ</strong>
-                <small>Workforce intelligence</small>
-              </div>
+              <ProductBrand product={adminView === "institutional" ? "insights" : "workforce"} inverse />
             </div>
             <p className="eyebrow">Main navigation</p>
             <div className="admin-view-toggle" role="tablist" aria-label="Admin dashboard view">

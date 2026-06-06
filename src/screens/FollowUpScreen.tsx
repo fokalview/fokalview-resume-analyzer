@@ -1,5 +1,6 @@
 import { useId, useState, type FormEvent } from "react";
-import { ArrowRight, ClipboardCheck, Moon, Sun } from "lucide-react";
+import { ArrowRight, Moon, Sun } from "lucide-react";
+import { ProductBrand } from "../components/BrandFamily";
 
 const CURRENT_STATUSES = [
   "Still exploring",
@@ -94,7 +95,7 @@ export default function FollowUpScreen() {
       </button>
       <section className="waitlist-card followup-card">
         <div className="followup-hero">
-          <ClipboardCheck size={32} />
+          <ProductBrand product="connect" inverse />
           <p className="eyebrow">SagittaIQ follow-up</p>
           <h1>Update your career progress.</h1>
           <p>
