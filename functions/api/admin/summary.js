@@ -155,6 +155,16 @@ export async function onRequestGet({ request, env }) {
     ...applications.map((item) => item.userId || item.clientHash)
   ].filter(Boolean)).size;
   const allGapItems = resumes.flatMap((item) => cleanGapItems(item.analysis.keywordAnalysis.missing));
+  const decisionSignals = buildDecisionSignals({
+    resumes,
+    applications,
+    waitlist,
+    followups,
+    followUpTotals,
+    followUpQueues,
+    readinessThreshold,
+    sessionMetrics
+  });
 
   return json({
     meta: {
@@ -238,6 +248,7 @@ export async function onRequestGet({ request, env }) {
     waitlistFunnel: buildWaitlistFunnel(waitlist, followups),
     followUpFunnel: buildFollowUpFunnel(waitlist, followups, followUpTotals),
     conversionMetrics: buildConversionMetrics(waitlist, followups, followUpTotals),
+    decisionSignals,
     waitlistInterest: {
       Interviews: waitlist.filter((item) => item.interviewInterest).length,
       Beta: waitlist.filter((item) => item.betaInterest).length,
@@ -873,6 +884,88 @@ function gapCategory(label) {
 
 function candidateLabel(hash) {
   return hash ? `Candidate ${hash.slice(0, 6).toUpperCase()}` : "Candidate";
+}
+
+function buildDecisionSignals({
+  resumes,
+  applications,
+  waitlist,
+  followups,
+  followUpTotals,
+  followUpQueues,
+  readinessThreshold,
+  sessionMetrics
+}) {
+  const belowThreshold = resumes.filter((item) => Number(item.analysis?.score || 0) < readinessThreshold).length;
+  const interviewConversion = percentNumber(followUpTotals.interviews, followUpTotals.applications);
+  const offerConversion = percentNumber(followUpTotals.offers, followUpTotals.interviews);
+  const followUpCoverage = percentNumber(followups.length, waitlist.length);
+  const pilotConversion = percentNumber(waitlist.filter((item) => item.pilotInterest).length, waitlist.length);
+  const inactiveApplications = applications.filter((item) => {
+    const captured = new Date(item.capturedAt || "").getTime();
+    const status = String(item.status || "").toLowerCase();
+    return Number.isFinite(captured) && Date.now() - captured > 14 * 24 * 60 * 60 * 1000
+      && !status.includes("offer") && !status.includes("accept") && !status.includes("reject");
+  }).length;
+
+  return [
+    {
+      label: "Readiness intervention",
+      value: belowThreshold,
+      unit: "records",
+      severity: belowThreshold ? "attention" : "positive",
+      detail: `${belowThreshold} of ${resumes.length} resume records are below the ${readinessThreshold}% strong-match threshold.`,
+      action: belowThreshold ? "Prioritize skill-gap and resume-targeting support." : "Maintain the current readiness workflow."
+    },
+    {
+      label: "Application momentum",
+      value: inactiveApplications,
+      unit: "stale opportunities",
+      severity: inactiveApplications ? "attention" : "positive",
+      detail: `${inactiveApplications} tracked opportunities have no terminal status and are older than 14 days.`,
+      action: inactiveApplications ? "Prompt participants to update status or schedule follow-up." : "No stale opportunity records detected."
+    },
+    {
+      label: "Interview conversion",
+      value: interviewConversion,
+      unit: "%",
+      severity: interviewConversion >= 20 ? "positive" : interviewConversion ? "attention" : "neutral",
+      detail: `${followUpTotals.interviews} interviews reported from ${followUpTotals.applications} applications in follow-up data.`,
+      action: interviewConversion >= 20 ? "Identify which roles and resumes drive this conversion." : "Review targeting, tailoring, and application quality."
+    },
+    {
+      label: "Offer conversion",
+      value: offerConversion,
+      unit: "%",
+      severity: offerConversion >= 20 ? "positive" : offerConversion ? "attention" : "neutral",
+      detail: `${followUpTotals.offers} offers reported from ${followUpTotals.interviews} interviews.`,
+      action: offerConversion >= 20 ? "Document successful interview-preparation patterns." : "Strengthen interview preparation and outcome follow-up."
+    },
+    {
+      label: "Outcome-data coverage",
+      value: followUpCoverage,
+      unit: "%",
+      severity: followUpCoverage >= 60 ? "positive" : "attention",
+      detail: `${followups.length} follow-up responses collected from ${waitlist.length} waitlist leads.`,
+      action: followUpCoverage >= 60 ? "Maintain follow-up cadence." : `Contact ${followUpQueues.pendingCount} pending intake or follow-up records.`
+    },
+    {
+      label: "Pilot demand",
+      value: pilotConversion,
+      unit: "%",
+      severity: pilotConversion >= 20 ? "positive" : "neutral",
+      detail: `${waitlist.filter((item) => item.pilotInterest).length} waitlist leads expressed pilot interest.`,
+      action: pilotConversion ? "Qualify pilot scope, authority, timeline, and budget." : "Use discovery interviews to test institutional demand."
+    },
+    {
+      label: "Observed engagement",
+      value: sessionMetrics.averageSessionSeconds,
+      unit: "sec avg",
+      severity: sessionMetrics.averageSessionSeconds >= 120 ? "positive" : "neutral",
+      detail: `${sessionMetrics.sessions} sessions generated ${sessionMetrics.totalSessionMinutes} total engaged minutes.`,
+      action: "Compare engagement by campaign and page before changing acquisition strategy."
+    }
+  ];
 }
 
 function average(values) {

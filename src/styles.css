@@ -975,7 +975,7 @@ button:disabled {
 
 .app-shell {
   display: grid;
-  grid-template-columns: 292px minmax(0, 1fr);
+  grid-template-columns: 264px minmax(0, 1fr);
   min-height: 100vh;
   background: var(--bg);
   color: var(--text);
@@ -1002,9 +1002,13 @@ button:disabled {
 }
 
 .sidebar {
+  position: sticky;
+  top: 0;
   display: flex;
   flex-direction: column;
   gap: 32px;
+  height: 100vh;
+  overflow: auto;
   padding: 28px;
   background: var(--sidebar);
   color: #f7fafc;
@@ -1126,19 +1130,20 @@ button:disabled {
 }
 
 .workspace {
-  padding: 42px;
-  background:
-    radial-gradient(circle at top right, rgba(15, 118, 110, 0.08), transparent 28rem),
-    var(--bg);
+  min-width: 0;
+  padding: clamp(22px, 3vw, 52px);
+  background: var(--bg);
 }
 
 .screen {
-  max-width: 1080px;
+  container-name: workspace-screen;
+  container-type: inline-size;
+  width: min(100%, 1680px);
   margin: 0 auto;
 }
 
 .admin-shell {
-  max-width: 1440px;
+  max-width: 1680px;
   margin: 0 auto;
   padding: 24px;
   background: var(--bg);
@@ -2443,15 +2448,15 @@ button:disabled {
 }
 
 .screen-heading {
-  max-width: 720px;
+  max-width: 840px;
   margin-bottom: 28px;
 }
 
 .screen-heading h2,
 .result-hero h2 {
   margin: 8px 0 10px;
-  font-size: clamp(2rem, 4vw, 4.4rem);
-  line-height: 0.98;
+  font-size: clamp(2rem, 3.2vw, 3.8rem);
+  line-height: 1.02;
 }
 
 .screen-heading p,
@@ -2484,8 +2489,8 @@ button:disabled {
 .dashboard-hero h2 {
   max-width: 900px;
   margin: 8px 0 10px;
-  font-size: clamp(2.1rem, 4vw, 4.2rem);
-  line-height: 0.98;
+  font-size: clamp(2.1rem, 3.2vw, 3.8rem);
+  line-height: 1.02;
 }
 
 .dashboard-hero p {
@@ -2499,6 +2504,7 @@ button:disabled {
   display: grid;
   justify-items: center;
   gap: 12px;
+  min-width: 220px;
   padding: 18px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -2527,7 +2533,7 @@ button:disabled {
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr));
   gap: 16px;
 }
 
@@ -2775,8 +2781,121 @@ button:disabled {
 .split-panel,
 .feedback-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 0.72fr);
+  grid-template-columns: minmax(0, 1.15fr) minmax(340px, 0.85fr);
   gap: 22px;
+}
+
+.score-context {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 9px;
+  max-width: 760px;
+  margin-top: 14px;
+  padding: 11px 12px;
+  border-left: 3px solid var(--brand);
+  background: var(--surface-soft);
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.score-context svg {
+  margin-top: 2px;
+  color: var(--brand);
+}
+
+.score-context strong,
+.score-context span {
+  display: block;
+}
+
+.score-context strong {
+  color: var(--text);
+  font-size: 0.82rem;
+}
+
+.score-context.low {
+  border-left-color: var(--danger);
+}
+
+.score-context.mid {
+  border-left-color: var(--warning);
+}
+
+.score-context.compact {
+  width: 100%;
+  margin-top: 2px;
+  text-align: left;
+}
+
+.score-context.compact span {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.72rem;
+}
+
+.decision-signals-panel {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.decision-signals-panel h2 {
+  margin: 3px 0 0;
+  font-size: 1.2rem;
+}
+
+.decision-signal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.decision-signal-grid article {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-top: 4px solid var(--text-subtle);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.decision-signal-grid article.positive {
+  border-top-color: var(--brand);
+}
+
+.decision-signal-grid article.attention {
+  border-top-color: var(--warning);
+}
+
+.decision-signal-grid strong,
+.decision-signal-grid span {
+  display: block;
+}
+
+.decision-signal-grid strong {
+  color: var(--text);
+  font-size: 1.55rem;
+}
+
+.decision-signal-grid span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.decision-signal-grid p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.decision-signal-grid small {
+  color: var(--brand);
+  font-weight: 850;
+  line-height: 1.4;
 }
 
 .field {
@@ -3165,11 +3284,15 @@ textarea:focus {
 }
 
 .result-hero {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 210px;
   align-items: center;
-  justify-content: space-between;
   gap: 28px;
   margin-bottom: 30px;
+}
+
+.result-hero > div:first-child {
+  max-width: 960px;
 }
 
 .score-ring {
@@ -3433,6 +3556,63 @@ meter {
   }
 }
 
+@container workspace-screen (min-width: 1180px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .dashboard-panel.alignment-panel,
+  .dashboard-panel.next-steps-panel {
+    grid-column: span 2;
+  }
+
+  .application-form {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .application-notes {
+    grid-column: span 2;
+  }
+
+  .feedback-layout {
+    grid-template-columns: minmax(0, 1.1fr) minmax(420px, 0.9fr);
+  }
+}
+
+@container workspace-screen (min-width: 1450px) {
+  .dashboard-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .dashboard-panel.profile-panel,
+  .dashboard-panel.next-steps-panel,
+  .dashboard-panel.timeline-panel {
+    grid-column: span 1;
+  }
+
+  .dashboard-panel.alignment-panel {
+    grid-column: span 2;
+  }
+
+  .upload-grid {
+    grid-template-columns: minmax(0, 1.35fr) minmax(420px, 0.65fr);
+  }
+
+  .split-panel {
+    grid-template-columns: minmax(0, 1.05fr) minmax(480px, 0.95fr);
+  }
+}
+
+@media (min-width: 1500px) {
+  .admin-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .admin-operating-layer {
+    grid-template-columns: minmax(0, 1.3fr) minmax(420px, 0.7fr);
+  }
+}
+
 @media (max-width: 1120px) {
   .feature-preview {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -3445,6 +3625,8 @@ meter {
   }
 
   .sidebar {
+    position: static;
+    height: auto;
     gap: 18px;
     padding: 20px;
   }

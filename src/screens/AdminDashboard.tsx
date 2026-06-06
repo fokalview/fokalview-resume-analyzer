@@ -17,6 +17,7 @@ import {
   Users
 } from "lucide-react";
 import { ProductBrand } from "../components/BrandFamily";
+import { ScoreContext, scoreExplanation } from "../components/ScoreContext";
 
 type CountItem = { label: string; count: number; percentAffected?: number };
 type UsageDay = { date: string; resumes: number; applications: number; uniqueUsers: number };
@@ -55,6 +56,14 @@ type ActionQueueItem = {
   nextAction: string;
 };
 type ProductSignal = { label: string; value: string; detail: string };
+type DecisionSignal = {
+  label: string;
+  value: number;
+  unit: string;
+  severity: "positive" | "attention" | "neutral";
+  detail: string;
+  action: string;
+};
 type EnterpriseTileConfig = {
   tone: "cyan" | "green" | "amber" | "red";
   icon: ReactNode;
@@ -166,6 +175,7 @@ type AdminSummary = {
   waitlistFunnel?: FunnelItem[];
   followUpFunnel?: FunnelItem[];
   conversionMetrics?: ConversionMetric[];
+  decisionSignals?: DecisionSignal[];
   waitlistInterest: Record<string, number>;
   emailDomains: CountItem[];
   emailDomainTypes: Record<string, number>;
@@ -515,7 +525,7 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                   <span>{record.targetRole || "No target opportunity"}</span>
-                  <span className={`score-pill ${scoreClass(record.score)}`}>{record.score}%</span>
+                  <span className={`score-pill ${scoreClass(record.score)}`} title={scoreExplanation(record.score, summary.meta.readinessThreshold)}>{record.score}%</span>
                   <span>{formatDate(record.capturedAt)}</span>
                   <span className="status-pill applied">Active</span>
                   <span className="record-action-label">Saved</span>
@@ -870,6 +880,7 @@ function EnterpriseDashboardHome({ summary, actionQueue, view }: { summary: Admi
           </div>
         </section>
       </div>
+      <DecisionSignalsPanel items={summary.decisionSignals || []} />
     </section>
   );
 }
@@ -911,6 +922,32 @@ function PanelTitle({ icon, title }: { icon: ReactNode; title: string }) {
       <h2>{title}</h2>
       <Settings2 size={17} aria-hidden="true" />
     </div>
+  );
+}
+
+function DecisionSignalsPanel({ items }: { items: DecisionSignal[] }) {
+  return (
+    <section className="decision-signals-panel">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">Decision intelligence</p>
+          <h2>What the current data suggests</h2>
+        </div>
+        <span className="queue-count">{items.length} signals</span>
+      </div>
+      <div className="decision-signal-grid">
+        {items.map((item) => (
+          <article key={item.label} className={item.severity}>
+            <div>
+              <strong>{item.value}{item.unit === "%" ? "%" : ""}</strong>
+              <span>{item.unit === "%" ? item.label : `${item.label} · ${item.unit}`}</span>
+            </div>
+            <p>{item.detail}</p>
+            <small>{item.action}</small>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -1003,6 +1040,7 @@ function ReadinessMetric({ summary }: { summary: AdminSummary }) {
         <span style={{ width: `${Math.min(100, score)}%` }} />
         <i style={{ left: `${threshold}%` }} />
       </div>
+      <ScoreContext score={score} threshold={threshold} compact />
     </article>
   );
 }

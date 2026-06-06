@@ -2,6 +2,7 @@ import { ArrowRight, CheckCircle2, Download } from "lucide-react";
 import type { CSSProperties } from "react";
 import { downloadResumeReport } from "../services/report";
 import type { JobHandoff, ResumeAnalysis } from "../types";
+import { ScoreContext } from "../components/ScoreContext";
 
 type Props = {
   analysis: ResumeAnalysis;
@@ -17,6 +18,7 @@ export default function ResultsScreen({ analysis, jobHandoff, onNext }: Props) {
           <p className="eyebrow">Results</p>
           <h2>{analysis.score}% career readiness</h2>
           <p>{analysis.summary}</p>
+          <ScoreContext score={analysis.score} />
         </div>
         <div className="score-ring" style={{ "--score": `${analysis.score}%` } as CSSProperties}>
           <strong>{analysis.score}</strong>

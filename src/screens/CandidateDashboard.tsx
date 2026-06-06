@@ -7,6 +7,7 @@ import {
   type ResumeRecord
 } from "../services/api";
 import type { ResumeAnalysis, Screen } from "../types";
+import { ScoreContext } from "../components/ScoreContext";
 
 type Props = {
   analysis: ResumeAnalysis | null;
@@ -68,6 +69,7 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
           <small className={scoreDelta >= 0 ? "trend-up" : "trend-down"}>
             {previousScore === undefined ? "Baseline score" : `${scoreDelta >= 0 ? "+" : ""}${scoreDelta} pts from last saved score`}
           </small>
+          {currentAnalysis && <ScoreContext score={score} compact />}
         </div>
       </div>
 
