@@ -176,3 +176,13 @@ https://resume.fokalview.com
 The extension URL is centralized in:
 
 - `edge-extension/config.js`
+# Opportunity Readiness Tracking Migration
+
+After deploying the opportunity-linked readiness update, open the D1 Console for
+`fokalview-resume-analyzer` and run the SQL contents of:
+
+`migrations/0013_opportunity_readiness_tracking.sql`
+
+This adds the latest readiness score, analysis history, review count, and last-analyzed
+timestamp to each opportunity. It also links a resume record to its opportunity so future
+reviews update that linked record instead of creating another disconnected record.

@@ -16,8 +16,9 @@ export async function onRequestGet({ request, env }) {
 
   const columns = await tableColumns(env.DB, "resume_records");
   const reportIdSelect = columns.has("report_id") ? "report_id AS reportId," : "'' AS reportId,";
+  const opportunityIdSelect = columns.has("opportunity_id") ? "opportunity_id AS opportunityId," : "'' AS opportunityId,";
   const rows = await env.DB.prepare(
-    `SELECT id, ${reportIdSelect} user_id AS userId, target_role AS targetRole, profile_json AS profileJson,
+    `SELECT id, ${reportIdSelect} ${opportunityIdSelect} user_id AS userId, target_role AS targetRole, profile_json AS profileJson,
       analysis_json AS analysisJson, raw_resume_retained AS rawResumeRetained,
       data_category AS dataCategory, consent_version AS consentVersion,
       captured_at AS capturedAt, updated_at AS updatedAt
@@ -60,9 +61,66 @@ export async function onRequestPost({ request, env }) {
     const now = new Date().toISOString();
     const columns = await tableColumns(env.DB, "resume_records");
     const canStoreReportId = columns.has("report_id");
-    const reportId = canStoreReportId ? await nextPlatformId(env.DB, "report") : "";
+    const canStoreOpportunityId = columns.has("opportunity_id");
+    const existing = canStoreOpportunityId && record.opportunityId
+      ? await env.DB.prepare(
+          `SELECT id, ${canStoreReportId ? "report_id" : "''"} AS reportId
+           FROM resume_records WHERE user_id = ? AND opportunity_id = ? ORDER BY updated_at DESC LIMIT 1`
+        )
+          .bind(identity.userId, record.opportunityId)
+          .first()
+          .catch(() => null)
+      : null;
+    const reportId = existing?.reportId || (canStoreReportId ? await nextPlatformId(env.DB, "report") : "");
+    const recordId = existing?.id || record.id;
 
-    if (canStoreReportId) {
+    if (existing && canStoreOpportunityId) {
+      await env.DB.prepare(
+        `UPDATE resume_records SET
+          target_role = ?, job_context = ?, profile_json = ?, analysis_json = ?,
+          raw_resume_text = ?, raw_resume_retained = ?, consent_version = ?, updated_at = ?
+         WHERE id = ? AND user_id = ?`
+      )
+        .bind(
+          record.targetRole,
+          record.jobContext,
+          JSON.stringify(record.profile),
+          JSON.stringify(record.analysis),
+          record.rawResumeText,
+          record.rawResumeText ? 1 : 0,
+          CONSENT_VERSION,
+          now,
+          recordId,
+          identity.userId
+        )
+        .run();
+    } else if (canStoreReportId && canStoreOpportunityId) {
+      await env.DB.prepare(
+        `INSERT INTO resume_records (
+          id, report_id, opportunity_id, client_hash, user_id, target_role, job_context, profile_json, analysis_json,
+          raw_resume_text, raw_resume_retained, data_category, consent_version,
+          captured_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'workforce_resume_profile', ?, ?, ?)`
+      )
+        .bind(
+          recordId,
+          reportId,
+          record.opportunityId,
+          identity.clientHash,
+          identity.userId,
+          record.targetRole,
+          record.jobContext,
+          JSON.stringify(record.profile),
+          JSON.stringify(record.analysis),
+          record.rawResumeText,
+          record.rawResumeText ? 1 : 0,
+          CONSENT_VERSION,
+          now,
+          now
+        )
+        .run();
+    } else if (canStoreReportId) {
       await env.DB.prepare(
         `INSERT INTO resume_records (
           id, report_id, client_hash, user_id, target_role, job_context, profile_json, analysis_json,
@@ -72,7 +130,7 @@ export async function onRequestPost({ request, env }) {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'workforce_resume_profile', ?, ?, ?)`
       )
         .bind(
-          record.id,
+          recordId,
           reportId,
           identity.clientHash,
           identity.userId,
@@ -97,7 +155,7 @@ export async function onRequestPost({ request, env }) {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'workforce_resume_profile', ?, ?, ?)`
       )
         .bind(
-          record.id,
+          recordId,
           identity.clientHash,
           identity.userId,
           record.targetRole,
@@ -113,7 +171,7 @@ export async function onRequestPost({ request, env }) {
         .run();
     }
 
-    return json({ ok: true, id: record.id, reportId, savedAt: now });
+    return json({ ok: true, id: recordId, reportId, opportunityId: record.opportunityId, savedAt: now });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Could not save resume record." }, 400);
   }
@@ -170,7 +228,8 @@ function normalizeResumeRecord(body) {
     jobContext: clean(body.jobContext, MAX_JOB_CONTEXT_LENGTH),
     profile: normalizeProfile(profile),
     analysis: normalizeAnalysis(analysis),
-    rawResumeText: retainRawResumeText ? cleanRawText(body.resumeText, MAX_RAW_RESUME_LENGTH) : ""
+    rawResumeText: retainRawResumeText ? cleanRawText(body.resumeText, MAX_RAW_RESUME_LENGTH) : "",
+    opportunityId: clean(body.opportunityId, 80)
   };
 }
 

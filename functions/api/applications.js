@@ -28,8 +28,13 @@ export async function onRequestGet({ request, env }) {
   const columns = await tableColumns(env.DB, "application_captures");
   const canStoreSalary = columns.has("salary");
   const applicationIdSelect = columns.has("application_id") ? "application_id AS applicationId," : "'' AS applicationId,";
+  const readinessSelect = columns.has("latest_readiness_score")
+    ? `latest_readiness_score AS latestReadinessScore, latest_analysis_json AS latestAnalysisJson,
+       analysis_history_json AS analysisHistoryJson, analysis_count AS analysisCount,
+       last_analyzed_at AS lastAnalyzedAt,`
+    : "NULL AS latestReadinessScore, NULL AS latestAnalysisJson, NULL AS analysisHistoryJson, 0 AS analysisCount, NULL AS lastAnalyzedAt,";
   const rows = await env.DB.prepare(
-    `SELECT id, ${applicationIdSelect} user_id AS userId, title, company, location, ${canStoreSalary ? "salary" : "''"} AS salary, status, notes, url, source, captured_at AS createdAt,
+    `SELECT id, ${applicationIdSelect} ${readinessSelect} user_id AS userId, title, company, location, ${canStoreSalary ? "salary" : "''"} AS salary, status, notes, url, source, captured_at AS createdAt,
       updated_at AS updatedAt, synced_at AS syncedAt
      FROM application_captures
      WHERE user_id = ?
@@ -39,7 +44,15 @@ export async function onRequestGet({ request, env }) {
     .bind(identity.userId)
     .all();
 
-  return json({ applications: rows.results || [] });
+  return json({
+    applications: (rows.results || []).map((row) => ({
+      ...row,
+      latestAnalysis: parseJson(row.latestAnalysisJson, undefined),
+      analysisHistory: parseJson(row.analysisHistoryJson, []),
+      latestAnalysisJson: undefined,
+      analysisHistoryJson: undefined
+    }))
+  });
 }
 
 export async function onRequestPost({ request, env }) {
@@ -62,6 +75,7 @@ export async function onRequestPost({ request, env }) {
     const columns = await tableColumns(env.DB, "application_captures");
     const canStoreSalary = columns.has("salary");
     const canStoreApplicationId = columns.has("application_id");
+    const canStoreReadiness = columns.has("latest_readiness_score");
     const applicationId = canStoreApplicationId ? await nextPlatformId(env.DB, "application") : "";
 
     if (canStoreSalary && canStoreApplicationId) {
@@ -225,6 +239,39 @@ export async function onRequestPost({ request, env }) {
           .catch(() => null)
       : null;
 
+    if (canStoreReadiness && application.latestAnalysis) {
+      const existing = await env.DB.prepare(
+        "SELECT analysis_history_json AS analysisHistoryJson, analysis_count AS analysisCount FROM application_captures WHERE id = ? AND user_id = ?"
+      )
+        .bind(application.id, identity.userId)
+        .first()
+        .catch(() => null);
+      const history = parseJson(existing?.analysisHistoryJson, []);
+      history.unshift({
+        score: application.latestAnalysis.score,
+        analyzedAt: application.lastAnalyzedAt,
+        improvements: application.latestAnalysis.improvements
+      });
+      await env.DB.prepare(
+        `UPDATE application_captures
+         SET latest_readiness_score = ?, latest_analysis_json = ?, analysis_history_json = ?,
+             analysis_count = ?, last_analyzed_at = ?, updated_at = ?, synced_at = ?
+         WHERE id = ? AND user_id = ?`
+      )
+        .bind(
+          application.latestAnalysis.score,
+          JSON.stringify(application.latestAnalysis),
+          JSON.stringify(history.slice(0, 20)),
+          Number(existing?.analysisCount || 0) + 1,
+          application.lastAnalyzedAt,
+          application.updatedAt,
+          syncedAt,
+          application.id,
+          identity.userId
+        )
+        .run();
+    }
+
     return json({ ok: true, id: application.id, applicationId: saved?.applicationId || applicationId, syncedAt });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Could not save application." }, 400);
@@ -310,7 +357,36 @@ function normalizeApplication(input) {
     url: cleanUrl(application.url),
     source: clean(application.source, 120),
     createdAt: cleanDate(application.createdAt),
-    updatedAt: cleanDate(application.updatedAt)
+    updatedAt: cleanDate(application.updatedAt),
+    latestAnalysis: normalizeAnalysis(application.latestAnalysis),
+    lastAnalyzedAt: cleanDate(application.lastAnalyzedAt)
+  };
+}
+
+function normalizeAnalysis(analysis) {
+  if (!analysis || typeof analysis !== "object") return null;
+  return {
+    score: clampNumber(analysis.score, 0, 100),
+    summary: clean(analysis.summary, 1200),
+    strengths: cleanList(analysis.strengths, 8, 240),
+    improvements: Array.isArray(analysis.improvements)
+      ? analysis.improvements.slice(0, 8).map((item) => ({
+          title: clean(item.title, 180),
+          detail: clean(item.detail, 800),
+          priority: clean(item.priority, 20)
+        }))
+      : [],
+    keywordAnalysis: {
+      matched: cleanList(analysis.keywordAnalysis?.matched, 30, 120),
+      missing: cleanList(analysis.keywordAnalysis?.missing, 30, 120)
+    },
+    sections: Array.isArray(analysis.sections)
+      ? analysis.sections.slice(0, 10).map((item) => ({
+          name: clean(item.name, 120),
+          score: clampNumber(item.score, 0, 100),
+          note: clean(item.note, 400)
+        }))
+      : []
   };
 }
 
@@ -347,6 +423,26 @@ function cleanUrl(value) {
 function cleanDate(value) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+}
+
+function cleanList(value, maxItems, maxLength) {
+  return Array.isArray(value)
+    ? value.map((item) => clean(item, maxLength)).filter(Boolean).slice(0, maxItems)
+    : [];
+}
+
+function clampNumber(value, min, max) {
+  const number = Number(value);
+  if (Number.isNaN(number)) return min;
+  return Math.min(max, Math.max(min, number));
+}
+
+function parseJson(value, fallback) {
+  try {
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 function json(payload, status = 200) {

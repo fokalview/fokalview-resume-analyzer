@@ -338,6 +338,34 @@ export default function ApplicationTracker() {
                 <span>{item.company} - {item.location || "Location not saved"}</span>
                 {item.applicationId && <small>{item.applicationId}</small>}
                 {item.salary && <span>Salary: {item.salary}</span>}
+                {typeof item.latestReadinessScore === "number" && (
+                  <div className="opportunity-readiness">
+                    <div>
+                      <span className={`score-pill ${scoreTone(item.latestReadinessScore)}`}>{item.latestReadinessScore}%</span>
+                      <div>
+                        <strong>Latest readiness</strong>
+                        <small>{item.analysisCount || 1} review{item.analysisCount === 1 ? "" : "s"}{item.lastAnalyzedAt ? ` - updated ${ageLabel(item.lastAnalyzedAt)}` : ""}</small>
+                      </div>
+                    </div>
+                    {item.analysisHistory && item.analysisHistory.length > 1 && (
+                      <div className="opportunity-score-history" aria-label="Readiness score history">
+                        {item.analysisHistory.slice(0, 8).reverse().map((entry, index) => (
+                          <span key={`${entry.analyzedAt}-${index}`} style={{ height: `${Math.max(12, entry.score)}%` }} title={`${entry.score}% - ${formatShortDate(entry.analyzedAt)}`} />
+                        ))}
+                      </div>
+                    )}
+                    {item.latestAnalysis?.improvements?.length ? (
+                      <details>
+                        <summary>Latest priority improvements</summary>
+                        <ul>
+                          {item.latestAnalysis.improvements.slice(0, 3).map((improvement) => (
+                            <li key={improvement.title}><strong>{improvement.priority}</strong>{improvement.title}</li>
+                          ))}
+                        </ul>
+                      </details>
+                    ) : null}
+                  </div>
+                )}
                 {item.notes && (
                   <div className="application-note-preview">
                     <p className={expandedNotes[item.id] ? "expanded" : ""}>{item.notes}</p>
@@ -469,4 +497,15 @@ function ageLabel(value: string) {
   if (days <= 0) return "Today";
   if (days === 1) return "Yesterday";
   return `${days} days ago`;
+}
+
+function scoreTone(score: number) {
+  if (score < 65) return "score-low";
+  if (score < 85) return "score-mid";
+  return "score-high";
+}
+
+function formatShortDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Unknown" : date.toLocaleDateString();
 }

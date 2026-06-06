@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { ClipboardPaste, Loader2, Upload } from "lucide-react";
 import JSZip from "jszip";
 import * as pdfjsLib from "pdfjs-dist";
-import { analyzeResume, saveApplicationRecord, saveResumeRecord } from "../services/api";
+import { analyzeResume, getApplications, saveApplicationRecord, saveResumeRecord } from "../services/api";
 import type { JobHandoff, ResumeAnalysis } from "../types";
 import { InlineNotice, PageHeader } from "../components/ExperienceUI";
 
@@ -67,15 +67,18 @@ export default function UploadScreen({
     setSaveStatus("");
     try {
       const analysis = await analyzeResume({ resumeText, targetRole, jobContext });
+      const application = await saveApplicationFromHandoff(jobHandoff, targetRole, jobContext, analysis);
       const saved = await saveResumeRecord({
         resumeText,
         targetRole,
         jobContext,
         analysis,
-        retainRawResumeText: true
+        retainRawResumeText: true,
+        opportunityId: application?.id
       });
-      setSaveStatus(`Saved workforce profile ${saved.id.slice(0, 8)}.`);
-      await saveApplicationFromHandoff(jobHandoff, targetRole, jobContext);
+      setSaveStatus(application
+        ? `Updated readiness history for ${application.title}.`
+        : `Saved workforce profile ${saved.id.slice(0, 8)}.`);
       onAnalysisComplete(analysis);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Something went wrong.");
@@ -180,23 +183,35 @@ export default function UploadScreen({
   );
 }
 
-async function saveApplicationFromHandoff(jobHandoff: JobHandoff, targetRole: string, jobContext: string) {
+async function saveApplicationFromHandoff(
+  jobHandoff: JobHandoff,
+  targetRole: string,
+  jobContext: string,
+  analysis: ResumeAnalysis
+) {
   const parsedJob = parseJobContext(jobContext);
   const title = jobHandoff.title || targetRole || parsedJob.title;
   const company = jobHandoff.company || parsedJob.company || "Not specified";
   const salary = jobHandoff.salary || parsedJob.salary;
-  if (!title) return;
+  if (!title) return null;
+  const id = stableApplicationId({ ...jobHandoff, company }, title);
+  const existing = (await getApplications().catch(() => [])).find((item) => item.id === id);
 
-  await saveApplicationRecord({
-    id: stableApplicationId({ ...jobHandoff, company }, title),
+  return saveApplicationRecord({
+    id,
     title,
     company,
-    location: jobHandoff.location || parsedJob.location,
-    salary,
-    status: "Interested",
-    notes: jobHandoff.notes || jobContext,
-    url: jobHandoff.url || parsedJob.url,
-    source: jobHandoff.source || parsedJob.source
+    location: existing?.location || jobHandoff.location || parsedJob.location,
+    salary: existing?.salary || salary,
+    status: existing?.status || "Interested",
+    notes: existing?.notes || jobHandoff.notes || jobContext,
+    url: existing?.url || jobHandoff.url || parsedJob.url,
+    source: existing?.source || jobHandoff.source || parsedJob.source,
+    latestReadinessScore: analysis.score,
+    latestAnalysis: analysis,
+    analysisHistory: existing?.analysisHistory,
+    analysisCount: existing?.analysisCount,
+    lastAnalyzedAt: new Date().toISOString()
   });
 }
 
