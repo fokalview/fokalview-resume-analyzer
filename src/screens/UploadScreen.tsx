@@ -66,7 +66,13 @@ export default function UploadScreen({
     setError("");
     setSaveStatus("");
     try {
-      const analysis = await analyzeResume({ resumeText, targetRole, jobContext });
+      const existingOpportunity = await findExistingOpportunity(jobHandoff, targetRole, jobContext);
+      const analysis = await analyzeResume({
+        resumeText,
+        targetRole,
+        jobContext,
+        jobQualifications: existingOpportunity?.jobQualifications
+      });
       const application = await saveApplicationFromHandoff(jobHandoff, targetRole, jobContext, analysis);
       const saved = await saveResumeRecord({
         resumeText,
@@ -183,6 +189,15 @@ export default function UploadScreen({
   );
 }
 
+async function findExistingOpportunity(jobHandoff: JobHandoff, targetRole: string, jobContext: string) {
+  const parsedJob = parseJobContext(jobContext);
+  const title = jobHandoff.title || targetRole || parsedJob.title;
+  const company = jobHandoff.company || parsedJob.company || "Not specified";
+  if (!title) return undefined;
+  const id = stableApplicationId({ ...jobHandoff, company }, title);
+  return (await getApplications().catch(() => [])).find((item) => item.id === id);
+}
+
 async function saveApplicationFromHandoff(
   jobHandoff: JobHandoff,
   targetRole: string,
@@ -205,6 +220,7 @@ async function saveApplicationFromHandoff(
     salary: existing?.salary || salary,
     status: existing?.status || "Interested",
     jobDescription: jobContext,
+    jobQualifications: existing?.jobQualifications || analysis.jobQualifications,
     notes: existing?.notes || jobHandoff.notes,
     url: existing?.url || jobHandoff.url || parsedJob.url,
     source: existing?.source || jobHandoff.source || parsedJob.source,

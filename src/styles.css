@@ -4473,6 +4473,32 @@ button {
   line-height: 1.55;
 }
 
+.opportunity-qualification-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 0.8rem;
+  margin-top: 0.8rem;
+}
+
+.opportunity-qualification-grid section {
+  border: 1px solid var(--border);
+  padding: 0.7rem;
+}
+
+.opportunity-qualification-grid ul {
+  margin: 0.45rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.opportunity-qualification-grid li {
+  margin: 0.25rem 0;
+}
+
+.qualification-signals {
+  font-size: 0.86rem;
+  color: var(--muted);
+}
+
 @media (max-width: 980px) {
   .experience-header {
     align-items: start;

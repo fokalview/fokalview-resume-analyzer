@@ -384,6 +384,22 @@ export default function ApplicationTracker() {
                     <p>{item.jobDescription}</p>
                   </details>
                 )}
+                {item.jobQualifications && (
+                  <details className="opportunity-job-description">
+                    <summary>AI-extracted qualifications</summary>
+                    <div className="opportunity-qualification-grid">
+                      <QualificationList label="Required skills" values={item.jobQualifications.requiredSkills} />
+                      <QualificationList label="Preferred skills" values={item.jobQualifications.preferredSkills} />
+                      <QualificationList label="Tools" values={item.jobQualifications.tools} />
+                      <QualificationList label="Responsibilities" values={item.jobQualifications.responsibilities} />
+                      <QualificationList label="Education" values={item.jobQualifications.education} />
+                      <QualificationList label="Certifications" values={item.jobQualifications.certifications} />
+                    </div>
+                    <p className="qualification-signals">
+                      {[item.jobQualifications.experienceLevel, item.jobQualifications.yearsExperience, item.jobQualifications.employmentType, item.jobQualifications.location, item.jobQualifications.salary].filter(Boolean).join(" · ")}
+                    </p>
+                  </details>
+                )}
                 {item.notes && (
                   <div className="application-note-preview">
                     <p className={expandedNotes[item.id] ? "expanded" : ""}>{item.notes}</p>
@@ -497,6 +513,16 @@ function Metric({ label, value }: { label: string; value: number }) {
       <strong>{value}</strong>
       <span>{label}</span>
     </article>
+  );
+}
+
+function QualificationList({ label, values }: { label: string; values: string[] }) {
+  if (!values?.length) return null;
+  return (
+    <section>
+      <strong>{label}</strong>
+      <ul>{values.map((value) => <li key={value}>{value}</li>)}</ul>
+    </section>
   );
 }
 

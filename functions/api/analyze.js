@@ -3,7 +3,7 @@ import { applyDeterministicScoring } from "./scoring.js";
 const responseSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["score", "summary", "profile", "strengths", "improvements", "keywordAnalysis", "sections"],
+  required: ["score", "summary", "profile", "jobQualifications", "strengths", "improvements", "keywordAnalysis", "sections"],
   properties: {
     score: { type: "integer", minimum: 0, maximum: 100 },
     summary: { type: "string" },
@@ -79,6 +79,27 @@ const responseSchema = {
         locationSignals: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 12 }
       }
     },
+    jobQualifications: {
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "requiredSkills", "preferredSkills", "tools", "responsibilities", "education",
+        "certifications", "experienceLevel", "yearsExperience", "employmentType", "location", "salary"
+      ],
+      properties: {
+        requiredSkills: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 25 },
+        preferredSkills: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 25 },
+        tools: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 25 },
+        responsibilities: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 15 },
+        education: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 10 },
+        certifications: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 10 },
+        experienceLevel: { type: "string" },
+        yearsExperience: { type: "string" },
+        employmentType: { type: "string" },
+        location: { type: "string" },
+        salary: { type: "string" }
+      }
+    },
     strengths: { type: "array", items: { type: "string" }, minItems: 3, maxItems: 6 },
     improvements: {
       type: "array",
@@ -145,13 +166,19 @@ export async function onRequestPost({ request, env }) {
     const resumeText = String(body.resumeText || "").trim();
     const targetRole = String(body.targetRole || "").trim();
     const jobContext = String(body.jobContext || "").trim();
+    const lockedJobQualifications = normalizeLockedQualifications(body.jobQualifications);
 
     if (resumeText.length < 200) {
       return json({ error: "Please upload or paste at least 200 characters of resume text." }, 400);
     }
 
     const analysis = await analyzeResume({ resumeText, targetRole, jobContext }, config);
-    return json(applyDeterministicScoring(analysis, { resumeText, targetRole, jobContext }));
+    return json(applyDeterministicScoring(analysis, {
+      resumeText,
+      targetRole,
+      jobContext,
+      jobQualifications: lockedJobQualifications || analysis.jobQualifications
+    }));
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Analysis failed" }, 500);
   }
@@ -167,6 +194,7 @@ async function analyzeResume({ resumeText, targetRole, jobContext }, config) {
     "",
     "Steps:",
     "1. Extract core technical skills, soft skills, and requirements from Job Context.",
+    "1a. Fill jobQualifications using only explicit or strongly supported information from Job Context.",
     "2. Cross-reference those terms against Resume.",
     "3. Put found terms in keywordAnalysis.matched and absent terms in keywordAnalysis.missing.",
     "4. Extract a structured workforce-development profile from the resume only.",
@@ -247,7 +275,7 @@ async function analyzeWithOpenAICompatibleChat(prompt, config) {
         {
           role: "system",
           content:
-            "You are an expert ATS parser and workforce-development resume evaluator. Return only valid JSON matching this shape: score number 0-100, summary string, profile object with currentTitle, careerLevel, yearsExperienceEstimate, industries, skills, workHistory, education, certifications, projects, languages, locationSignals, strengths string array, improvements array of objects with title/detail/priority, keywordAnalysis object with matched and missing string arrays, sections array of objects with name/score/note. Be concise, objective, avoid protected-characteristic inference, do not include grades, GPAs, student IDs, birth dates, or full mailing addresses, and do not hallucinate experience."
+            "You are an expert ATS parser and workforce-development resume evaluator. Return only valid JSON matching this shape: score number 0-100, summary string, profile object, jobQualifications object with requiredSkills, preferredSkills, tools, responsibilities, education, certifications, experienceLevel, yearsExperience, employmentType, location, salary, strengths string array, improvements array of objects with title/detail/priority, keywordAnalysis object with matched and missing string arrays, sections array of objects with name/score/note. Be concise, objective, avoid protected-characteristic inference, do not include grades, GPAs, student IDs, birth dates, or full mailing addresses, and do not hallucinate experience or job requirements."
         },
         { role: "user", content: prompt }
       ],
@@ -291,6 +319,24 @@ function collectOutputText(payload) {
 
 function trimTrailingSlash(value) {
   return value.replace(/\/+$/, "");
+}
+
+function normalizeLockedQualifications(value) {
+  if (!value || typeof value !== "object") return null;
+  const list = (items) => Array.isArray(items) ? items.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 25) : [];
+  return {
+    requiredSkills: list(value.requiredSkills),
+    preferredSkills: list(value.preferredSkills),
+    tools: list(value.tools),
+    responsibilities: list(value.responsibilities).slice(0, 15),
+    education: list(value.education).slice(0, 10),
+    certifications: list(value.certifications).slice(0, 10),
+    experienceLevel: String(value.experienceLevel || "").trim().slice(0, 120),
+    yearsExperience: String(value.yearsExperience || "").trim().slice(0, 120),
+    employmentType: String(value.employmentType || "").trim().slice(0, 120),
+    location: String(value.location || "").trim().slice(0, 200),
+    salary: String(value.salary || "").trim().slice(0, 160)
+  };
 }
 
 function json(payload, status = 200) {

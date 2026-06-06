@@ -40,11 +40,26 @@ export type ResumeProfile = {
   locationSignals: string[];
 };
 
+export type JobQualifications = {
+  requiredSkills: string[];
+  preferredSkills: string[];
+  tools: string[];
+  responsibilities: string[];
+  education: string[];
+  certifications: string[];
+  experienceLevel: string;
+  yearsExperience: string;
+  employmentType: string;
+  location: string;
+  salary: string;
+};
+
 export type ResumeAnalysis = {
   score: number;
   scoringVersion?: string;
   summary: string;
   profile?: ResumeProfile;
+  jobQualifications?: JobQualifications;
   strengths: string[];
   improvements: Array<{
     title: string;

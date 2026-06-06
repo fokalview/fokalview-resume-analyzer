@@ -28,6 +28,7 @@ export async function onRequestGet({ request, env }) {
   const columns = await tableColumns(env.DB, "application_captures");
   const canStoreSalary = columns.has("salary");
   const jobDescriptionSelect = columns.has("job_description") ? "job_description AS jobDescription," : "'' AS jobDescription,";
+  const jobQualificationsSelect = columns.has("job_qualifications_json") ? "job_qualifications_json AS jobQualificationsJson," : "NULL AS jobQualificationsJson,";
   const applicationIdSelect = columns.has("application_id") ? "application_id AS applicationId," : "'' AS applicationId,";
   const readinessSelect = columns.has("latest_readiness_score")
     ? `latest_readiness_score AS latestReadinessScore, latest_analysis_json AS latestAnalysisJson,
@@ -35,7 +36,7 @@ export async function onRequestGet({ request, env }) {
        last_analyzed_at AS lastAnalyzedAt,`
     : "NULL AS latestReadinessScore, NULL AS latestAnalysisJson, NULL AS analysisHistoryJson, 0 AS analysisCount, NULL AS lastAnalyzedAt,";
   const rows = await env.DB.prepare(
-    `SELECT id, ${applicationIdSelect} ${readinessSelect} ${jobDescriptionSelect} user_id AS userId, title, company, location, ${canStoreSalary ? "salary" : "''"} AS salary, status, notes, url, source, captured_at AS createdAt,
+    `SELECT id, ${applicationIdSelect} ${readinessSelect} ${jobDescriptionSelect} ${jobQualificationsSelect} user_id AS userId, title, company, location, ${canStoreSalary ? "salary" : "''"} AS salary, status, notes, url, source, captured_at AS createdAt,
       updated_at AS updatedAt, synced_at AS syncedAt
      FROM application_captures
      WHERE user_id = ?
@@ -50,8 +51,10 @@ export async function onRequestGet({ request, env }) {
       ...row,
       latestAnalysis: parseJson(row.latestAnalysisJson, undefined),
       analysisHistory: parseJson(row.analysisHistoryJson, []),
+      jobQualifications: parseJson(row.jobQualificationsJson, undefined),
       latestAnalysisJson: undefined,
-      analysisHistoryJson: undefined
+      analysisHistoryJson: undefined,
+      jobQualificationsJson: undefined
     }))
   });
 }
@@ -78,6 +81,7 @@ export async function onRequestPost({ request, env }) {
     const canStoreApplicationId = columns.has("application_id");
     const canStoreReadiness = columns.has("latest_readiness_score");
     const canStoreJobDescription = columns.has("job_description");
+    const canStoreJobQualifications = columns.has("job_qualifications_json");
     const applicationId = canStoreApplicationId ? await nextPlatformId(env.DB, "application") : "";
 
     if (canStoreSalary && canStoreApplicationId) {
@@ -242,6 +246,14 @@ export async function onRequestPost({ request, env }) {
         .run();
     }
 
+    if (canStoreJobQualifications && application.jobQualifications) {
+      await env.DB.prepare(
+        "UPDATE application_captures SET job_qualifications_json = ? WHERE id = ? AND user_id = ?"
+      )
+        .bind(JSON.stringify(application.jobQualifications), application.id, identity.userId)
+        .run();
+    }
+
     const saved = canStoreApplicationId
       ? await env.DB.prepare("SELECT application_id AS applicationId FROM application_captures WHERE id = ?")
           .bind(application.id)
@@ -365,6 +377,7 @@ function normalizeApplication(input) {
     salary: clean(application.salary, 160),
     status: STATUSES.has(application.status) ? application.status : "Interested",
     jobDescription: cleanMultiline(application.jobDescription, 30000),
+    jobQualifications: normalizeJobQualifications(application.jobQualifications),
     notes: clean(application.notes, 2000),
     url: cleanUrl(application.url),
     source: clean(application.source, 120),
@@ -381,6 +394,7 @@ function normalizeAnalysis(analysis) {
     score: clampNumber(analysis.score, 0, 100),
     scoringVersion: clean(analysis.scoringVersion, 80),
     summary: clean(analysis.summary, 1200),
+    jobQualifications: normalizeJobQualifications(analysis.jobQualifications),
     strengths: cleanList(analysis.strengths, 8, 240),
     improvements: Array.isArray(analysis.improvements)
       ? analysis.improvements.slice(0, 8).map((item) => ({
@@ -400,6 +414,23 @@ function normalizeAnalysis(analysis) {
           note: clean(item.note, 400)
         }))
       : []
+  };
+}
+
+function normalizeJobQualifications(value) {
+  if (!value || typeof value !== "object") return null;
+  return {
+    requiredSkills: cleanList(value.requiredSkills, 25, 160),
+    preferredSkills: cleanList(value.preferredSkills, 25, 160),
+    tools: cleanList(value.tools, 25, 160),
+    responsibilities: cleanList(value.responsibilities, 15, 400),
+    education: cleanList(value.education, 10, 240),
+    certifications: cleanList(value.certifications, 10, 200),
+    experienceLevel: clean(value.experienceLevel, 120),
+    yearsExperience: clean(value.yearsExperience, 120),
+    employmentType: clean(value.employmentType, 120),
+    location: clean(value.location, 200),
+    salary: clean(value.salary, 160)
   };
 }
 

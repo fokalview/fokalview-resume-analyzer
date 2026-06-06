@@ -1,4 +1,4 @@
-const SCORING_VERSION = "sagittaiq-readiness-v1.1";
+const SCORING_VERSION = "sagittaiq-readiness-v1.2";
 const STOP_WORDS = new Set([
   "about", "after", "also", "and", "are", "because", "been", "being", "but", "can", "company",
   "from", "have", "into", "job", "more", "must", "not", "our", "role", "that", "the", "their",
@@ -14,10 +14,11 @@ const ACTION_VERBS = [
   "saved", "scaled", "streamlined"
 ];
 
-export function applyDeterministicScoring(analysis, { resumeText, targetRole, jobContext }) {
+export function applyDeterministicScoring(analysis, { resumeText, targetRole, jobContext, jobQualifications }) {
   const resume = normalize(resumeText);
   const target = normalize(targetRole);
-  const job = normalize(`${targetRole || ""} ${jobContext || ""}`);
+  const qualificationText = qualificationsToText(jobQualifications);
+  const job = normalize(`${targetRole || ""} ${qualificationText || jobContext || ""}`);
   const resumeTokens = new Set(tokens(resume).map(stem));
   const jobTokens = prioritizedJobTokens(job, target);
   const targetTokens = [...new Set(tokens(target).map(stem))];
@@ -39,6 +40,7 @@ export function applyDeterministicScoring(analysis, { resumeText, targetRole, jo
 
   return {
     ...analysis,
+    jobQualifications: jobQualifications || analysis.jobQualifications,
     score,
     scoringVersion: SCORING_VERSION,
     sections: [
@@ -49,6 +51,22 @@ export function applyDeterministicScoring(analysis, { resumeText, targetRole, jo
       section("Content Depth", depthCoverage, "Amount of readable career evidence available for assessment.")
     ]
   };
+}
+
+function qualificationsToText(value) {
+  if (!value || typeof value !== "object") return "";
+  return [
+    ...(value.requiredSkills || []),
+    ...(value.requiredSkills || []),
+    ...(value.preferredSkills || []),
+    ...(value.tools || []),
+    ...(value.responsibilities || []),
+    ...(value.education || []),
+    ...(value.certifications || []),
+    value.experienceLevel,
+    value.yearsExperience,
+    value.employmentType
+  ].filter(Boolean).join(" ");
 }
 
 function normalize(value) {
