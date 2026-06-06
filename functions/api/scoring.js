@@ -1,8 +1,12 @@
-const SCORING_VERSION = "sagittaiq-readiness-v1";
+const SCORING_VERSION = "sagittaiq-readiness-v1.1";
 const STOP_WORDS = new Set([
   "about", "after", "also", "and", "are", "because", "been", "being", "but", "can", "company",
   "from", "have", "into", "job", "more", "must", "not", "our", "role", "that", "the", "their",
-  "they", "this", "through", "using", "will", "with", "work", "years", "you", "your"
+  "they", "this", "through", "using", "will", "with", "work", "years", "you", "your", "ability",
+  "all", "applicant", "applicants", "based", "benefits", "candidate", "candidates", "description",
+  "duties", "equal", "including", "knowledge", "may", "opportunity", "preferred", "provide",
+  "qualifications", "required", "requirements", "responsibilities", "responsible", "skills",
+  "status", "team", "within"
 ]);
 const ACTION_VERBS = [
   "achieved", "automated", "built", "created", "delivered", "designed", "developed", "drove",
@@ -14,9 +18,9 @@ export function applyDeterministicScoring(analysis, { resumeText, targetRole, jo
   const resume = normalize(resumeText);
   const target = normalize(targetRole);
   const job = normalize(`${targetRole || ""} ${jobContext || ""}`);
-  const resumeTokens = new Set(tokens(resume));
-  const jobTokens = [...new Set(tokens(job))].slice(0, 140);
-  const targetTokens = [...new Set(tokens(target))];
+  const resumeTokens = new Set(tokens(resume).map(stem));
+  const jobTokens = prioritizedJobTokens(job, target);
+  const targetTokens = [...new Set(tokens(target).map(stem))];
 
   const keywordCoverage = ratio(jobTokens.filter((token) => resumeTokens.has(token)).length, jobTokens.length, 0.5);
   const roleCoverage = ratio(targetTokens.filter((token) => resumeTokens.has(token)).length, targetTokens.length, 0.5);
@@ -25,8 +29,8 @@ export function applyDeterministicScoring(analysis, { resumeText, targetRole, jo
   const depthCoverage = depthScore(resume);
 
   const score = clamp(Math.round(
-    30 +
-    keywordCoverage * 35 +
+    35 +
+    keywordCoverage * 30 +
     roleCoverage * 10 +
     structureCoverage * 10 +
     impactCoverage * 10 +
@@ -58,13 +62,38 @@ function tokens(value) {
     .filter((token) => token.length >= 3 && !STOP_WORDS.has(token) && !/^\d+$/.test(token));
 }
 
+function prioritizedJobTokens(job, target) {
+  const jobTerms = tokens(job).map(stem);
+  const targetTerms = tokens(target).map(stem);
+  const frequencies = jobTerms.reduce((counts, term) => {
+    counts.set(term, (counts.get(term) || 0) + 1);
+    return counts;
+  }, new Map());
+  const priority = [...new Set([
+    ...targetTerms,
+    ...[...frequencies.entries()]
+      .sort((a, b) => b[1] - a[1] || b[0].length - a[0].length || a[0].localeCompare(b[0]))
+      .map(([term]) => term)
+  ])];
+  return priority.slice(0, 45);
+}
+
+function stem(token) {
+  if (token.length > 5 && token.endsWith("ies")) return `${token.slice(0, -3)}y`;
+  if (token.length > 5 && token.endsWith("ing")) return token.slice(0, -3);
+  if (token.length > 4 && token.endsWith("ed")) return token.slice(0, -2);
+  if (token.length > 4 && token.endsWith("es")) return token.slice(0, -2);
+  if (token.length > 3 && token.endsWith("s")) return token.slice(0, -1);
+  return token;
+}
+
 function structureScore(resume) {
   const signals = [
-    /\b(summary|profile|objective|headline)\b/,
-    /\b(experience|employment|work history|professional experience)\b/,
+    /\b(summary|profile|objective|headline|professional summary)\b/,
+    /\b(experience|employment|work history|professional experience|career history)\b/,
     /\b(education|academic)\b/,
     /\b(skills|technologies|technical skills|competencies)\b/,
-    /\b(projects|portfolio|selected projects)\b/
+    /\b(projects|portfolio|selected projects|leadership|activities)\b/
   ];
   return ratio(signals.filter((pattern) => pattern.test(resume)).length, signals.length, 0);
 }
