@@ -14,7 +14,7 @@ export function scoreExplanation(score: number, threshold = 85) {
     ? `${distance} points above the strong-match threshold`
     : `${Math.abs(distance)} points below the strong-match threshold`;
 
-  return `${band.label}. ${thresholdText}. The score estimates alignment across resume sections, relevant skills, tools, keywords, and target-role fit. It does not predict hiring decisions.`;
+  return `${band.label}. ${thresholdText}. The score uses SagittaIQ's fixed readiness rubric, so identical resume and job inputs receive the same score. It does not predict hiring decisions.`;
 }
 
 export function ScoreContext({

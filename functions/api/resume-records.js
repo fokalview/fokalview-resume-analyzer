@@ -270,6 +270,7 @@ function normalizeProfile(profile) {
 function normalizeAnalysis(analysis) {
   return {
     score: clampNumber(analysis.score, 0, 100),
+    scoringVersion: clean(analysis.scoringVersion, 80),
     summary: clean(analysis.summary, 1200),
     strengths: cleanList(analysis.strengths, 8, 240),
     improvements: Array.isArray(analysis.improvements)

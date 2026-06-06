@@ -1,3 +1,5 @@
+import { applyDeterministicScoring } from "./scoring.js";
+
 const responseSchema = {
   type: "object",
   additionalProperties: false,
@@ -149,7 +151,7 @@ export async function onRequestPost({ request, env }) {
     }
 
     const analysis = await analyzeResume({ resumeText, targetRole, jobContext }, config);
-    return json(analysis);
+    return json(applyDeterministicScoring(analysis, { resumeText, targetRole, jobContext }));
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Analysis failed" }, 500);
   }
@@ -169,6 +171,7 @@ async function analyzeResume({ resumeText, targetRole, jobContext }, config) {
     "3. Put found terms in keywordAnalysis.matched and absent terms in keywordAnalysis.missing.",
     "4. Extract a structured workforce-development profile from the resume only.",
     "5. Generate concise, specific improvement feedback.",
+    "6. Do not treat your score values as authoritative; SagittaIQ applies a fixed scoring rubric after your analysis.",
     "",
     "Privacy and data-minimization rules:",
     "- Do not infer protected characteristics.",

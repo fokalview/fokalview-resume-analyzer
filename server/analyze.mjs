@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { readFileSync, existsSync, statSync } from "node:fs";
 import { resolve, extname, normalize } from "node:path";
+import { applyDeterministicScoring } from "../functions/api/scoring.js";
 
 loadDotEnv();
 
@@ -150,7 +151,7 @@ const server = createServer(async (req, res) => {
     }
 
     const analysis = await analyzeResume({ resumeText, targetRole, jobContext });
-    sendJson(res, 200, analysis);
+    sendJson(res, 200, applyDeterministicScoring(analysis, { resumeText, targetRole, jobContext }));
   } catch (error) {
     sendJson(res, 500, { error: error instanceof Error ? error.message : "Analysis failed" });
   }
@@ -169,6 +170,7 @@ async function analyzeResume({ resumeText, targetRole, jobContext }) {
     "2. Cross-reference those terms against Resume.",
     "3. Put found terms in keywordAnalysis.matched and absent terms in keywordAnalysis.missing.",
     "4. Generate concise, specific improvement feedback.",
+    "5. Do not treat your score values as authoritative; SagittaIQ applies a fixed scoring rubric after your analysis.",
     "",
     `Target Role: ${targetRole || "Not specified"}`,
     "",

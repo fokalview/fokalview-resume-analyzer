@@ -104,6 +104,7 @@ function reportHtml({ analysis, job, applications, title }: ReportData) {
       h3 { margin: 0 0 8px; font-size: 14px; }
       p, li, td, th { line-height: 1.45; font-size: 13px; }
       .summary { color: #50606f; font-size: 15px; }
+      .method { max-width: 720px; color: #647482; font-size: 10px; }
       .score { display: inline-block; margin: 18px 0; padding: 10px 14px; border-radius: 8px; background: #e6f4f1; color: #0f766e; font-size: 24px; font-weight: 800; }
       .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
       .card { border: 1px solid #d8e0e8; border-radius: 8px; padding: 14px; }
@@ -142,7 +143,7 @@ function reportHtml({ analysis, job, applications, title }: ReportData) {
     <button onclick="window.print()">Print or save as PDF</button>
     <h1>${escapeHtml(title)}</h1>
     <p class="summary">${escapeHtml(jobSummary(job))}</p>
-    ${currentAnalysis ? `<div class="score">${currentAnalysis.score}% career readiness</div><p>${escapeHtml(currentAnalysis.summary)}</p>` : ""}
+    ${currentAnalysis ? `<div class="score">${currentAnalysis.score}% career readiness</div><p>${escapeHtml(currentAnalysis.summary)}</p><p class="method">Scoring method: ${escapeHtml(currentAnalysis.scoringVersion || "SagittaIQ fixed readiness rubric")}. Identical resume and job inputs receive the same score.</p>` : ""}
     ${reportSections}
     ${applications.length ? `
       <section class="tracker-section page-break">

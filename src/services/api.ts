@@ -80,7 +80,7 @@ export type ApplicationRecord = {
   syncedAt?: string;
   latestReadinessScore?: number;
   latestAnalysis?: ResumeAnalysis;
-  analysisHistory?: Array<{ score: number; analyzedAt: string; improvements: ResumeAnalysis["improvements"] }>;
+  analysisHistory?: Array<{ score: number; scoringVersion?: string; analyzedAt: string; improvements: ResumeAnalysis["improvements"] }>;
   analysisCount?: number;
   lastAnalyzedAt?: string;
 };

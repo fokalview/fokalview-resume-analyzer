@@ -42,6 +42,7 @@ export type ResumeProfile = {
 
 export type ResumeAnalysis = {
   score: number;
+  scoringVersion?: string;
   summary: string;
   profile?: ResumeProfile;
   strengths: string[];
