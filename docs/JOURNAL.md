@@ -6,6 +6,33 @@ what was learned, and what still needs attention.
 
 <!-- NEW_ENTRIES_BELOW -->
 
+## 2026-06-08 - Deployed And Verified Initial WorkOS Authentication
+
+### Deployment
+
+- Applied D1 migration `0016_workos_verified_identity.sql` and verified the
+  `workos_user_id`, `auth_provider`, and `verified_at` columns.
+- Disabled public WorkOS sign-up for the controlled beta.
+- Committed and pushed the initial verified-account implementation in commit
+  `26e8254`.
+- Cloudflare automatically deployed the commit to `https://sagittaiq.com`.
+
+### Production Verification
+
+- `/api/health` returned HTTP 200.
+- `/api/auth/session` returned the expected HTTP 401 without a session cookie.
+- `/api/auth/login` returned HTTP 302 to WorkOS AuthKit.
+- The production login redirect used
+  `https://sagittaiq.com/api/auth/callback`.
+- The login endpoint issued a secure, HTTP-only, SameSite=Lax CSRF state cookie.
+
+### Remaining Human Verification
+
+- Complete one hosted AuthKit sign-in.
+- Confirm callback creates or links the expected D1 user.
+- Confirm the UI displays **Verified account** and the existing candidate ID.
+- Confirm session refresh and logout complete successfully.
+
 ## 2026-06-08 - Implemented Initial WorkOS Verified-Account Path
 
 ### Completed
