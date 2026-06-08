@@ -3,6 +3,7 @@ import { nextPlatformId, tableColumns } from "../api/ids.js";
 
 export const SESSION_COOKIE = "wos-session";
 export const AUTH_STATE_COOKIE = "wos-auth-state";
+export const BETA_ADMISSION_COOKIE = "sagittaiq-beta-admission";
 
 export function workosClient(env) {
   requireWorkOSConfig(env);
@@ -45,6 +46,27 @@ export function stateCookie(value, request, maxAge = 10 * 60) {
 
 export function clearCookie(name, request) {
   return serializeCookie(name, "", request, 0);
+}
+
+export async function betaAdmissionCookie(email, request, env) {
+  const expiresAt = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+  const payload = `${expiresAt}:${String(email || "").trim().toLowerCase()}`;
+  const signature = await signAdmission(payload, env);
+  return serializeCookie(BETA_ADMISSION_COOKIE, `${payload}:${signature}`, request, 7 * 24 * 60 * 60);
+}
+
+export async function hasBetaAdmission(request, env) {
+  const value = readCookie(request, BETA_ADMISSION_COOKIE);
+  const parts = value.split(":");
+  if (parts.length < 3) return false;
+
+  const expiresAt = Number(parts.shift());
+  const signature = parts.pop();
+  const payload = `${expiresAt}:${parts.join(":")}`;
+  if (!Number.isFinite(expiresAt) || expiresAt < Math.floor(Date.now() / 1000)) return false;
+
+  const expected = await signAdmission(payload, env);
+  return constantTimeEqual(signature, expected);
 }
 
 export async function verifiedSession(request, env, { refresh = false } = {}) {
@@ -177,6 +199,29 @@ async function legacyUserIdForEmail(email, env) {
 function serializeCookie(name, value, request, maxAge) {
   const secure = new URL(request.url).protocol === "https:" ? "; Secure" : "";
   return `${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure}`;
+}
+
+async function signAdmission(payload, env) {
+  const secret = env.WORKOS_COOKIE_PASSWORD || env.APPLICATION_SYNC_SALT || env.BETA_ACCESS_CODE;
+  if (!secret) throw new Error("Missing beta admission signing secret.");
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload));
+  return [...new Uint8Array(signature)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function constantTimeEqual(left, right) {
+  if (!left || !right || left.length !== right.length) return false;
+  let mismatch = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    mismatch |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+  return mismatch === 0;
 }
 
 function domainFromEmail(email) {

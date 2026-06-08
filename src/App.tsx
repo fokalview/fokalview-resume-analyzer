@@ -108,7 +108,6 @@ function ResumeApp() {
       <WelcomeScreen
         theme={theme}
         onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
-        onAccessGranted={() => setHasBetaAccess(true)}
       />
     );
   }

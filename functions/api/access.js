@@ -1,5 +1,5 @@
 import { nextPlatformId, tableColumns } from "./ids.js";
-import { ensureBetaInvitation } from "../lib/workos.js";
+import { betaAdmissionCookie, ensureBetaInvitation } from "../lib/workos.js";
 
 export async function onRequestPost({ request, env }) {
   const body = await request.json();
@@ -52,7 +52,10 @@ export async function onRequestPost({ request, env }) {
     };
   }
 
-  return Response.json({ ok: true, pinCreated: !existing?.securityPinHash, invitation });
+  return Response.json(
+    { ok: true, pinCreated: !existing?.securityPinHash, invitation },
+    { headers: { "Set-Cookie": await betaAdmissionCookie(email, request, env) } }
+  );
 }
 
 export async function onRequestOptions() {

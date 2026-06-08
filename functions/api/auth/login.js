@@ -1,7 +1,11 @@
-import { AUTH_STATE_COOKIE, callbackUrl, stateCookie, workosClient } from "../../lib/workos.js";
+import { callbackUrl, hasBetaAdmission, stateCookie, workosClient } from "../../lib/workos.js";
 
 export async function onRequestGet({ request, env }) {
   try {
+    if (!(await hasBetaAdmission(request, env))) {
+      return new Response(null, { status: 302, headers: { Location: new URL("/", request.url).toString() } });
+    }
+
     const state = crypto.randomUUID();
     const workos = workosClient(env);
     const authorizationUrl = workos.userManagement.getAuthorizationUrl({

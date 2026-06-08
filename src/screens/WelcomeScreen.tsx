@@ -1,16 +1,15 @@
 import { FormEvent, useState } from "react";
 import { CheckCircle2, LockKeyhole, Mail, Moon, Sun } from "lucide-react";
-import { storeAccessCode, validateAccessCode, type BetaAccessResult } from "../services/access";
+import { validateAccessCode, type BetaAccessResult } from "../services/access";
 import { ProductBrand } from "../components/BrandFamily";
 import PublicSiteMenu from "../components/PublicSiteMenu";
 
 type Props = {
   theme: "light" | "dark";
   onToggleTheme: () => void;
-  onAccessGranted: () => void;
 };
 
-export default function WelcomeScreen({ theme, onToggleTheme, onAccessGranted }: Props) {
+export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
   const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
   const [userPin, setUserPin] = useState("");
@@ -27,7 +26,6 @@ export default function WelcomeScreen({ theme, onToggleTheme, onAccessGranted }:
       const trimmed = code.trim();
       const normalizedEmail = email.trim().toLowerCase();
       const result = await validateAccessCode(trimmed, normalizedEmail, userPin);
-      storeAccessCode(trimmed, normalizedEmail);
       if (result.invitation.status === "account_exists") {
         window.location.assign("/api/auth/login");
         return;
@@ -62,14 +60,6 @@ export default function WelcomeScreen({ theme, onToggleTheme, onAccessGranted }:
           <a href="/data-and-privacy">Review data and privacy details</a>
         </div>
 
-        <a className="authkit-signin-button" href="/api/auth/login">
-          <LockKeyhole size={17} />
-          Sign in with verified account
-        </a>
-        <div className="access-divider" role="separator">
-          <span>or use the temporary beta access</span>
-        </div>
-
         {accessResult ? (
           <section className="beta-invitation-confirmation" aria-live="polite">
             <CheckCircle2 size={28} />
@@ -86,10 +76,9 @@ export default function WelcomeScreen({ theme, onToggleTheme, onAccessGranted }:
             {accessResult.invitation.status === "unavailable" && (
               <p>The beta is available now. Verified-account invitations are temporarily unavailable.</p>
             )}
-            <p>Use the email invitation to create your verified account, or continue into the temporary beta now.</p>
+            <p>Use the email invitation to create your verified account. After accepting it, return here to sign in.</p>
             <div className="beta-confirmation-actions">
-              <button className="primary-button" type="button" onClick={onAccessGranted}>Continue to beta</button>
-              <a href="/api/auth/login">Sign in to verified account</a>
+              <a className="primary-button" href="/api/auth/login">Continue to verified sign in</a>
             </div>
           </section>
         ) : <form className="access-form" onSubmit={submit}>

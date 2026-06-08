@@ -6,6 +6,40 @@ what was learned, and what still needs attention.
 
 <!-- NEW_ENTRIES_BELOW -->
 
+## 2026-06-08 - Made The Beta Gate Required Before WorkOS Login
+
+### Decision
+
+The legacy SagittaIQ beta form is now the required admission gate before WorkOS
+authentication. WorkOS remains the system that verifies identity and creates the
+authenticated session.
+
+### Final Beta Entry Flow
+
+1. The user enters the SagittaIQ beta access code, email address, and PIN.
+2. SagittaIQ validates the submission and issues a signed, HTTP-only, seven-day
+   beta-admission cookie.
+3. SagittaIQ creates or reuses the user's WorkOS invitation.
+4. New users accept the emailed invitation and create their verified account.
+5. Returning verified users are redirected from the beta gate to WorkOS sign-in.
+6. Direct visits to `/api/auth/login` without a valid beta-admission cookie are
+   redirected back to the SagittaIQ beta gate.
+
+### Why
+
+This prevents users from reaching the WorkOS login flow unless they possess the
+beta code and valid PIN, while still avoiding manual WorkOS invitations. It also
+removes immediate temporary access from new beta submissions so verified identity
+becomes the normal application entry path.
+
+### Security Notes
+
+- The beta-admission cookie is signed with HMAC and cannot be safely forged by
+  simply editing browser cookie values.
+- Public WorkOS sign-up remains disabled.
+- The admission cookie does not replace the WorkOS session; it only permits the
+  user to begin verified authentication.
+
 ## 2026-06-08 - Automated Beta-Code WorkOS Invitations
 
 ### Objective
