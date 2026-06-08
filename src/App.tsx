@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BriefcaseBusiness, FileText, Gauge, Moon, Sparkles, Sun } from "lucide-react";
+import { BriefcaseBusiness, FileText, Gauge, LogOut, Moon, Sparkles, Sun } from "lucide-react";
 import UploadScreen from "./screens/UploadScreen";
 import ResultsScreen from "./screens/ResultsScreen";
 import WelcomeScreen from "./screens/WelcomeScreen";
@@ -9,7 +9,7 @@ import CandidateDashboard from "./screens/CandidateDashboard";
 import FollowUpScreen from "./screens/FollowUpScreen";
 import WaitlistScreen from "./screens/WaitlistScreen";
 import PublicInfoPage from "./screens/PublicInfoPage";
-import { getStoredAccessCode } from "./services/access";
+import { getStoredAccessCode, getVerifiedAuthSession, type VerifiedAuthSession } from "./services/access";
 import { getCurrentUser, recordUserEvent } from "./services/api";
 import type { ResumeAnalysis, Screen } from "./types";
 import { ProductBrand } from "./components/BrandFamily";
@@ -49,6 +49,8 @@ function ResumeApp() {
   const handoff = readJobHandoff();
   const [theme, setTheme] = useState<"light" | "dark">(() => getStoredTheme());
   const [hasBetaAccess, setHasBetaAccess] = useState(Boolean(getStoredAccessCode()));
+  const [verifiedSession, setVerifiedSession] = useState<VerifiedAuthSession | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [userIdentity, setUserIdentity] = useState<{ userId: string; candidateId?: string; identifierType: string } | null>(null);
   const [screen, setScreen] = useState<Screen>("dashboard");
   const [analysis, setAnalysis] = useState<ResumeAnalysis | null>(null);
@@ -61,11 +63,45 @@ function ResumeApp() {
   }, [theme]);
 
   useEffect(() => {
-    if (!hasBetaAccess) return;
+    let active = true;
+    const refresh = () => {
+      void getVerifiedAuthSession()
+        .then((session) => {
+          if (!active) return;
+          setVerifiedSession(session);
+          if (session) {
+            setHasBetaAccess(true);
+            setUserIdentity({
+              userId: session.userId,
+              candidateId: session.candidateId,
+              identifierType: "verified_email"
+            });
+          }
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          if (active) setAuthChecked(true);
+        });
+    };
+
+    refresh();
+    const interval = window.setInterval(refresh, 4 * 60 * 1000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!hasBetaAccess || verifiedSession) return;
     void getCurrentUser()
       .then(setUserIdentity)
       .catch(() => setUserIdentity(null));
-  }, [hasBetaAccess]);
+  }, [hasBetaAccess, verifiedSession]);
+
+  if (!authChecked && !hasBetaAccess) {
+    return <main className="welcome-shell" data-theme={theme} aria-busy="true" />;
+  }
 
   if (!hasBetaAccess) {
     return (
@@ -114,6 +150,13 @@ function ResumeApp() {
           {theme === "dark" ? "Light mode" : "Dark mode"}
         </button>
 
+        {verifiedSession && (
+          <a className="sidebar-signout" href="/api/auth/logout">
+            <LogOut size={16} />
+            Sign out
+          </a>
+        )}
+
         <div className="api-status">
           <span />
           <div>
@@ -128,7 +171,13 @@ function ResumeApp() {
             >
               {userIdentity?.candidateId || userIdentity?.userId || "Loading..."}
             </button>
-            <small>{userIdentity?.identifierType === "email" ? "Email-linked profile" : "Device-linked profile"}</small>
+            <small>
+              {userIdentity?.identifierType === "verified_email"
+                ? "Verified account"
+                : userIdentity?.identifierType === "email"
+                  ? "Email-linked profile"
+                  : "Device-linked profile"}
+            </small>
           </div>
         </div>
       </aside>

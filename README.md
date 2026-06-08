@@ -4,6 +4,13 @@ AI Resume Analyzer is a Vite/React app with a server-side artificial intelligenc
 
 Planned production URL: `https://resume.fokalview.com`
 
+## Project Memory
+
+Start with [`docs/README.md`](docs/README.md) for the dated project journal,
+architecture, database reference, Cloudflare recovery runbook, product roadmap,
+and major architecture decisions. These documents are the durable operating
+memory for SagittaIQ and should be updated alongside meaningful product changes.
+
 ## Features
 
 - Resume analyzer UI with upload/paste workflow

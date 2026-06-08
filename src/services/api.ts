@@ -227,7 +227,7 @@ export async function getCurrentUser() {
     throw new Error(payload.error || "Could not load user profile.");
   }
 
-  return payload as { userId: string; candidateId?: string; identifierType: "email" | "client" };
+  return payload as { userId: string; candidateId?: string; identifierType: "email" | "client" | "verified_email"; verified?: boolean };
 }
 
 export async function recordUserEvent(input: {

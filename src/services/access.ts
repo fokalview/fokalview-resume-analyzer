@@ -39,6 +39,34 @@ export async function validateAccessCode(code: string, email = "", userPin = "")
   return Boolean(payload.ok);
 }
 
+export type VerifiedAuthSession = {
+  authenticated: true;
+  user: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    emailVerified: boolean;
+  };
+  userId: string;
+  candidateId?: string;
+  organizationId?: string;
+  role?: string;
+  permissions?: string[];
+};
+
+export async function getVerifiedAuthSession(): Promise<VerifiedAuthSession | null> {
+  const response = await fetch("/api/auth/session", {
+    credentials: "same-origin",
+    headers: { Accept: "application/json" }
+  });
+
+  if (response.status === 401) return null;
+  const payload = await response.json();
+  if (!response.ok || !payload.authenticated) return null;
+  return payload as VerifiedAuthSession;
+}
+
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
 }

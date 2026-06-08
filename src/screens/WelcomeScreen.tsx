@@ -57,6 +57,14 @@ export default function WelcomeScreen({ theme, onToggleTheme, onAccessGranted }:
           <a href="/data-and-privacy">Review data and privacy details</a>
         </div>
 
+        <a className="authkit-signin-button" href="/api/auth/login">
+          <LockKeyhole size={17} />
+          Sign in with verified account
+        </a>
+        <div className="access-divider" role="separator">
+          <span>or use the temporary beta access</span>
+        </div>
+
         <form className="access-form" onSubmit={submit}>
           <label>
             <span>

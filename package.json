@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "latest",
+    "@workos-inc/node": "^8.1.0",
     "concurrently": "latest",
     "vite": "latest",
     "typescript": "latest",

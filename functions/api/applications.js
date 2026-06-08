@@ -1,5 +1,6 @@
 import { ensureUser } from "./identity.js";
 import { nextPlatformId, tableColumns } from "./ids.js";
+import { hasVerifiedAccess } from "../lib/workos.js";
 
 const CONSENT_VERSION = "ferpa-minimum-necessary-v1";
 const STATUSES = new Set([
@@ -436,6 +437,7 @@ function normalizeJobQualifications(value) {
 
 async function requireAccess(request, env) {
   const betaAccessCode = env.BETA_ACCESS_CODE || "";
+  if (await hasVerifiedAccess(request, env)) return null;
   if (betaAccessCode && request.headers.get("X-Beta-Access-Code") !== betaAccessCode) {
     return json({ error: "Invalid beta access code." }, 401);
   }

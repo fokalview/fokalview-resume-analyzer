@@ -1,6 +1,27 @@
 import { nextPlatformId, tableColumns } from "./ids.js";
+import { linkVerifiedUser, verifiedSession } from "../lib/workos.js";
 
 export async function readIdentity(request, env) {
+  if (env.WORKOS_API_KEY && env.WORKOS_CLIENT_ID && env.WORKOS_COOKIE_PASSWORD) {
+    try {
+      const session = await verifiedSession(request, env);
+      if (session.authenticated && session.user) {
+        const linked = await linkVerifiedUser(env.DB, env, session.user);
+        return {
+          userId: linked?.userId || "",
+          candidateId: linked?.candidateId || "",
+          clientHash: "",
+          identifierType: "verified_email",
+          emailDomain: "",
+          emailDomainType: "",
+          country: cleanCountry(request.headers.get("CF-IPCountry"))
+        };
+      }
+    } catch {
+      // Continue to the temporary beta identity fallback during migration.
+    }
+  }
+
   const email = normalizeEmail(request.headers.get("X-FokalView-User-Email"));
   const clientId = request.headers.get("X-FokalView-Client-ID");
   const emailDomain = email ? domainFromEmail(email) : "";
@@ -30,6 +51,7 @@ export async function readIdentity(request, env) {
 export async function ensureUser(request, env) {
   const identity = await readIdentity(request, env);
   if (!identity || !env.DB) return identity;
+  if (identity.identifierType === "verified_email") return identity;
 
   const now = new Date().toISOString();
   const columns = await tableColumns(env.DB, "users");
