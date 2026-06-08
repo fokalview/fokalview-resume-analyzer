@@ -6,6 +6,96 @@ what was learned, and what still needs attention.
 
 <!-- NEW_ENTRIES_BELOW -->
 
+## 2026-06-08 - Added Guided Beta Process Carousel
+
+### Objective
+
+Explain the complete beta experience before a new user submits the access form,
+so the WorkOS invitation and return-to-sign-in steps do not feel unexpected.
+
+### Completed
+
+- Added a seven-step onboarding carousel to the public beta entry page.
+- Explained beta-code verification, WorkOS invitation acceptance, verified
+  sign-in, resume upload, target-job analysis, opportunity tracking, and report
+  download.
+- Added manual previous, next, direct-step, and final start controls.
+- Connected the final start action directly to the beta access form.
+- Added keyboard-focus states, screen-reader labels, live step announcements,
+  dark-mode styling, and responsive mobile controls.
+- Kept the carousel manually controlled instead of auto-rotating so users can
+  read it at their own pace.
+
+### Why
+
+The authentication and product workflow is technically sound but includes
+multiple systems and actions. Explaining the journey before entry reduces
+confusion, makes the invitation step feel intentional, and sets expectations for
+the value users receive after verification.
+
+## 2026-06-08 - Completed Post-Authentication Level 7 Website Review
+
+### Objective
+
+Evaluate SagittaIQ as a senior product, UX, security, and enterprise-platform
+reviewer after implementing the beta admission gate and WorkOS authentication.
+
+### Assessment
+
+- SagittaIQ is now a serious workforce intelligence MVP rather than only a resume
+  scoring tool.
+- The strongest product advantage is the connected data loop across resume
+  readiness, opportunity tracking, candidate activity, follow-ups, outcomes, and
+  institutional reporting.
+- The product is suitable for a controlled student beta, mentor demonstrations,
+  and early institutional pilot conversations.
+- The product is not yet ready to be represented as a fully mature enterprise
+  platform or sold through a high-value institutional procurement process without
+  additional security, governance, authorization, and UX work.
+
+### Ratings
+
+- Enterprise SaaS product maturity: approximately `6.8 / 10`.
+- Solo-built MVP quality: approximately `8.0 / 10`.
+- Proof that the product concept and data model are real: approximately `8.5 / 10`.
+
+### What Is Working
+
+- The candidate workflow produces useful resume and opportunity intelligence.
+- Candidate actions feed an increasingly valuable institutional analytics layer.
+- The beta gate, disabled public registration, WorkOS verified identity, and
+  controlled sessions materially improved the authentication posture.
+- D1 persistence, relational identifiers, opportunity history, deterministic
+  readiness scoring, and the admin dashboard provide a strong MVP foundation.
+
+### Highest-Priority Gaps
+
+- Simplify and clearly explain the beta gate, invitation, verified sign-in, resume
+  analysis, and opportunity tracking journey.
+- Store recoverable email only through protected encryption while retaining hashes
+  and domains for matching and analytics.
+- Add tenant-scoped role-based authorization, admin audit logs, and institution
+  boundaries before onboarding multiple schools.
+- Add rate limiting, per-cohort admission controls, and an invitation ledger.
+- Reorganize the admin experience around decisions and workflows instead of a
+  long collection of metrics.
+- Add automated build, test, accessibility, and deployment quality gates.
+
+### Product Positioning Decision
+
+SagittaIQ should not lead with "AI resume scoring." Resume scoring is a candidate
+feature and an acquisition wedge. The stronger positioning is:
+
+> A workforce intelligence platform that helps institutions understand candidate
+> readiness, job-search behavior, and career outcomes using real resume,
+> opportunity, and follow-up data.
+
+### Next Milestone
+
+Move from a strong controlled-beta product toward an institution-ready pilot by
+finishing protected email storage, tenant and role authorization, onboarding
+clarity, admin information architecture, and a polished seeded-data demonstration.
+
 ## 2026-06-08 - Made The Beta Gate Required Before WorkOS Login
 
 ### Decision

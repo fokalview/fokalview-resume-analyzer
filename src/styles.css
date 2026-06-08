@@ -454,10 +454,181 @@ body {
   line-height: 1.6;
 }
 
+.beta-process-carousel {
+  display: grid;
+  gap: 13px;
+  margin-top: 22px;
+  padding: 15px;
+  border: 1px solid #cddae4;
+  border-left: 4px solid #0f8f87;
+  border-radius: 7px;
+  background: #f5fafc;
+}
+
+.beta-process-heading,
+.beta-process-controls,
+.beta-process-slide {
+  display: flex;
+  align-items: center;
+}
+
+.beta-process-heading {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.beta-process-heading .eyebrow {
+  margin: 0 0 3px;
+}
+
+.beta-process-heading h2 {
+  margin: 0;
+  color: #18202a;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.beta-process-heading > span {
+  min-width: 44px;
+  padding: 5px 7px;
+  border: 1px solid #b8cbd7;
+  border-radius: 5px;
+  color: #355163;
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-align: center;
+}
+
+.beta-process-slide {
+  min-height: 94px;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid #d9e3e9;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.beta-process-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border-radius: 6px;
+  background: #d9f3f1;
+  color: #0b716b;
+}
+
+.beta-process-slide strong {
+  display: block;
+  margin-bottom: 5px;
+  color: #18202a;
+  font-size: 0.94rem;
+}
+
+.beta-process-slide p {
+  margin: 0;
+  color: #50606f;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.beta-process-controls {
+  justify-content: space-between;
+  gap: 9px;
+}
+
+.beta-process-controls > button,
+.beta-process-controls > a {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px 9px;
+  border: 1px solid #b8cbd7;
+  border-radius: 5px;
+  background: #ffffff;
+  color: #274354;
+  font-size: 0.75rem;
+  font-weight: 850;
+  text-decoration: none;
+}
+
+.beta-process-controls > button:hover:not(:disabled),
+.beta-process-controls > button:focus-visible,
+.beta-process-controls > a:hover,
+.beta-process-controls > a:focus-visible {
+  border-color: #0f8f87;
+  color: #0b716b;
+}
+
+.beta-process-controls > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.beta-process-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.beta-process-dots button {
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  padding: 0;
+  border: 1px solid #8298a6;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.beta-process-dots button.active {
+  border-color: #0f8f87;
+  background: #0f8f87;
+}
+
+.welcome-shell[data-theme="dark"] .beta-process-carousel {
+  border-color: #355565;
+  border-left-color: #5eead4;
+  background: #13212b;
+}
+
+.welcome-shell[data-theme="dark"] .beta-process-heading h2,
+.welcome-shell[data-theme="dark"] .beta-process-slide strong {
+  color: #f4f7fb;
+}
+
+.welcome-shell[data-theme="dark"] .beta-process-heading > span,
+.welcome-shell[data-theme="dark"] .beta-process-controls > button,
+.welcome-shell[data-theme="dark"] .beta-process-controls > a {
+  border-color: #466171;
+  background: #172936;
+  color: #d9e8ef;
+}
+
+.welcome-shell[data-theme="dark"] .beta-process-slide {
+  border-color: #334b5a;
+  background: #101b24;
+}
+
+.welcome-shell[data-theme="dark"] .beta-process-icon {
+  background: #173d3b;
+  color: #79eee0;
+}
+
+.welcome-shell[data-theme="dark"] .beta-process-slide p {
+  color: #c3d1da;
+}
+
 .access-form {
   display: grid;
   gap: 14px;
   margin-top: 24px;
+  scroll-margin-top: 24px;
 }
 
 .access-form label,
@@ -3833,6 +4004,33 @@ meter {
 }
 
 @media (max-width: 860px) {
+  .welcome-shell {
+    align-items: start;
+    padding: 78px 16px 22px;
+  }
+
+  .welcome-panel {
+    width: 100%;
+    padding: 24px;
+  }
+
+  .beta-process-controls {
+    align-items: stretch;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .beta-process-dots {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    min-height: 28px;
+  }
+
+  .beta-process-controls > button,
+  .beta-process-controls > a {
+    width: 100%;
+  }
+
   .app-shell {
     grid-template-columns: 1fr;
   }

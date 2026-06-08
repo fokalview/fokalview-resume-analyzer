@@ -1,5 +1,19 @@
 import { FormEvent, useState } from "react";
-import { CheckCircle2, LockKeyhole, Mail, Moon, Sun } from "lucide-react";
+import {
+  BriefcaseBusiness,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardCheck,
+  Download,
+  FileSearch,
+  LockKeyhole,
+  Mail,
+  Moon,
+  Send,
+  Sun,
+  Upload
+} from "lucide-react";
 import { validateAccessCode, type BetaAccessResult } from "../services/access";
 import { ProductBrand } from "../components/BrandFamily";
 import PublicSiteMenu from "../components/PublicSiteMenu";
@@ -9,6 +23,44 @@ type Props = {
   onToggleTheme: () => void;
 };
 
+const BETA_STEPS = [
+  {
+    title: "Verify your beta access",
+    detail: "Enter the shared beta code, your email address, and the four-digit PIN you choose.",
+    Icon: LockKeyhole
+  },
+  {
+    title: "Accept your secure invitation",
+    detail: "Open the WorkOS invitation sent to your email and create your verified SagittaIQ account.",
+    Icon: Mail
+  },
+  {
+    title: "Return and sign in",
+    detail: "Come back through the beta gate, then continue to the secure sign-in screen.",
+    Icon: Send
+  },
+  {
+    title: "Upload your resume",
+    detail: "Add your current resume so SagittaIQ can build your career profile and evaluate readiness.",
+    Icon: Upload
+  },
+  {
+    title: "Analyze a target job",
+    detail: "Paste a job description to compare its qualifications against your resume.",
+    Icon: FileSearch
+  },
+  {
+    title: "Track the opportunity",
+    detail: "Save the role and update it as you apply, interview, receive an offer, or close the opportunity.",
+    Icon: BriefcaseBusiness
+  },
+  {
+    title: "Download your report",
+    detail: "Keep a complete readiness report with your score, feedback, and prioritized improvements.",
+    Icon: Download
+  }
+];
+
 export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
   const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
@@ -16,6 +68,11 @@ export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
   const [error, setError] = useState("");
   const [isChecking, setIsChecking] = useState(false);
   const [accessResult, setAccessResult] = useState<BetaAccessResult | null>(null);
+  const [activeStep, setActiveStep] = useState(0);
+
+  const step = BETA_STEPS[activeStep];
+  const isFirstStep = activeStep === 0;
+  const isLastStep = activeStep === BETA_STEPS.length - 1;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -54,6 +111,64 @@ export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
           materials against target opportunities, and track progress from application to interview to
           offer. Entering your access code means you accept the beta Terms and Privacy Notice.
         </p>
+        <section className="beta-process-carousel" aria-labelledby="beta-process-title">
+          <div className="beta-process-heading">
+            <div>
+              <p className="eyebrow">Your Beta Journey</p>
+              <h2 id="beta-process-title">Know what happens next.</h2>
+            </div>
+            <span aria-label={`Step ${activeStep + 1} of ${BETA_STEPS.length}`}>
+              {activeStep + 1}/{BETA_STEPS.length}
+            </span>
+          </div>
+          <div className="beta-process-slide" aria-live="polite">
+            <div className="beta-process-icon" aria-hidden="true">
+              <step.Icon size={25} />
+            </div>
+            <div>
+              <strong>{step.title}</strong>
+              <p>{step.detail}</p>
+            </div>
+          </div>
+          <div className="beta-process-controls">
+            <button
+              type="button"
+              aria-label="Previous beta process step"
+              onClick={() => setActiveStep((current) => Math.max(0, current - 1))}
+              disabled={isFirstStep}
+            >
+              <ChevronLeft size={17} />
+              Back
+            </button>
+            <div className="beta-process-dots" aria-label="Choose a beta process step">
+              {BETA_STEPS.map((item, index) => (
+                <button
+                  key={item.title}
+                  type="button"
+                  className={index === activeStep ? "active" : ""}
+                  aria-label={`Step ${index + 1}: ${item.title}`}
+                  aria-current={index === activeStep ? "step" : undefined}
+                  onClick={() => setActiveStep(index)}
+                />
+              ))}
+            </div>
+            {isLastStep ? (
+              <a href="#beta-access-form">
+                Start
+                <ClipboardCheck size={17} />
+              </a>
+            ) : (
+              <button
+                type="button"
+                aria-label="Next beta process step"
+                onClick={() => setActiveStep((current) => Math.min(BETA_STEPS.length - 1, current + 1))}
+              >
+                Next
+                <ChevronRight size={17} />
+              </button>
+            )}
+          </div>
+        </section>
         <div className="welcome-trust-summary">
           <span><strong>Your progress returns with you.</strong> Resume analysis and opportunity activity are saved to your beta profile.</span>
           <span><strong>Your score is guidance.</strong> It estimates alignment and never predicts a hiring decision.</span>
@@ -81,7 +196,7 @@ export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
               <a className="primary-button" href="/api/auth/login">Continue to verified sign in</a>
             </div>
           </section>
-        ) : <form className="access-form" onSubmit={submit}>
+        ) : <form className="access-form" id="beta-access-form" onSubmit={submit}>
           <label>
             <span>
               <LockKeyhole size={16} />
