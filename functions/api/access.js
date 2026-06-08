@@ -1,4 +1,5 @@
 import { nextPlatformId, tableColumns } from "./ids.js";
+import { ensureBetaInvitation } from "../lib/workos.js";
 
 export async function onRequestPost({ request, env }) {
   const body = await request.json();
@@ -41,7 +42,17 @@ export async function onRequestPost({ request, env }) {
 
   await upsertUserPin(env.DB, columns, identity, pinHash);
 
-  return Response.json({ ok: true, pinCreated: !existing?.securityPinHash });
+  let invitation = { status: "unavailable" };
+  try {
+    invitation = await ensureBetaInvitation(env, email);
+  } catch (error) {
+    invitation = {
+      status: "failed",
+      message: error instanceof Error ? error.message : "Could not send verified-account invitation."
+    };
+  }
+
+  return Response.json({ ok: true, pinCreated: !existing?.securityPinHash, invitation });
 }
 
 export async function onRequestOptions() {

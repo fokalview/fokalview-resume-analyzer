@@ -74,6 +74,38 @@ export async function hasVerifiedAccess(request, env) {
   }
 }
 
+export async function ensureBetaInvitation(env, email) {
+  if (!env.WORKOS_API_KEY || !env.WORKOS_CLIENT_ID) {
+    return { status: "unavailable" };
+  }
+
+  const workos = workosClient(env);
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  if (!normalizedEmail) return { status: "unavailable" };
+
+  const users = await workos.userManagement.listUsers({ email: normalizedEmail, limit: 1 });
+  if (users.data?.length) {
+    return { status: "account_exists" };
+  }
+
+  const invitations = await workos.userManagement.listInvitations({ email: normalizedEmail, limit: 10 });
+  const pending = invitations.data?.find((invitation) => invitation.state === "pending");
+  if (pending) {
+    return { status: "invitation_pending", expiresAt: pending.expiresAt || "" };
+  }
+
+  const invitation = await workos.userManagement.sendInvitation({
+    email: normalizedEmail,
+    expiresInDays: 7
+  });
+
+  return {
+    status: "invitation_sent",
+    invitationId: invitation.id,
+    expiresAt: invitation.expiresAt || ""
+  };
+}
+
 export async function linkVerifiedUser(db, env, user) {
   if (!db || !user?.id || !user?.email) return null;
 

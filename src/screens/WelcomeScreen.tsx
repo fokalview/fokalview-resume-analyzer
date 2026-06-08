@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
-import { LockKeyhole, Moon, Sun } from "lucide-react";
-import { storeAccessCode, validateAccessCode } from "../services/access";
+import { CheckCircle2, LockKeyhole, Mail, Moon, Sun } from "lucide-react";
+import { storeAccessCode, validateAccessCode, type BetaAccessResult } from "../services/access";
 import { ProductBrand } from "../components/BrandFamily";
 import PublicSiteMenu from "../components/PublicSiteMenu";
 
@@ -16,6 +16,7 @@ export default function WelcomeScreen({ theme, onToggleTheme, onAccessGranted }:
   const [userPin, setUserPin] = useState("");
   const [error, setError] = useState("");
   const [isChecking, setIsChecking] = useState(false);
+  const [accessResult, setAccessResult] = useState<BetaAccessResult | null>(null);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -25,9 +26,13 @@ export default function WelcomeScreen({ theme, onToggleTheme, onAccessGranted }:
     try {
       const trimmed = code.trim();
       const normalizedEmail = email.trim().toLowerCase();
-      await validateAccessCode(trimmed, normalizedEmail, userPin);
+      const result = await validateAccessCode(trimmed, normalizedEmail, userPin);
       storeAccessCode(trimmed, normalizedEmail);
-      onAccessGranted();
+      if (result.invitation.status === "account_exists") {
+        window.location.assign("/api/auth/login");
+        return;
+      }
+      setAccessResult(result);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Access code was not accepted.");
     } finally {
@@ -65,7 +70,29 @@ export default function WelcomeScreen({ theme, onToggleTheme, onAccessGranted }:
           <span>or use the temporary beta access</span>
         </div>
 
-        <form className="access-form" onSubmit={submit}>
+        {accessResult ? (
+          <section className="beta-invitation-confirmation" aria-live="polite">
+            <CheckCircle2 size={28} />
+            <h2>Beta access approved</h2>
+            {accessResult.invitation.status === "invitation_sent" && (
+              <p><Mail size={17} /> A verified-account invitation was sent to <strong>{email}</strong>.</p>
+            )}
+            {accessResult.invitation.status === "invitation_pending" && (
+              <p><Mail size={17} /> Your verified-account invitation is already waiting in <strong>{email}</strong>.</p>
+            )}
+            {accessResult.invitation.status === "failed" && (
+              <p>The beta is available now, but the verified-account invitation could not be sent yet.</p>
+            )}
+            {accessResult.invitation.status === "unavailable" && (
+              <p>The beta is available now. Verified-account invitations are temporarily unavailable.</p>
+            )}
+            <p>Use the email invitation to create your verified account, or continue into the temporary beta now.</p>
+            <div className="beta-confirmation-actions">
+              <button className="primary-button" type="button" onClick={onAccessGranted}>Continue to beta</button>
+              <a href="/api/auth/login">Sign in to verified account</a>
+            </div>
+          </section>
+        ) : <form className="access-form" onSubmit={submit}>
           <label>
             <span>
               <LockKeyhole size={16} />
@@ -151,7 +178,7 @@ export default function WelcomeScreen({ theme, onToggleTheme, onAccessGranted }:
           <button className="primary-button" disabled={!code.trim() || !email.trim() || userPin.length !== 4 || isChecking}>
             {isChecking ? "Checking..." : "Enter beta"}
           </button>
-        </form>
+        </form>}
       </section>
     </main>
   );

@@ -530,6 +530,45 @@ body {
   background: rgba(255, 255, 255, 0.08);
 }
 
+.beta-invitation-confirmation {
+  background: #ecfdf5;
+  border: 1px solid #86d5bf;
+  color: #183c35;
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1.25rem;
+  padding: 1.25rem;
+}
+
+.beta-invitation-confirmation h2,
+.beta-invitation-confirmation p {
+  margin: 0;
+}
+
+.beta-invitation-confirmation p:has(svg) {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.beta-confirmation-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.beta-confirmation-actions a {
+  color: #0f766e;
+  font-weight: 800;
+}
+
+.welcome-shell[data-theme="dark"] .beta-invitation-confirmation {
+  background: #102d29;
+  border-color: #397f73;
+  color: #e5fffa;
+}
+
 .access-form small {
   color: #647482;
   font-size: 0.78rem;

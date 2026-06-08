@@ -23,7 +23,17 @@ export function storeAccessCode(code: string, email = "") {
   }
 }
 
-export async function validateAccessCode(code: string, email = "", userPin = "") {
+export type BetaAccessResult = {
+  ok: boolean;
+  pinCreated: boolean;
+  invitation: {
+    status: "invitation_sent" | "invitation_pending" | "account_exists" | "unavailable" | "failed";
+    expiresAt?: string;
+    message?: string;
+  };
+};
+
+export async function validateAccessCode(code: string, email = "", userPin = ""): Promise<BetaAccessResult> {
   const response = await fetch("/api/access", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -36,7 +46,7 @@ export async function validateAccessCode(code: string, email = "", userPin = "")
     throw new Error(payload.error || "Access code was not accepted.");
   }
 
-  return Boolean(payload.ok);
+  return payload as BetaAccessResult;
 }
 
 export type VerifiedAuthSession = {

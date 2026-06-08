@@ -6,6 +6,40 @@ what was learned, and what still needs attention.
 
 <!-- NEW_ENTRIES_BELOW -->
 
+## 2026-06-08 - Automated Beta-Code WorkOS Invitations
+
+### Objective
+
+Remove the need to manually approve every beta user in the WorkOS dashboard while
+keeping public account registration disabled.
+
+### Implemented Flow
+
+1. A user enters the valid SagittaIQ beta access code, email address, and PIN.
+2. SagittaIQ validates the existing beta access rules and stores the temporary
+   email-linked profile.
+3. SagittaIQ checks WorkOS for an existing account or pending invitation.
+4. If no account or pending invitation exists, SagittaIQ automatically sends a
+   seven-day WorkOS invitation to the submitted email.
+5. The user can continue into the temporary beta immediately and use the emailed
+   invitation to create a verified account.
+6. Existing WorkOS users are sent directly to verified sign-in.
+
+### Security And Operating Decision
+
+- Public WorkOS sign-up remains disabled.
+- The shared beta code authorizes the invitation.
+- The emailed invitation verifies control of the submitted email address.
+- Pending invitations are reused rather than duplicated, preventing repeat beta
+  submissions from sending invitation spam to the same address.
+- The current beta flow remains available if WorkOS invitation delivery fails.
+
+### Remaining Hardening
+
+- Add rate limiting before sharing the beta code broadly.
+- Replace the shared beta code with per-pilot or per-cohort invitation codes.
+- Add invitation status and revoke controls to the SagittaIQ admin interface.
+
 ## 2026-06-08 - Deployed And Verified Initial WorkOS Authentication
 
 ### Deployment
