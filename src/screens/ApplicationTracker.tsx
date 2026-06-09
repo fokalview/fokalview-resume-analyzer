@@ -356,13 +356,22 @@ export default function ApplicationTracker() {
                       <span className={`score-pill ${scoreTone(item.latestReadinessScore)}`}>{item.latestReadinessScore}%</span>
                       <div>
                         <strong>Latest readiness</strong>
-                        <small>{item.analysisCount || 1} review{item.analysisCount === 1 ? "" : "s"}{item.lastAnalyzedAt ? ` - updated ${ageLabel(item.lastAnalyzedAt)}` : ""}</small>
+                        <small>
+                          {readinessChangeLabel(item)}
+                          {" - "}
+                          {item.analysisCount || 1} review{item.analysisCount === 1 ? "" : "s"}
+                          {item.lastAnalyzedAt ? ` - updated ${ageLabel(item.lastAnalyzedAt)}` : ""}
+                        </small>
                       </div>
                     </div>
                     {item.analysisHistory && item.analysisHistory.length > 1 && (
                       <div className="opportunity-score-history" aria-label="Readiness score history">
                         {item.analysisHistory.slice(0, 8).reverse().map((entry, index) => (
-                          <span key={`${entry.analyzedAt}-${index}`} style={{ height: `${Math.max(12, entry.score)}%` }} title={`${entry.score}% - ${formatShortDate(entry.analyzedAt)}`} />
+                          <span
+                            key={`${entry.analyzedAt}-${index}`}
+                            style={{ height: `${Math.max(12, entry.score)}%` }}
+                            title={`${entry.score}% - ${entry.scoringVersion || "legacy rubric"} - ${formatShortDate(entry.analyzedAt)}`}
+                          />
                         ))}
                       </div>
                     )}
@@ -451,6 +460,22 @@ export default function ApplicationTracker() {
       </section>
     </section>
   );
+}
+
+function readinessChangeLabel(item: ApplicationRecord) {
+  const history = item.analysisHistory || [];
+  const currentVersion = item.latestAnalysis?.scoringVersion;
+  if (typeof item.latestReadinessScore !== "number") return "Baseline established";
+  const comparableHistory = currentVersion
+    ? history.filter((entry) => entry.scoringVersion === currentVersion)
+    : history.filter((entry) => !entry.scoringVersion);
+  if (comparableHistory.length < 2) return currentVersion ? `Baseline established under ${currentVersion}` : "Baseline established";
+  const baseline = comparableHistory[comparableHistory.length - 1]?.score;
+  if (typeof baseline !== "number") return "Baseline established";
+  const change = item.latestReadinessScore - baseline;
+  if (change > 0) return `Improved ${change} point${change === 1 ? "" : "s"} from ${baseline}%`;
+  if (change < 0) return `Changed ${change} points from ${baseline}%`;
+  return `No score change from ${baseline}%`;
 }
 
 function combinedNotes(form: {

@@ -704,3 +704,39 @@ the beta.
 - Removed stale browser beta credentials when the server no longer accepts them.
 - Returning users with an expired or changed beta code are now sent back through
   the beta gate instead of being stranded inside the workspace with API errors.
+
+## 2026-06-09 - Made Readiness Scoring Responsive To Resume Improvements
+
+### Finding
+
+Four materially different resume versions produced three reports with the same
+73% score. The v1.2 rubric was stable but insufficiently responsive because
+structure and depth saturated early, the score started with a fixed 35-point
+base, and only a limited list of prioritized job tokens affected keyword coverage.
+
+### Completed
+
+- Replaced the limited-token score with a category-weighted opportunity rubric.
+- Score required skills, preferred skills, tools, responsibilities, education,
+  and certifications separately.
+- Continue using the locked opportunity qualifications so repeated runs remain
+  comparable.
+- Count repeated action evidence rather than only unique action verbs.
+- Updated scoring version to `sagittaiq-readiness-v1.3`.
+- Added explicit baseline-to-current score change text in Opportunities.
+- Prevented score-change labels from comparing results produced by different
+  rubric versions.
+
+### Validation
+
+Applied the same representative GE Vernova Product Management Intern rubric to
+the four uploaded resume versions:
+
+- Original resume: 70%
+- Initial product-management tailoring: 79%
+- Product-management v3: 80%
+- Final version: 80%
+
+The first targeted rewrite now receives a meaningful increase. The final two
+versions remain close because their qualification evidence is materially
+similar, rather than because the rubric is stuck.
