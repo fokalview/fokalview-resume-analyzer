@@ -335,9 +335,10 @@ async function saveApplicationFromHandoff(
   selectedOpportunity?: ApplicationRecord | null
 ) {
   const parsedJob = parseJobContext(jobContext);
-  const title = selectedOpportunity?.title || targetRole || parsedJob.title || jobHandoff.title;
-  const company = selectedOpportunity?.company || parsedJob.company || jobHandoff.company || "Not specified";
-  const salary = selectedOpportunity?.salary || jobHandoff.salary || parsedJob.salary;
+  const jobDetails = analysis.jobDetails;
+  const title = selectedOpportunity?.title || targetRole || jobHandoff.title || parsedJob.title || jobDetails?.title;
+  const company = selectedOpportunity?.company || jobHandoff.company || parsedJob.company || jobDetails?.company || "Not specified";
+  const salary = selectedOpportunity?.salary || jobHandoff.salary || parsedJob.salary || jobDetails?.salary;
   if (!title) return null;
   const id = selectedOpportunity?.id || stableApplicationId({ ...jobHandoff, company }, title);
   const existing = selectedOpportunity || (await getApplications().catch(() => [])).find((item) => item.id === id);
@@ -346,20 +347,29 @@ async function saveApplicationFromHandoff(
     id,
     title,
     company,
-    location: existing?.location || jobHandoff.location || parsedJob.location,
+    location: existing?.location || jobHandoff.location || parsedJob.location || jobDetails?.location,
     salary: existing?.salary || salary,
     status: existing?.status || "Interested",
     jobDescription: jobContext,
     jobQualifications: existing?.jobQualifications || analysis.jobQualifications,
     notes: existing?.notes || jobHandoff.notes,
-    url: existing?.url || jobHandoff.url || parsedJob.url,
-    source: existing?.source || jobHandoff.source || parsedJob.source,
+    url: existing?.url || jobHandoff.url || parsedJob.url || jobDetails?.sourceUrl,
+    source: existing?.source || jobHandoff.source || parsedJob.source || sourceFromUrl(jobDetails?.sourceUrl),
     latestReadinessScore: analysis.score,
     latestAnalysis: analysis,
     analysisHistory: existing?.analysisHistory,
     analysisCount: existing?.analysisCount,
     lastAnalyzedAt: new Date().toISOString()
   });
+}
+
+function sourceFromUrl(value?: string) {
+  if (!value) return "";
+  try {
+    return new URL(value).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
 }
 
 function parseJobContext(jobContext: string) {

@@ -4,7 +4,7 @@ import { hasVerifiedAccess } from "../lib/workos.js";
 const responseSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["score", "summary", "profile", "jobQualifications", "strengths", "improvements", "keywordAnalysis", "sections"],
+  required: ["score", "summary", "profile", "jobDetails", "jobQualifications", "strengths", "improvements", "keywordAnalysis", "sections"],
   properties: {
     score: { type: "integer", minimum: 0, maximum: 100 },
     summary: { type: "string" },
@@ -99,6 +99,20 @@ const responseSchema = {
         employmentType: { type: "string" },
         location: { type: "string" },
         salary: { type: "string" }
+      }
+    },
+    jobDetails: {
+      type: "object",
+      additionalProperties: false,
+      required: ["title", "company", "location", "salary", "employmentType", "workplaceType", "sourceUrl"],
+      properties: {
+        title: { type: "string" },
+        company: { type: "string" },
+        location: { type: "string" },
+        salary: { type: "string" },
+        employmentType: { type: "string" },
+        workplaceType: { type: "string" },
+        sourceUrl: { type: "string" }
       }
     },
     strengths: { type: "array", items: { type: "string" }, minItems: 3, maxItems: 6 },
@@ -216,6 +230,7 @@ async function analyzeResume({ resumeText, targetRole, jobContext }, config) {
     "Steps:",
     "1. Extract core technical skills, soft skills, and requirements from Job Context.",
     "1a. Fill jobQualifications using only explicit or strongly supported information from Job Context.",
+    "1b. Fill jobDetails from Job Context only. Put the explicit job title, company, location, salary, employment type, workplace type, and source URL into their matching fields. Use empty strings when absent.",
     "2. Cross-reference those terms against Resume.",
     "3. Put found terms in keywordAnalysis.matched and absent terms in keywordAnalysis.missing.",
     "4. Extract a structured workforce-development profile from the resume only.",
@@ -296,7 +311,7 @@ async function analyzeWithOpenAICompatibleChat(prompt, config) {
         {
           role: "system",
           content:
-            "You are an expert ATS parser and workforce-development resume evaluator. Return only valid JSON matching this shape: score number 0-100, summary string, profile object, jobQualifications object with requiredSkills, preferredSkills, tools, responsibilities, education, certifications, experienceLevel, yearsExperience, employmentType, location, salary, strengths string array, improvements array of objects with title/detail/priority, keywordAnalysis object with matched and missing string arrays, sections array of objects with name/score/note. Be concise, objective, avoid protected-characteristic inference, do not include grades, GPAs, student IDs, birth dates, or full mailing addresses, and do not hallucinate experience or job requirements."
+            "You are an expert ATS parser and workforce-development resume evaluator. Return only valid JSON matching this shape: score number 0-100, summary string, profile object, jobDetails object with title, company, location, salary, employmentType, workplaceType, sourceUrl, jobQualifications object with requiredSkills, preferredSkills, tools, responsibilities, education, certifications, experienceLevel, yearsExperience, employmentType, location, salary, strengths string array, improvements array of objects with title/detail/priority, keywordAnalysis object with matched and missing string arrays, sections array of objects with name/score/note. Be concise, objective, avoid protected-characteristic inference, do not include grades, GPAs, student IDs, birth dates, or full mailing addresses, and do not hallucinate experience or job requirements."
         },
         { role: "user", content: prompt }
       ],

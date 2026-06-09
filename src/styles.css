@@ -3382,6 +3382,38 @@ textarea:focus {
   grid-column: span 2;
 }
 
+.application-job-description {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #b9d4d1;
+  border-left: 4px solid #0f766e;
+  border-radius: 6px;
+  background: #f5fbfa;
+}
+
+.application-job-description h3,
+.application-job-description p {
+  margin: 0;
+}
+
+.application-job-description h3 {
+  color: #172331;
+  font-size: 1rem;
+}
+
+.application-job-description p {
+  margin-top: 4px;
+  color: #50606f;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.application-job-description textarea {
+  min-height: 180px;
+}
+
 .application-form textarea {
   min-height: 92px;
 }
@@ -3890,6 +3922,20 @@ meter {
   border-color: var(--border);
   background: var(--surface);
   color: var(--text);
+}
+
+.app-shell[data-theme="dark"] .application-job-description {
+  border-color: var(--border);
+  border-left-color: var(--brand);
+  background: var(--surface-muted);
+}
+
+.app-shell[data-theme="dark"] .application-job-description h3 {
+  color: var(--text);
+}
+
+.app-shell[data-theme="dark"] .application-job-description p {
+  color: var(--text-muted);
 }
 
 .app-shell[data-theme="dark"] .dropzone,

@@ -261,14 +261,18 @@ export default function ApplicationTracker({ onRerun }: Props) {
             placeholder="https://..."
           />
         </label>
-        <label className="application-notes">
-          Job description
+        <section className="application-job-description" aria-labelledby="job-description-heading">
+          <div>
+            <h3 id="job-description-heading">Job description</h3>
+            <p>Keep the original posting here so every review uses the same opportunity requirements.</p>
+          </div>
           <textarea
+            aria-label="Job description"
             value={form.jobDescription}
             onChange={(event) => setForm({ ...form, jobDescription: event.target.value })}
             placeholder="Paste the original job description. SagittaIQ uses this as the stable source for readiness scoring."
           />
-        </label>
+        </section>
         <label className="application-notes">
           Notes
           <textarea

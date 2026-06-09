@@ -210,6 +210,8 @@ function normalizeAnalysis(analysis) {
     score: clampNumber(analysis.score, 0, 100),
     scoringVersion: clean(analysis.scoringVersion, 80),
     summary: clean(analysis.summary, 1200),
+    jobDetails: normalizeJobDetails(analysis.jobDetails),
+    jobQualifications: normalizeJobQualifications(analysis.jobQualifications),
     strengths: cleanList(analysis.strengths, 8, 240),
     improvements: Array.isArray(analysis.improvements)
       ? analysis.improvements.slice(0, 8).map((item) => ({
@@ -229,6 +231,36 @@ function normalizeAnalysis(analysis) {
           note: clean(item.note, 400)
         }))
       : []
+  };
+}
+
+function normalizeJobDetails(value) {
+  if (!value || typeof value !== "object") return null;
+  return {
+    title: clean(value.title, 240),
+    company: clean(value.company, 240),
+    location: clean(value.location, 200),
+    salary: clean(value.salary, 160),
+    employmentType: clean(value.employmentType, 120),
+    workplaceType: clean(value.workplaceType, 120),
+    sourceUrl: clean(value.sourceUrl, 1000)
+  };
+}
+
+function normalizeJobQualifications(value) {
+  if (!value || typeof value !== "object") return null;
+  return {
+    requiredSkills: cleanList(value.requiredSkills, 25, 160),
+    preferredSkills: cleanList(value.preferredSkills, 25, 160),
+    tools: cleanList(value.tools, 25, 160),
+    responsibilities: cleanList(value.responsibilities, 15, 400),
+    education: cleanList(value.education, 10, 240),
+    certifications: cleanList(value.certifications, 10, 200),
+    experienceLevel: clean(value.experienceLevel, 120),
+    yearsExperience: clean(value.yearsExperience, 120),
+    employmentType: clean(value.employmentType, 120),
+    location: clean(value.location, 200),
+    salary: clean(value.salary, 160)
   };
 }
 

@@ -395,6 +395,7 @@ function normalizeAnalysis(analysis) {
     score: clampNumber(analysis.score, 0, 100),
     scoringVersion: clean(analysis.scoringVersion, 80),
     summary: clean(analysis.summary, 1200),
+    jobDetails: normalizeJobDetails(analysis.jobDetails),
     jobQualifications: normalizeJobQualifications(analysis.jobQualifications),
     strengths: cleanList(analysis.strengths, 8, 240),
     improvements: Array.isArray(analysis.improvements)
@@ -415,6 +416,19 @@ function normalizeAnalysis(analysis) {
           note: clean(item.note, 400)
         }))
       : []
+  };
+}
+
+function normalizeJobDetails(value) {
+  if (!value || typeof value !== "object") return null;
+  return {
+    title: clean(value.title, 240),
+    company: clean(value.company, 240),
+    location: clean(value.location, 200),
+    salary: clean(value.salary, 160),
+    employmentType: clean(value.employmentType, 120),
+    workplaceType: clean(value.workplaceType, 120),
+    sourceUrl: cleanUrl(value.sourceUrl)
   };
 }
 

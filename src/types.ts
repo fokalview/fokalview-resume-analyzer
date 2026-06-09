@@ -54,11 +54,22 @@ export type JobQualifications = {
   salary: string;
 };
 
+export type JobDetails = {
+  title: string;
+  company: string;
+  location: string;
+  salary: string;
+  employmentType: string;
+  workplaceType: string;
+  sourceUrl: string;
+};
+
 export type ResumeAnalysis = {
   score: number;
   scoringVersion?: string;
   summary: string;
   profile?: ResumeProfile;
+  jobDetails?: JobDetails;
   jobQualifications?: JobQualifications;
   strengths: string[];
   improvements: Array<{

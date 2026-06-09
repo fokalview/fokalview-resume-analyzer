@@ -29,10 +29,24 @@ const BETA_ACCESS_CODE = process.env.BETA_ACCESS_CODE || "";
 const responseSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["score", "summary", "strengths", "improvements", "keywordAnalysis", "sections"],
+  required: ["score", "summary", "jobDetails", "strengths", "improvements", "keywordAnalysis", "sections"],
   properties: {
     score: { type: "integer", minimum: 0, maximum: 100 },
     summary: { type: "string" },
+    jobDetails: {
+      type: "object",
+      additionalProperties: false,
+      required: ["title", "company", "location", "salary", "employmentType", "workplaceType", "sourceUrl"],
+      properties: {
+        title: { type: "string" },
+        company: { type: "string" },
+        location: { type: "string" },
+        salary: { type: "string" },
+        employmentType: { type: "string" },
+        workplaceType: { type: "string" },
+        sourceUrl: { type: "string" }
+      }
+    },
     strengths: { type: "array", items: { type: "string" }, minItems: 3, maxItems: 6 },
     improvements: {
       type: "array",
@@ -167,6 +181,7 @@ async function analyzeResume({ resumeText, targetRole, jobContext }) {
     "",
     "Steps:",
     "1. Extract core technical skills, soft skills, and requirements from Job Context.",
+    "1a. Fill jobDetails from Job Context only. Put the explicit job title, company, location, salary, employment type, workplace type, and source URL into their matching fields. Use empty strings when absent.",
     "2. Cross-reference those terms against Resume.",
     "3. Put found terms in keywordAnalysis.matched and absent terms in keywordAnalysis.missing.",
     "4. Generate concise, specific improvement feedback.",

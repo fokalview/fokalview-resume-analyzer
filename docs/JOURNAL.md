@@ -780,3 +780,24 @@ score changes remained understandable later.
 - Added editable resume/run names and automatically use uploaded filenames.
 - Added `resume_label` storage so each historical run identifies the resume
   version that produced its metrics.
+
+## 2026-06-09 - Structured And Preserved Job Descriptions
+
+### Finding
+
+Job descriptions were stored, but the opportunity editor visually grouped them
+with notes and the AI analysis did not consistently place job-posting details
+into the opportunity's structured fields.
+
+### Completed
+
+- Made Job description a distinct full-width opportunity section, separate from
+  candidate notes and outcome notes.
+- Kept saved opportunity descriptions connected to the searchable review flow
+  so selecting or rerunning a job restores the original posting on Upload.
+- Added structured AI extraction for job title, company, location, salary,
+  employment type, workplace type, and source URL.
+- Map extracted job details into the corresponding opportunity fields when a
+  job is first analyzed.
+- Preserve structured job details and qualifications in both opportunity
+  analysis history and immutable resume review records.
