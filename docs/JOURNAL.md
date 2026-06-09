@@ -674,3 +674,27 @@ reporting, while candidates need resume readiness and opportunity tracking.
 - TypeScript build failures must be fixed before Pages can publish a new deployment.
 - The initial shared-code identity model was useful for rapid validation but is not
   the correct long-term institutional authentication design.
+
+## 2026-06-09 - Added Daily Beta AI Budget
+
+### Objective
+
+Prevent uncontrolled AI-provider spending while SagittaIQ is running a small
+candidate beta.
+
+### Completed
+
+- Added a server-side global analysis limit that defaults to 10 provider calls per
+  UTC day.
+- Added an atomic D1 usage reservation so concurrent or direct API requests cannot
+  bypass the limit.
+- Added a clear HTTP 429 response and reset timestamp when daily capacity is used.
+- Added Cloudflare variable `DAILY_ANALYSIS_LIMIT` so the budget can be changed
+  without editing application logic.
+- Added migration `0017_daily_analysis_limit.sql`.
+
+### Decision
+
+Calls are counted immediately before contacting the AI provider, including calls
+that later fail at the provider. This intentionally favors cost protection during
+the beta.

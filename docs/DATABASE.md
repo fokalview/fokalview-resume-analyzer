@@ -4,7 +4,7 @@ Database: Cloudflare D1 `fokalview-resume-analyzer`
 
 The schema is currently built through SQL files in `migrations/`. The tables below
 describe the current intended production schema after migrations `0001` through
-`0015` have been applied.
+`0017` have been applied.
 
 ## Current Tables
 
@@ -106,6 +106,20 @@ Important fields:
 - campaign and metadata JSON
 
 This table is product analytics. It should not become the only security audit log.
+
+### `daily_analysis_usage`
+
+Stores the global beta AI-analysis budget by UTC date.
+
+Important fields:
+
+- `usage_date`: UTC date and primary key
+- `usage_count`: provider calls reserved for that date
+- `updated_at`: most recent reservation timestamp
+
+The `/api/analyze` endpoint atomically reserves one daily call immediately before
+contacting the AI provider. This protects the beta budget from concurrent requests
+and direct API calls.
 
 ### `platform_id_counters`
 

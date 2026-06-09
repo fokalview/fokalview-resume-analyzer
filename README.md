@@ -35,6 +35,7 @@ Create `.env` in the project root:
 ARTIFICIAL_INTELLIGENCE_PROVIDER=openai
 ARTIFICIAL_INTELLIGENCE_API_KEY=your-real-key
 ARTIFICIAL_INTELLIGENCE_MODEL=gpt-5.4-mini
+DAILY_ANALYSIS_LIMIT=10
 BETA_ACCESS_CODE=choose-a-private-beta-code
 ADMIN_ACCESS_CODE=choose-a-private-admin-code
 API_PORT=8787
@@ -62,6 +63,12 @@ Build output directory: dist
 Add `ARTIFICIAL_INTELLIGENCE_API_KEY`, `BETA_ACCESS_CODE`, and `ADMIN_ACCESS_CODE` as encrypted secrets in Cloudflare Pages. See `DEPLOY_CLOUDFLARE.md` for the full checklist.
 
 To enable cloud storage, create a Cloudflare D1 database, bind it as `DB`, and run the migrations in `migrations/`. The sync endpoints require the same beta access code. Job tracker sync stores job/application context. Resume storage saves a structured workforce profile, analysis, and raw resume text under the beta usage terms. User beta PINs are stored as salted hashes in the `users` table after migration `0009_user_security_pin.sql`.
+
+Production AI analysis is protected by a global daily budget. Run migration
+`0017_daily_analysis_limit.sql`, then optionally set the Cloudflare Pages variable
+`DAILY_ANALYSIS_LIMIT`. It defaults to `10` provider calls per UTC day. Requests
+that reach the AI provider count toward the budget, including provider failures,
+so repeated failures cannot create uncontrolled spend.
 
 ## Docker
 

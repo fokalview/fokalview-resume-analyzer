@@ -4,12 +4,18 @@ export async function onRequestGet({ env }) {
     ok: true,
     provider: config.provider,
     model: config.model,
+    dailyAnalysisLimit: readDailyAnalysisLimit(env),
     hasArtificialIntelligenceApiKey: Boolean(config.apiKey),
     betaAccessEnabled: Boolean(env.BETA_ACCESS_CODE),
     adminAccessEnabled: Boolean(env.ADMIN_ACCESS_CODE || env.OWNER_ACCESS_CODE),
     applicationStorageEnabled: Boolean(env.DB),
     resumeStorageEnabled: Boolean(env.DB)
   });
+}
+
+function readDailyAnalysisLimit(env) {
+  const configured = Number.parseInt(String(env.DAILY_ANALYSIS_LIMIT || "10"), 10);
+  return Number.isFinite(configured) && configured > 0 ? Math.min(configured, 10000) : 10;
 }
 
 function readAiConfig(env) {

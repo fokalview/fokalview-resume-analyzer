@@ -147,6 +147,7 @@ const responseSchema = {
 export async function onRequestPost({ request, env }) {
   const config = readAiConfig(env);
   const betaAccessCode = env.BETA_ACCESS_CODE || "";
+  const dailyLimit = readDailyAnalysisLimit(env);
 
   if (!(await hasVerifiedAccess(request, env)) && betaAccessCode && request.headers.get("X-Beta-Access-Code") !== betaAccessCode) {
     return json({ error: "Invalid beta access code." }, 401);
@@ -173,13 +174,32 @@ export async function onRequestPost({ request, env }) {
       return json({ error: "Please upload or paste at least 200 characters of resume text." }, 400);
     }
 
+    const quota = await reserveDailyAnalysis(env, dailyLimit);
+    if (!quota.allowed) {
+      return json(
+        {
+          error: `Today's beta analysis capacity has been reached. SagittaIQ can run ${dailyLimit} readiness reviews per day during the beta. Please try again after ${quota.resetsAt}.`,
+          code: "DAILY_ANALYSIS_LIMIT_REACHED",
+          limit: dailyLimit,
+          remaining: 0,
+          resetsAt: quota.resetsAt
+        },
+        429,
+        quotaHeaders(dailyLimit, 0, quota.resetsAt, true)
+      );
+    }
+
     const analysis = await analyzeResume({ resumeText, targetRole, jobContext }, config);
-    return json(applyDeterministicScoring(analysis, {
-      resumeText,
-      targetRole,
-      jobContext,
-      jobQualifications: lockedJobQualifications || analysis.jobQualifications
-    }));
+    return json(
+      applyDeterministicScoring(analysis, {
+        resumeText,
+        targetRole,
+        jobContext,
+        jobQualifications: lockedJobQualifications || analysis.jobQualifications
+      }),
+      200,
+      quotaHeaders(dailyLimit, quota.remaining, quota.resetsAt)
+    );
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Analysis failed" }, 500);
   }
@@ -310,6 +330,64 @@ function readAiConfig(env) {
   };
 }
 
+function readDailyAnalysisLimit(env) {
+  const configured = Number.parseInt(String(env.DAILY_ANALYSIS_LIMIT || "10"), 10);
+  return Number.isFinite(configured) && configured > 0 ? Math.min(configured, 10000) : 10;
+}
+
+async function reserveDailyAnalysis(env, dailyLimit) {
+  if (!env.DB) {
+    throw new Error("Daily analysis protection requires the Cloudflare D1 DB binding.");
+  }
+
+  const now = new Date();
+  const usageDate = now.toISOString().slice(0, 10);
+  const resetsAt = new Date(Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate() + 1
+  )).toISOString();
+
+  try {
+    const row = await env.DB.prepare(
+      `INSERT INTO daily_analysis_usage (usage_date, usage_count, updated_at)
+       VALUES (?, 1, ?)
+       ON CONFLICT(usage_date) DO UPDATE SET
+         usage_count = daily_analysis_usage.usage_count + 1,
+         updated_at = excluded.updated_at
+       WHERE daily_analysis_usage.usage_count < ?
+       RETURNING usage_count AS usageCount`
+    )
+      .bind(usageDate, now.toISOString(), dailyLimit)
+      .first();
+
+    const used = Number(row?.usageCount || dailyLimit);
+    return {
+      allowed: Boolean(row),
+      remaining: row ? Math.max(0, dailyLimit - used) : 0,
+      resetsAt
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message.includes("no such table")) {
+      throw new Error("Daily analysis protection needs D1 migration 0017_daily_analysis_limit.sql before analysis can run.");
+    }
+    throw error;
+  }
+}
+
+function quotaHeaders(limit, remaining, resetsAt, includeRetryAfter = false) {
+  const headers = {
+    "X-RateLimit-Limit": String(limit),
+    "X-RateLimit-Remaining": String(remaining),
+    "X-RateLimit-Reset": resetsAt
+  };
+  if (includeRetryAfter) {
+    headers["Retry-After"] = String(Math.max(1, Math.ceil((Date.parse(resetsAt) - Date.now()) / 1000)));
+  }
+  return headers;
+}
+
 function collectOutputText(payload) {
   return payload?.output
     ?.flatMap((item) => item.content || [])
@@ -340,6 +418,6 @@ function normalizeLockedQualifications(value) {
   };
 }
 
-function json(payload, status = 200) {
-  return Response.json(payload, { status });
+function json(payload, status = 200, headers = {}) {
+  return Response.json(payload, { status, headers });
 }
