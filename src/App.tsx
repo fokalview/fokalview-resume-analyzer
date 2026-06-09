@@ -10,7 +10,7 @@ import FollowUpScreen from "./screens/FollowUpScreen";
 import WaitlistScreen from "./screens/WaitlistScreen";
 import PublicInfoPage from "./screens/PublicInfoPage";
 import { clearStoredAccess, getStoredAccessCode, getVerifiedAuthSession, type VerifiedAuthSession } from "./services/access";
-import { getCurrentUser, recordUserEvent } from "./services/api";
+import { getCurrentUser, recordUserEvent, type ApplicationRecord } from "./services/api";
 import type { ResumeAnalysis, Screen } from "./types";
 import { ProductBrand } from "./components/BrandFamily";
 
@@ -57,6 +57,7 @@ function ResumeApp() {
   const [resumeText, setResumeText] = useState("");
   const [targetRole, setTargetRole] = useState(handoff.targetRole);
   const [jobContext, setJobContext] = useState(handoff.jobContext);
+  const [reviewOpportunity, setReviewOpportunity] = useState<ApplicationRecord | null>(null);
 
   useEffect(() => {
     localStorage.setItem("sagittaiq_theme", theme);
@@ -126,7 +127,13 @@ function ResumeApp() {
             <Gauge size={18} />
             Dashboard
           </button>
-          <button className={screen === "upload" ? "active" : ""} onClick={() => setScreen("upload")}>
+          <button
+            className={screen === "upload" ? "active" : ""}
+            onClick={() => {
+              setReviewOpportunity(null);
+              setScreen("upload");
+            }}
+          >
             <FileText size={18} />
             Upload
           </button>
@@ -200,6 +207,7 @@ function ResumeApp() {
             targetRole={targetRole}
             jobContext={jobContext}
             jobHandoff={{ ...handoff, targetRole, jobContext }}
+            opportunity={reviewOpportunity}
             onResumeTextChange={setResumeText}
             onTargetRoleChange={setTargetRole}
             onJobContextChange={setJobContext}
@@ -212,7 +220,18 @@ function ResumeApp() {
         {screen === "results" && analysis && (
           <ResultsScreen analysis={analysis} jobHandoff={{ ...handoff, targetRole, jobContext }} onOpenTracker={() => setScreen("applications")} />
         )}
-        {screen === "applications" && <ApplicationTracker />}
+        {screen === "applications" && (
+          <ApplicationTracker
+            onRerun={(opportunity) => {
+              setReviewOpportunity(opportunity);
+              setResumeText("");
+              setAnalysis(null);
+              setTargetRole(opportunity.title);
+              setJobContext(opportunity.jobDescription);
+              setScreen("upload");
+            }}
+          />
+        )}
       </section>
     </main>
   );

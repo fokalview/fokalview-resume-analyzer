@@ -63,39 +63,10 @@ export async function onRequestPost({ request, env }) {
     const columns = await tableColumns(env.DB, "resume_records");
     const canStoreReportId = columns.has("report_id");
     const canStoreOpportunityId = columns.has("opportunity_id");
-    const existing = canStoreOpportunityId && record.opportunityId
-      ? await env.DB.prepare(
-          `SELECT id, ${canStoreReportId ? "report_id" : "''"} AS reportId
-           FROM resume_records WHERE user_id = ? AND opportunity_id = ? ORDER BY updated_at DESC LIMIT 1`
-        )
-          .bind(identity.userId, record.opportunityId)
-          .first()
-          .catch(() => null)
-      : null;
-    const reportId = existing?.reportId || (canStoreReportId ? await nextPlatformId(env.DB, "report") : "");
-    const recordId = existing?.id || record.id;
+    const reportId = canStoreReportId ? await nextPlatformId(env.DB, "report") : "";
+    const recordId = record.id;
 
-    if (existing && canStoreOpportunityId) {
-      await env.DB.prepare(
-        `UPDATE resume_records SET
-          target_role = ?, job_context = ?, profile_json = ?, analysis_json = ?,
-          raw_resume_text = ?, raw_resume_retained = ?, consent_version = ?, updated_at = ?
-         WHERE id = ? AND user_id = ?`
-      )
-        .bind(
-          record.targetRole,
-          record.jobContext,
-          JSON.stringify(record.profile),
-          JSON.stringify(record.analysis),
-          record.rawResumeText,
-          record.rawResumeText ? 1 : 0,
-          CONSENT_VERSION,
-          now,
-          recordId,
-          identity.userId
-        )
-        .run();
-    } else if (canStoreReportId && canStoreOpportunityId) {
+    if (canStoreReportId && canStoreOpportunityId) {
       await env.DB.prepare(
         `INSERT INTO resume_records (
           id, report_id, opportunity_id, client_hash, user_id, target_role, job_context, profile_json, analysis_json,

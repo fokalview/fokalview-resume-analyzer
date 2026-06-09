@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { ClipboardPaste, Loader2, Upload } from "lucide-react";
 import JSZip from "jszip";
 import * as pdfjsLib from "pdfjs-dist";
-import { analyzeResume, getApplications, saveApplicationRecord, saveResumeRecord } from "../services/api";
+import { analyzeResume, getApplications, saveApplicationRecord, saveResumeRecord, type ApplicationRecord } from "../services/api";
 import type { JobHandoff, ResumeAnalysis } from "../types";
 import { InlineNotice, PageHeader } from "../components/ExperienceUI";
 
@@ -16,6 +16,7 @@ type Props = {
   targetRole: string;
   jobContext: string;
   jobHandoff: JobHandoff;
+  opportunity?: ApplicationRecord | null;
   onResumeTextChange: (value: string) => void;
   onTargetRoleChange: (value: string) => void;
   onJobContextChange: (value: string) => void;
@@ -27,6 +28,7 @@ export default function UploadScreen({
   targetRole,
   jobContext,
   jobHandoff,
+  opportunity,
   onResumeTextChange,
   onTargetRoleChange,
   onJobContextChange,
@@ -66,14 +68,14 @@ export default function UploadScreen({
     setError("");
     setSaveStatus("");
     try {
-      const existingOpportunity = await findExistingOpportunity(jobHandoff, targetRole, jobContext);
+      const existingOpportunity = opportunity || await findExistingOpportunity(jobHandoff, targetRole, jobContext);
       const analysis = await analyzeResume({
         resumeText,
         targetRole,
         jobContext,
         jobQualifications: existingOpportunity?.jobQualifications
       });
-      const application = await saveApplicationFromHandoff(jobHandoff, targetRole, jobContext, analysis);
+      const application = await saveApplicationFromHandoff(jobHandoff, targetRole, jobContext, analysis, opportunity);
       const saved = await saveResumeRecord({
         resumeText,
         targetRole,
@@ -98,9 +100,11 @@ export default function UploadScreen({
   return (
     <div className="screen upload-screen">
       <PageHeader
-        eyebrow="New readiness review"
-        title="Compare your career materials with one opportunity."
-        description="Add your resume and the job description. SagittaIQ will identify demonstrated strengths, important gaps, and the next improvements worth making."
+        eyebrow={opportunity ? "Rerun saved opportunity" : "New readiness review"}
+        title={opportunity ? `Upload a revised resume for ${opportunity.title}.` : "Compare your career materials with one opportunity."}
+        description={opportunity
+          ? "The saved job description and qualification rubric will be reused. Upload the revised resume to create a separate dated review run."
+          : "Add your resume and the job description. SagittaIQ will identify demonstrated strengths, important gaps, and the next improvements worth making."}
         meta={<span>PDF, DOCX, ODT, RTF, TXT, MD, and CSV supported</span>}
       />
 
@@ -202,15 +206,16 @@ async function saveApplicationFromHandoff(
   jobHandoff: JobHandoff,
   targetRole: string,
   jobContext: string,
-  analysis: ResumeAnalysis
+  analysis: ResumeAnalysis,
+  selectedOpportunity?: ApplicationRecord | null
 ) {
   const parsedJob = parseJobContext(jobContext);
-  const title = jobHandoff.title || targetRole || parsedJob.title;
-  const company = jobHandoff.company || parsedJob.company || "Not specified";
-  const salary = jobHandoff.salary || parsedJob.salary;
+  const title = selectedOpportunity?.title || targetRole || parsedJob.title || jobHandoff.title;
+  const company = selectedOpportunity?.company || parsedJob.company || jobHandoff.company || "Not specified";
+  const salary = selectedOpportunity?.salary || jobHandoff.salary || parsedJob.salary;
   if (!title) return null;
-  const id = stableApplicationId({ ...jobHandoff, company }, title);
-  const existing = (await getApplications().catch(() => [])).find((item) => item.id === id);
+  const id = selectedOpportunity?.id || stableApplicationId({ ...jobHandoff, company }, title);
+  const existing = selectedOpportunity || (await getApplications().catch(() => [])).find((item) => item.id === id);
 
   return saveApplicationRecord({
     id,

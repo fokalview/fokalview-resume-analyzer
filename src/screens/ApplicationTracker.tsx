@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { BriefcaseBusiness, CalendarClock, Edit3, ExternalLink, Plus, RefreshCw, X } from "lucide-react";
+import { BriefcaseBusiness, CalendarClock, Download, Edit3, ExternalLink, Plus, RefreshCw, RotateCcw, X } from "lucide-react";
 import {
   deleteApplicationRecord,
   getApplications,
+  getResumeRecords,
   saveApplicationRecord,
   updateApplicationStatus,
-  type ApplicationRecord
+  type ApplicationRecord,
+  type ResumeRecord
 } from "../services/api";
 import { downloadResumeReport } from "../services/report";
 import { PageHeader, Toast } from "../components/ExperienceUI";
@@ -24,8 +26,13 @@ const STATUSES = [
   "Withdrawn"
 ];
 
-export default function ApplicationTracker() {
+type Props = {
+  onRerun: (opportunity: ApplicationRecord) => void;
+};
+
+export default function ApplicationTracker({ onRerun }: Props) {
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
+  const [resumeRecords, setResumeRecords] = useState<ResumeRecord[]>([]);
   const [form, setForm] = useState({
     title: "",
     company: "",
@@ -57,7 +64,12 @@ export default function ApplicationTracker() {
     setIsLoading(true);
     setError("");
     try {
-      setApplications(await getApplications());
+      const [nextApplications, nextResumeRecords] = await Promise.all([
+        getApplications(),
+        getResumeRecords().catch(() => [])
+      ]);
+      setApplications(nextApplications);
+      setResumeRecords(nextResumeRecords);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Could not load applications.");
     } finally {
@@ -387,6 +399,11 @@ export default function ApplicationTracker() {
                     ) : null}
                   </div>
                 )}
+                <ReviewRuns
+                  opportunity={item}
+                  runs={resumeRecords.filter((record) => record.opportunityId === item.id)}
+                  onRerun={onRerun}
+                />
                 {item.jobDescription && (
                   <details className="opportunity-job-description">
                     <summary>Job description</summary>
@@ -459,6 +476,69 @@ export default function ApplicationTracker() {
         )}
       </section>
     </section>
+  );
+}
+
+function ReviewRuns({
+  opportunity,
+  runs,
+  onRerun
+}: {
+  opportunity: ApplicationRecord;
+  runs: ResumeRecord[];
+  onRerun: (opportunity: ApplicationRecord) => void;
+}) {
+  return (
+    <details className="opportunity-review-runs">
+      <summary>
+        <span>Review runs</span>
+        <strong>{runs.length}</strong>
+      </summary>
+      <div className="review-runs-header">
+        <p>Each run preserves its resume profile, analysis, score, rubric version, and timestamp.</p>
+        <button className="secondary-action compact-action" type="button" onClick={() => onRerun(opportunity)}>
+          <RotateCcw size={15} />
+          Rerun with revised resume
+        </button>
+      </div>
+      {runs.length ? (
+        <ol className="review-run-list">
+          {runs.map((run, index) => (
+            <li key={run.id}>
+              <span className={`score-pill ${scoreTone(run.analysis.score)}`}>{run.analysis.score}%</span>
+              <div>
+                <strong>{index === 0 ? "Latest run" : `Run ${runs.length - index}`}</strong>
+                <small>{formatShortDate(run.updatedAt)} · {run.analysis.scoringVersion || "legacy rubric"} · {run.reportId || run.id.slice(0, 8)}</small>
+              </div>
+              <button
+                className="secondary-action compact-action"
+                type="button"
+                onClick={() => downloadResumeReport({
+                  analysis: run.analysis,
+                  job: {
+                    targetRole: opportunity.title,
+                    title: opportunity.title,
+                    company: opportunity.company,
+                    location: opportunity.location,
+                    salary: opportunity.salary,
+                    url: opportunity.url,
+                    notes: opportunity.notes,
+                    source: opportunity.source,
+                    jobContext: opportunity.jobDescription
+                  },
+                  title: `${opportunity.title} readiness review`
+                })}
+              >
+                <Download size={15} />
+                Report
+              </button>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="review-runs-empty">No preserved review runs yet. The next rerun will appear here.</p>
+      )}
+    </details>
   );
 }
 

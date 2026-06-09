@@ -4747,6 +4747,83 @@ button {
   text-transform: uppercase;
 }
 
+.opportunity-review-runs {
+  margin-top: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.opportunity-review-runs > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0.7rem 0.8rem;
+  cursor: pointer;
+  color: var(--brand-strong);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.opportunity-review-runs > summary strong {
+  display: inline-grid;
+  min-width: 1.6rem;
+  min-height: 1.6rem;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--text);
+}
+
+.review-runs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding: 0.75rem 0.8rem;
+}
+
+.review-runs-header p,
+.review-runs-empty {
+  margin: 0;
+  color: var(--text-subtle);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.review-run-list {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.review-run-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid var(--border);
+  padding: 0.7rem 0.8rem;
+}
+
+.review-run-list li > div {
+  display: grid;
+  gap: 2px;
+}
+
+.review-run-list small {
+  color: var(--text-subtle);
+  font-size: 0.68rem;
+}
+
+.review-runs-empty {
+  border-top: 1px solid var(--border);
+  padding: 0.8rem;
+}
+
 .opportunity-job-description {
   margin-top: 0.75rem;
   border-top: 1px solid var(--border);
@@ -4786,6 +4863,21 @@ button {
 
 .opportunity-qualification-grid li {
   margin: 0.25rem 0;
+}
+
+@media (max-width: 720px) {
+  .review-runs-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .review-run-list li {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .review-run-list li > button {
+    grid-column: 1 / -1;
+  }
 }
 
 .qualification-signals {

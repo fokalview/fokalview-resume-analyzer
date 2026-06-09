@@ -740,3 +740,24 @@ the four uploaded resume versions:
 The first targeted rewrite now receives a meaningful increase. The final two
 versions remain close because their qualification evidence is materially
 similar, rather than because the rubric is stuck.
+
+## 2026-06-09 - Added Opportunity Reruns And Immutable Review Records
+
+### Finding
+
+The Opportunities screen displayed score history, but the underlying
+`resume_records` workflow replaced the previous resume record whenever the same
+opportunity was analyzed again. Candidates could not cleanly select a saved job,
+upload a revised resume, and inspect each preserved review.
+
+### Completed
+
+- Changed resume storage so every readiness rerun creates a separate dated
+  resume record and report ID linked to the same opportunity.
+- Added a Review Runs section to every opportunity.
+- Added one-click reruns that preserve the saved job description and locked
+  qualification rubric while clearing the previous resume.
+- Added per-run score, scoring version, timestamp, report ID, and report
+  download controls.
+- Kept the opportunity itself as one persistent job record instead of creating
+  a duplicate opportunity for every resume revision.
