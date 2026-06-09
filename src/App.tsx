@@ -208,6 +208,13 @@ function ResumeApp() {
             jobContext={jobContext}
             jobHandoff={{ ...handoff, targetRole, jobContext }}
             opportunity={reviewOpportunity}
+            onOpportunitySelect={(opportunity) => {
+              setReviewOpportunity(opportunity);
+              setResumeText("");
+              setAnalysis(null);
+              setTargetRole(opportunity?.title || "");
+              setJobContext(opportunity?.jobDescription || "");
+            }}
             onResumeTextChange={setResumeText}
             onTargetRoleChange={setTargetRole}
             onJobContextChange={setJobContext}

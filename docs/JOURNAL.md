@@ -761,3 +761,22 @@ upload a revised resume, and inspect each preserved review.
   download controls.
 - Kept the opportunity itself as one persistent job record instead of creating
   a duplicate opportunity for every resume revision.
+
+## 2026-06-09 - Added Searchable Saved-Job Reviews
+
+### Finding
+
+Users needed an enterprise-style search workflow for returning to jobs they had
+already reviewed. Review history also needed the actual resume or run name so
+score changes remained understandable later.
+
+### Completed
+
+- Added a searchable saved-opportunity combobox to the readiness-review screen.
+- Search supports job title, company, location, and current status.
+- Search results display the latest readiness score and number of prior reviews.
+- Selecting a saved job restores its job description and locked qualification
+  rubric for a clean rerun.
+- Added editable resume/run names and automatically use uploaded filenames.
+- Added `resume_label` storage so each historical run identifies the resume
+  version that produced its metrics.

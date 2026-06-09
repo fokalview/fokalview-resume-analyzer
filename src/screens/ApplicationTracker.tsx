@@ -507,7 +507,7 @@ function ReviewRuns({
             <li key={run.id}>
               <span className={`score-pill ${scoreTone(run.analysis.score)}`}>{run.analysis.score}%</span>
               <div>
-                <strong>{index === 0 ? "Latest run" : `Run ${runs.length - index}`}</strong>
+                <strong>{run.resumeLabel || (index === 0 ? "Latest run" : `Run ${runs.length - index}`)}</strong>
                 <small>{formatShortDate(run.updatedAt)} · {run.analysis.scoringVersion || "legacy rubric"} · {run.reportId || run.id.slice(0, 8)}</small>
               </div>
               <button

@@ -33,6 +33,7 @@ export async function saveResumeRecord(input: {
   analysis: ResumeAnalysis;
   retainRawResumeText: boolean;
   opportunityId?: string;
+  resumeLabel?: string;
 }) {
   const clientId = getClientId();
   const response = await fetch("/api/resume-records", {
@@ -52,7 +53,8 @@ export async function saveResumeRecord(input: {
       profile: input.analysis.profile,
       analysis: input.analysis,
       retainRawResumeText: input.retainRawResumeText,
-      opportunityId: input.opportunityId
+      opportunityId: input.opportunityId,
+      resumeLabel: input.resumeLabel
     })
   });
 
@@ -101,6 +103,7 @@ export type ResumeRecord = {
   capturedAt: string;
   updatedAt: string;
   opportunityId?: string;
+  resumeLabel?: string;
 };
 
 export async function getResumeRecords() {

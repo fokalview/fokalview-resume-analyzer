@@ -4683,6 +4683,143 @@ button {
   background: var(--surface-soft);
 }
 
+.saved-opportunity-search {
+  position: relative;
+  z-index: 4;
+  display: grid;
+  grid-template-columns: minmax(15rem, 0.7fr) minmax(20rem, 1.3fr);
+  gap: 24px;
+  margin-bottom: 1rem;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--brand);
+  border-radius: 6px;
+  background: var(--surface);
+  padding: 1rem;
+  box-shadow: var(--shadow-panel);
+}
+
+.saved-opportunity-search h3 {
+  margin: 0.25rem 0;
+  color: var(--text);
+}
+
+.saved-opportunity-search p {
+  margin: 0;
+  color: var(--text-subtle);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.opportunity-combobox {
+  position: relative;
+}
+
+.opportunity-combobox > label {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.opportunity-search-input {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  padding-left: 0.7rem;
+}
+
+.opportunity-search-input:focus-within {
+  border-color: var(--brand);
+  box-shadow: var(--focus-ring);
+}
+
+.opportunity-search-input input,
+.opportunity-search-input button {
+  min-height: 42px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+}
+
+.opportunity-search-input input {
+  min-width: 0;
+  padding: 0;
+  outline: 0;
+}
+
+.opportunity-search-input button {
+  display: inline-grid;
+  width: 42px;
+  place-items: center;
+  cursor: pointer;
+}
+
+.opportunity-search-options {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  left: 0;
+  max-height: 22rem;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  box-shadow: var(--shadow-elevated);
+}
+
+.opportunity-search-options > button {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  padding: 0.75rem;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.opportunity-search-options > button:hover,
+.opportunity-search-options > button[aria-selected="true"] {
+  background: var(--surface-soft);
+}
+
+.opportunity-search-options > button span:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.opportunity-search-options strong,
+.opportunity-search-options small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.opportunity-search-options small {
+  color: var(--text-subtle);
+  font-size: 0.68rem;
+}
+
+.opportunity-search-options > p {
+  padding: 0.8rem;
+}
+
+.opportunity-search-metric {
+  color: var(--brand-strong);
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
 .opportunity-readiness > div:first-child {
   display: flex;
   align-items: center;
@@ -4866,6 +5003,10 @@ button {
 }
 
 @media (max-width: 720px) {
+  .saved-opportunity-search {
+    grid-template-columns: 1fr;
+  }
+
   .review-runs-header {
     align-items: stretch;
     flex-direction: column;

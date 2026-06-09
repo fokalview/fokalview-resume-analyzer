@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { ClipboardPaste, Loader2, Upload } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, ClipboardPaste, Loader2, Search, Upload } from "lucide-react";
 import JSZip from "jszip";
 import * as pdfjsLib from "pdfjs-dist";
 import { analyzeResume, getApplications, saveApplicationRecord, saveResumeRecord, type ApplicationRecord } from "../services/api";
@@ -17,6 +17,7 @@ type Props = {
   jobContext: string;
   jobHandoff: JobHandoff;
   opportunity?: ApplicationRecord | null;
+  onOpportunitySelect: (opportunity: ApplicationRecord | null) => void;
   onResumeTextChange: (value: string) => void;
   onTargetRoleChange: (value: string) => void;
   onJobContextChange: (value: string) => void;
@@ -29,6 +30,7 @@ export default function UploadScreen({
   jobContext,
   jobHandoff,
   opportunity,
+  onOpportunitySelect,
   onResumeTextChange,
   onTargetRoleChange,
   onJobContextChange,
@@ -39,6 +41,30 @@ export default function UploadScreen({
   const [error, setError] = useState("");
   const [fileStatus, setFileStatus] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
+  const [resumeLabel, setResumeLabel] = useState("");
+  const [savedOpportunities, setSavedOpportunities] = useState<ApplicationRecord[]>([]);
+  const [opportunitySearch, setOpportunitySearch] = useState("");
+  const [opportunitySearchOpen, setOpportunitySearchOpen] = useState(false);
+
+  useEffect(() => {
+    void getApplications().then(setSavedOpportunities).catch(() => setSavedOpportunities([]));
+  }, []);
+
+  useEffect(() => {
+    setOpportunitySearch(opportunity ? opportunityLabel(opportunity) : "");
+    setResumeLabel("");
+    setFileStatus("");
+  }, [opportunity?.id]);
+
+  const filteredOpportunities = useMemo(() => {
+    const query = opportunity && opportunitySearch === opportunityLabel(opportunity)
+      ? ""
+      : opportunitySearch.trim().toLowerCase();
+    if (!query) return savedOpportunities;
+    return savedOpportunities.filter((item) =>
+      [item.title, item.company, item.location, item.status].some((value) => value?.toLowerCase().includes(query))
+    );
+  }, [opportunity, opportunitySearch, savedOpportunities]);
 
   async function handleFile(file: File) {
     setError("");
@@ -56,6 +82,7 @@ export default function UploadScreen({
       }
 
       onResumeTextChange(extractedText);
+      setResumeLabel(file.name);
       setFileStatus(`Loaded ${file.name}`);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "That file could not be read.");
@@ -82,7 +109,8 @@ export default function UploadScreen({
         jobContext,
         analysis,
         retainRawResumeText: true,
-        opportunityId: application?.id
+        opportunityId: application?.id,
+        resumeLabel: resumeLabel || defaultResumeLabel(targetRole)
       });
       setSaveStatus(application
         ? `Updated readiness history for ${application.title}.`
@@ -107,6 +135,81 @@ export default function UploadScreen({
           : "Add your resume and the job description. SagittaIQ will identify demonstrated strengths, important gaps, and the next improvements worth making."}
         meta={<span>PDF, DOCX, ODT, RTF, TXT, MD, and CSV supported</span>}
       />
+
+      <section className="saved-opportunity-search">
+        <div>
+          <span className="eyebrow">Saved opportunity search</span>
+          <h3>Review or rerun a previous job</h3>
+          <p>Search a job you already reviewed to reuse its description, qualification rubric, and prior metrics.</p>
+        </div>
+        <div className="opportunity-combobox">
+          <label htmlFor="saved-opportunity-search">Saved opportunity</label>
+          <div className="opportunity-search-input">
+            <Search size={17} />
+            <input
+              id="saved-opportunity-search"
+              role="combobox"
+              aria-expanded={opportunitySearchOpen}
+              aria-controls="saved-opportunity-options"
+              aria-autocomplete="list"
+              value={opportunitySearch}
+              onFocus={() => setOpportunitySearchOpen(true)}
+              onChange={(event) => {
+                setOpportunitySearch(event.target.value);
+                setOpportunitySearchOpen(true);
+              }}
+              placeholder="Search by job title, company, location, or status..."
+            />
+            <button type="button" aria-label="Show saved opportunities" onClick={() => setOpportunitySearchOpen((open) => !open)}>
+              <ChevronDown size={17} />
+            </button>
+          </div>
+          {opportunitySearchOpen && (
+            <div className="opportunity-search-options" id="saved-opportunity-options" role="listbox">
+              <button
+                type="button"
+                role="option"
+                aria-selected={!opportunity}
+                onClick={() => {
+                  onOpportunitySelect(null);
+                  setOpportunitySearch("");
+                  setOpportunitySearchOpen(false);
+                }}
+              >
+                <span><strong>Start a new opportunity</strong><small>Enter a new job description and create its baseline.</small></span>
+                {!opportunity && <Check size={16} />}
+              </button>
+              {filteredOpportunities.map((item) => (
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={opportunity?.id === item.id}
+                  key={item.id}
+                  onClick={() => {
+                    onOpportunitySelect(item);
+                    setOpportunitySearch(opportunityLabel(item));
+                    setOpportunitySearchOpen(false);
+                    setResumeLabel("");
+                    setFileStatus("");
+                  }}
+                >
+                  <span>
+                    <strong>{item.title}</strong>
+                    <small>
+                      {item.company} - {item.status} - {item.analysisCount || 0} review{item.analysisCount === 1 ? "" : "s"}
+                      {item.lastAnalyzedAt ? ` - last reviewed ${shortDate(item.lastAnalyzedAt)}` : ""}
+                    </small>
+                  </span>
+                  <span className="opportunity-search-metric">
+                    {typeof item.latestReadinessScore === "number" ? `${item.latestReadinessScore}%` : "Not scored"}
+                  </span>
+                </button>
+              ))}
+              {!filteredOpportunities.length && <p>No saved opportunities match this search.</p>}
+            </div>
+          )}
+        </div>
+      </section>
 
       <ol className="workflow-steps" aria-label="Readiness review steps">
         <li className={resumeText.trim().length >= 200 ? "complete" : "active"}><span>1</span><strong>Add career materials</strong></li>
@@ -162,6 +265,15 @@ export default function UploadScreen({
           />
         </div>
 
+        <label className="field">
+          <span>Resume or run name</span>
+          <input
+            value={resumeLabel}
+            onChange={(event) => setResumeLabel(event.target.value)}
+            placeholder="Example: GE Vernova PM Resume v3"
+          />
+        </label>
+
         <label className="field textarea-field">
           <span>
             <ClipboardPaste size={16} />
@@ -193,10 +305,23 @@ export default function UploadScreen({
   );
 }
 
+function opportunityLabel(opportunity: ApplicationRecord) {
+  return [opportunity.title, opportunity.company].filter(Boolean).join(" at ");
+}
+
+function defaultResumeLabel(targetRole: string) {
+  return `${targetRole || "Career readiness"} - ${new Date().toLocaleDateString()}`;
+}
+
+function shortDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString();
+}
+
 async function findExistingOpportunity(jobHandoff: JobHandoff, targetRole: string, jobContext: string) {
   const parsedJob = parseJobContext(jobContext);
-  const title = jobHandoff.title || targetRole || parsedJob.title;
-  const company = jobHandoff.company || parsedJob.company || "Not specified";
+  const title = targetRole || parsedJob.title || jobHandoff.title;
+  const company = parsedJob.company || jobHandoff.company || "Not specified";
   if (!title) return undefined;
   const id = stableApplicationId({ ...jobHandoff, company }, title);
   return (await getApplications().catch(() => [])).find((item) => item.id === id);
