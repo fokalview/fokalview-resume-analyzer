@@ -23,6 +23,11 @@ export function storeAccessCode(code: string, email = "") {
   }
 }
 
+export function clearStoredAccess() {
+  sessionStorage.removeItem(STORAGE_KEY);
+  sessionStorage.removeItem(EMAIL_STORAGE_KEY);
+}
+
 export type BetaAccessResult = {
   ok: boolean;
   pinCreated: boolean;

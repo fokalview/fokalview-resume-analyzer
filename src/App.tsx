@@ -9,7 +9,7 @@ import CandidateDashboard from "./screens/CandidateDashboard";
 import FollowUpScreen from "./screens/FollowUpScreen";
 import WaitlistScreen from "./screens/WaitlistScreen";
 import PublicInfoPage from "./screens/PublicInfoPage";
-import { getStoredAccessCode, getVerifiedAuthSession, type VerifiedAuthSession } from "./services/access";
+import { clearStoredAccess, getStoredAccessCode, getVerifiedAuthSession, type VerifiedAuthSession } from "./services/access";
 import { getCurrentUser, recordUserEvent } from "./services/api";
 import type { ResumeAnalysis, Screen } from "./types";
 import { ProductBrand } from "./components/BrandFamily";
@@ -96,7 +96,11 @@ function ResumeApp() {
     if (!hasBetaAccess || verifiedSession) return;
     void getCurrentUser()
       .then(setUserIdentity)
-      .catch(() => setUserIdentity(null));
+      .catch(() => {
+        clearStoredAccess();
+        setUserIdentity(null);
+        setHasBetaAccess(false);
+      });
   }, [hasBetaAccess, verifiedSession]);
 
   if (!authChecked && !hasBetaAccess) {

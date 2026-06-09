@@ -698,3 +698,9 @@ candidate beta.
 Calls are counted immediately before contacting the AI provider, including calls
 that later fail at the provider. This intentionally favors cost protection during
 the beta.
+
+### Follow-Up Fix
+
+- Removed stale browser beta credentials when the server no longer accepts them.
+- Returning users with an expired or changed beta code are now sent back through
+  the beta gate instead of being stranded inside the workspace with API errors.
