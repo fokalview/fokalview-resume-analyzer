@@ -158,6 +158,31 @@ const responseSchema = {
   }
 };
 
+const jobExtractionSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["jobDetails", "jobQualifications"],
+  properties: {
+    jobDetails: responseSchema.properties.jobDetails,
+    jobQualifications: responseSchema.properties.jobQualifications
+  }
+};
+
+const scoreAuditSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["verdict", "confidence", "expectedMin", "expectedMax", "explanation", "flags", "historicalContext"],
+  properties: {
+    verdict: { type: "string", enum: ["reasonable", "review"] },
+    confidence: { type: "integer", minimum: 0, maximum: 100 },
+    expectedMin: { type: "integer", minimum: 0, maximum: 100 },
+    expectedMax: { type: "integer", minimum: 0, maximum: 100 },
+    explanation: { type: "string" },
+    flags: { type: "array", items: { type: "string" }, minItems: 0, maxItems: 8 },
+    historicalContext: { type: "string" }
+  }
+};
+
 export async function onRequestPost({ request, env }) {
   const config = readAiConfig(env);
   const betaAccessCode = env.BETA_ACCESS_CODE || "";
@@ -167,11 +192,11 @@ export async function onRequestPost({ request, env }) {
     return json({ error: "Invalid beta access code." }, 401);
   }
 
-  if (!config.apiKey) {
+  if (!config.apiKey && !config.workersAi) {
     return json(
       {
         error:
-          "Missing ARTIFICIAL_INTELLIGENCE_API_KEY. Add it as an encrypted Pages secret and redeploy."
+          "Missing AI configuration. Add the Cloudflare Workers AI binding or ARTIFICIAL_INTELLIGENCE_API_KEY and redeploy."
       },
       500
     );
@@ -183,6 +208,7 @@ export async function onRequestPost({ request, env }) {
     const targetRole = String(body.targetRole || "").trim();
     const jobContext = String(body.jobContext || "").trim();
     const lockedJobQualifications = normalizeLockedQualifications(body.jobQualifications);
+    const scoreHistory = normalizeScoreHistory(body.scoreHistory);
 
     if (resumeText.length < 200) {
       return json({ error: "Please upload or paste at least 200 characters of resume text." }, 400);
@@ -203,14 +229,47 @@ export async function onRequestPost({ request, env }) {
       );
     }
 
-    const analysis = await analyzeResume({ resumeText, targetRole, jobContext }, config);
+    const extractedJob = config.workersAi && jobContext
+      ? await extractJobWithWorkersAi({ targetRole, jobContext }, config).catch(() => null)
+      : null;
+    const analysis = await analyzeResume({ resumeText, targetRole, jobContext, extractedJob }, config);
+    const structuredAnalysis = extractedJob
+      ? {
+          ...analysis,
+          jobDetails: extractedJob.jobDetails || analysis.jobDetails,
+          jobQualifications: lockedJobQualifications || extractedJob.jobQualifications || analysis.jobQualifications
+        }
+      : analysis;
+    const scoredAnalysis = applyDeterministicScoring(structuredAnalysis, {
+      resumeText,
+      targetRole,
+      jobContext,
+      jobQualifications: lockedJobQualifications || extractedJob?.jobQualifications || analysis.jobQualifications
+    });
+    const scoreAudit = config.workersAi
+      ? await auditScoreWithWorkersAi({
+          resumeText,
+          targetRole,
+          scoredAnalysis,
+          scoreHistory
+        }, config).catch(() => null)
+      : null;
+    const stages = [
+      extractedJob ? "job-structure-agent" : null,
+      "resume-evaluation-agent",
+      "deterministic-score",
+      scoreAudit ? "score-audit-agent" : null
+    ].filter(Boolean);
+
     return json(
-      applyDeterministicScoring(analysis, {
-        resumeText,
-        targetRole,
-        jobContext,
-        jobQualifications: lockedJobQualifications || analysis.jobQualifications
-      }),
+      {
+        ...scoredAnalysis,
+        ...(scoreAudit ? { scoreAudit } : {}),
+        orchestration: {
+          provider: config.workersAi ? "cloudflare-workers-ai" : config.provider,
+          stages
+        }
+      },
       200,
       quotaHeaders(dailyLimit, quota.remaining, quota.resetsAt)
     );
@@ -223,7 +282,7 @@ export async function onRequestOptions() {
   return new Response(null, { status: 204 });
 }
 
-async function analyzeResume({ resumeText, targetRole, jobContext }, config) {
+async function analyzeResume({ resumeText, targetRole, jobContext, extractedJob }, config) {
   const prompt = [
     "Analyze the Resume against the Job Context for ATS readiness, impact, and fit.",
     "",
@@ -248,8 +307,14 @@ async function analyzeResume({ resumeText, targetRole, jobContext }, config) {
     "--- JOB CONTEXT ---",
     jobContext ? jobContext.slice(0, 12000) : "Not provided.",
     "",
+    "--- CLOUDFLARE JOB STRUCTURE PASS ---",
+    extractedJob ? JSON.stringify(extractedJob) : "Not available. Extract directly from Job Context.",
+    "",
     "--- RESUME TEXT ---",
-    resumeText.slice(0, 50000)
+    resumeText.slice(0, 50000),
+    "",
+    "--- REQUIRED ANALYSIS JSON SCHEMA ---",
+    JSON.stringify(responseSchema)
   ].join("\n");
 
   if (config.provider === "openai") {
@@ -260,8 +325,18 @@ async function analyzeResume({ resumeText, targetRole, jobContext }, config) {
     return analyzeWithOpenAICompatibleChat(prompt, config);
   }
 
+  if (config.provider === "cloudflare-workers-ai") {
+    return runWorkersJson(config, [
+      {
+        role: "system",
+        content: "You are SagittaIQ's resume evaluation agent. Return only valid JSON matching the requested structure. Never invent candidate experience or job requirements."
+      },
+      { role: "user", content: prompt }
+    ]);
+  }
+
   throw new Error(
-    `Unsupported ARTIFICIAL_INTELLIGENCE_PROVIDER "${config.provider}". Use "openai" or "openai-compatible".`
+    `Unsupported ARTIFICIAL_INTELLIGENCE_PROVIDER "${config.provider}". Use "openai", "openai-compatible", or "cloudflare-workers-ai".`
   );
 }
 
@@ -330,9 +405,11 @@ async function analyzeWithOpenAICompatibleChat(prompt, config) {
 }
 
 function readAiConfig(env) {
+  const apiKey = env.ARTIFICIAL_INTELLIGENCE_API_KEY || env.AI_API_KEY || env.OPENAI_API_KEY;
+  const requestedProvider = env.ARTIFICIAL_INTELLIGENCE_PROVIDER || env.AI_PROVIDER;
   return {
-    provider: (env.ARTIFICIAL_INTELLIGENCE_PROVIDER || env.AI_PROVIDER || "openai").toLowerCase(),
-    apiKey: env.ARTIFICIAL_INTELLIGENCE_API_KEY || env.AI_API_KEY || env.OPENAI_API_KEY,
+    provider: (requestedProvider || (!apiKey && env.AI ? "cloudflare-workers-ai" : "openai")).toLowerCase(),
+    apiKey,
     model:
       env.ARTIFICIAL_INTELLIGENCE_MODEL ||
       env.AI_MODEL ||
@@ -341,8 +418,102 @@ function readAiConfig(env) {
     baseUrl:
       env.ARTIFICIAL_INTELLIGENCE_BASE_URL ||
       env.AI_BASE_URL ||
-      "https://api.openai.com/v1"
+      "https://api.openai.com/v1",
+    workersAi: env.AI,
+    cloudflareModel: env.CLOUDFLARE_AI_MODEL || "@cf/meta/llama-3.1-8b-instruct"
   };
+}
+
+async function extractJobWithWorkersAi({ targetRole, jobContext }, config) {
+  const prompt = [
+    "Extract the job posting into the exact JSON structure requested.",
+    "Use only explicit or strongly supported information from the posting.",
+    "Use empty strings and empty arrays when information is absent.",
+    `Target role supplied by user: ${targetRole || "Not specified"}`,
+    "--- JOB DESCRIPTION ---",
+    jobContext.slice(0, 16000),
+    "--- REQUIRED JSON SCHEMA ---",
+    JSON.stringify(jobExtractionSchema)
+  ].join("\n");
+
+  return runWorkersJson(config, [
+    {
+      role: "system",
+      content: "You are SagittaIQ's job-structure agent. Return only valid JSON. Do not infer requirements that are not present."
+    },
+    { role: "user", content: prompt }
+  ]);
+}
+
+async function auditScoreWithWorkersAi({ resumeText, targetRole, scoredAnalysis, scoreHistory }, config) {
+  const prompt = [
+    "Audit whether the deterministic SagittaIQ readiness score is reasonable.",
+    "Do not replace or recalculate the official score. Identify only material inconsistencies.",
+    "A score is reasonable when its category scores, evidence, gaps, and historical movement are directionally consistent.",
+    `Target role: ${targetRole || "Not specified"}`,
+    `Official score: ${scoredAnalysis.score}`,
+    `Scoring version: ${scoredAnalysis.scoringVersion || "unknown"}`,
+    `Category scores: ${JSON.stringify(scoredAnalysis.sections)}`,
+    `Matched terms: ${JSON.stringify(scoredAnalysis.keywordAnalysis?.matched || [])}`,
+    `Missing terms: ${JSON.stringify(scoredAnalysis.keywordAnalysis?.missing || [])}`,
+    `Recent historical runs: ${JSON.stringify(scoreHistory)}`,
+    "--- RESUME TEXT ---",
+    resumeText.slice(0, 30000),
+    "--- REQUIRED JSON SCHEMA ---",
+    JSON.stringify(scoreAuditSchema)
+  ].join("\n");
+
+  return normalizeScoreAudit(await runWorkersJson(config, [
+    {
+      role: "system",
+      content: "You are SagittaIQ's independent score-audit agent. Return only valid JSON. The deterministic score remains authoritative."
+    },
+    { role: "user", content: prompt }
+  ]), scoredAnalysis.score);
+}
+
+async function runWorkersJson(config, messages) {
+  if (!config.workersAi) throw new Error("Cloudflare Workers AI binding is not configured.");
+  const result = await config.workersAi.run(config.cloudflareModel, {
+    messages,
+    response_format: { type: "json_object" },
+    temperature: 0,
+    max_tokens: 4096
+  });
+  const value = result?.response ?? result;
+  if (value && typeof value === "object") return value;
+  if (typeof value !== "string" || !value.trim()) throw new Error("Cloudflare Workers AI returned no JSON.");
+  return JSON.parse(value.replace(/^```json\s*|\s*```$/g, "").trim());
+}
+
+function normalizeScoreAudit(value, officialScore) {
+  const min = clampScore(value?.expectedMin, officialScore - 8);
+  const max = clampScore(value?.expectedMax, officialScore + 8);
+  return {
+    verdict: value?.verdict === "review" ? "review" : "reasonable",
+    confidence: clampScore(value?.confidence, 50),
+    expectedMin: Math.min(min, max),
+    expectedMax: Math.max(min, max),
+    explanation: String(value?.explanation || "The audit found no material inconsistency.").trim().slice(0, 800),
+    flags: Array.isArray(value?.flags)
+      ? value.flags.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 8)
+      : [],
+    historicalContext: String(value?.historicalContext || "").trim().slice(0, 500)
+  };
+}
+
+function clampScore(value, fallback) {
+  const number = Number(value);
+  return Math.round(Math.min(100, Math.max(0, Number.isFinite(number) ? number : fallback)));
+}
+
+function normalizeScoreHistory(value) {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 10).map((entry) => ({
+    score: clampScore(entry?.score, 0),
+    scoringVersion: String(entry?.scoringVersion || "").trim().slice(0, 80),
+    analyzedAt: String(entry?.analyzedAt || "").trim().slice(0, 80)
+  }));
 }
 
 function readDailyAnalysisLimit(env) {

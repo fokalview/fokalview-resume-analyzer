@@ -75,6 +75,14 @@ export default function ResultsScreen({
       {tab === "overview" && (
         <div className="report-view">
           <InlineNotice title="What this score means">{analysis.summary}</InlineNotice>
+          {analysis.scoreAudit && (
+            <InlineNotice
+              tone={analysis.scoreAudit.verdict === "reasonable" ? "success" : "warning"}
+              title={`Score audit: ${analysis.scoreAudit.verdict === "reasonable" ? "reasonable" : "review recommended"}`}
+            >
+              {analysis.scoreAudit.explanation} Expected range: {analysis.scoreAudit.expectedMin}-{analysis.scoreAudit.expectedMax}.
+            </InlineNotice>
+          )}
           <section className="split-panel">
             <div>
               <h3>Evidence supporting your fit</h3>

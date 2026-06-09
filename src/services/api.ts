@@ -6,6 +6,7 @@ export async function analyzeResume(input: {
   targetRole: string;
   jobContext: string;
   jobQualifications?: ResumeAnalysis["jobQualifications"];
+  scoreHistory?: Array<{ score: number; scoringVersion?: string; analyzedAt: string }>;
 }): Promise<ResumeAnalysis> {
   const response = await fetch("/api/analyze", {
     method: "POST",

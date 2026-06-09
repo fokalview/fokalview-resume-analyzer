@@ -212,6 +212,8 @@ function normalizeAnalysis(analysis) {
     summary: clean(analysis.summary, 1200),
     jobDetails: normalizeJobDetails(analysis.jobDetails),
     jobQualifications: normalizeJobQualifications(analysis.jobQualifications),
+    scoreAudit: normalizeScoreAudit(analysis.scoreAudit),
+    orchestration: normalizeOrchestration(analysis.orchestration),
     strengths: cleanList(analysis.strengths, 8, 240),
     improvements: Array.isArray(analysis.improvements)
       ? analysis.improvements.slice(0, 8).map((item) => ({
@@ -231,6 +233,27 @@ function normalizeAnalysis(analysis) {
           note: clean(item.note, 400)
         }))
       : []
+  };
+}
+
+function normalizeScoreAudit(value) {
+  if (!value || typeof value !== "object") return null;
+  return {
+    verdict: value.verdict === "review" ? "review" : "reasonable",
+    confidence: clampNumber(value.confidence, 0, 100),
+    expectedMin: clampNumber(value.expectedMin, 0, 100),
+    expectedMax: clampNumber(value.expectedMax, 0, 100),
+    explanation: clean(value.explanation, 800),
+    flags: cleanList(value.flags, 8, 240),
+    historicalContext: clean(value.historicalContext, 500)
+  };
+}
+
+function normalizeOrchestration(value) {
+  if (!value || typeof value !== "object") return null;
+  return {
+    provider: clean(value.provider, 120),
+    stages: cleanList(value.stages, 8, 120)
   };
 }
 

@@ -19,6 +19,7 @@ memory for SagittaIQ and should be updated alongside meaningful product changes.
 - Provider-neutral AI config names
 - OpenAI Responses API support with strict JSON schema output
 - Cloudflare Pages Functions for deployable `/api/health` and `/api/analyze`
+- Cloudflare Workers AI orchestration for job structuring and independent score audits
 - Edge extension source for saving jobs and sending them into the analyzer
 - Optional Cloudflare D1 sync for saved job/application context
 - Cloudflare D1 storage for structured resume workforce profiles and retained resume text under the beta usage terms
@@ -69,6 +70,22 @@ Production AI analysis is protected by a global daily budget. Run migration
 `DAILY_ANALYSIS_LIMIT`. It defaults to `10` provider calls per UTC day. Requests
 that reach the AI provider count toward the budget, including provider failures,
 so repeated failures cannot create uncontrolled spend.
+
+Cloudflare Workers AI is bound as `AI` through `wrangler.toml`. By default it
+acts as a control layer around the configured resume evaluator:
+
+1. A job-structure agent extracts opportunity details and qualifications.
+2. The configured resume evaluator produces evidence and feedback.
+3. SagittaIQ code calculates the official deterministic readiness score.
+4. A score-audit agent checks whether the score is directionally reasonable
+   against its categories and prior runs without changing the official score.
+
+Set `CLOUDFLARE_AI_MODEL` to change the Workers AI model. To run the resume
+evaluation itself through Workers AI, set:
+
+```text
+ARTIFICIAL_INTELLIGENCE_PROVIDER=cloudflare-workers-ai
+```
 
 ## Docker
 

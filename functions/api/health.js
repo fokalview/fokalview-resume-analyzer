@@ -4,6 +4,8 @@ export async function onRequestGet({ env }) {
     ok: true,
     provider: config.provider,
     model: config.model,
+    cloudflareAiModel: config.cloudflareModel,
+    cloudflareAiEnabled: config.cloudflareAiEnabled,
     dailyAnalysisLimit: readDailyAnalysisLimit(env),
     hasArtificialIntelligenceApiKey: Boolean(config.apiKey),
     betaAccessEnabled: Boolean(env.BETA_ACCESS_CODE),
@@ -19,14 +21,18 @@ function readDailyAnalysisLimit(env) {
 }
 
 function readAiConfig(env) {
+  const apiKey = env.ARTIFICIAL_INTELLIGENCE_API_KEY || env.AI_API_KEY || env.OPENAI_API_KEY;
+  const requestedProvider = env.ARTIFICIAL_INTELLIGENCE_PROVIDER || env.AI_PROVIDER;
   return {
-    provider: (env.ARTIFICIAL_INTELLIGENCE_PROVIDER || env.AI_PROVIDER || "openai").toLowerCase(),
-    apiKey: env.ARTIFICIAL_INTELLIGENCE_API_KEY || env.AI_API_KEY || env.OPENAI_API_KEY,
+    provider: (requestedProvider || (!apiKey && env.AI ? "cloudflare-workers-ai" : "openai")).toLowerCase(),
+    apiKey,
     model:
       env.ARTIFICIAL_INTELLIGENCE_MODEL ||
       env.AI_MODEL ||
       env.OPENAI_MODEL ||
-      "gpt-5.4-mini"
+      "gpt-5.4-mini",
+    cloudflareModel: env.CLOUDFLARE_AI_MODEL || "@cf/meta/llama-3.1-8b-instruct",
+    cloudflareAiEnabled: Boolean(env.AI)
   };
 }
 

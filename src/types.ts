@@ -64,6 +64,16 @@ export type JobDetails = {
   sourceUrl: string;
 };
 
+export type ScoreAudit = {
+  verdict: "reasonable" | "review";
+  confidence: number;
+  expectedMin: number;
+  expectedMax: number;
+  explanation: string;
+  flags: string[];
+  historicalContext: string;
+};
+
 export type ResumeAnalysis = {
   score: number;
   scoringVersion?: string;
@@ -71,6 +81,11 @@ export type ResumeAnalysis = {
   profile?: ResumeProfile;
   jobDetails?: JobDetails;
   jobQualifications?: JobQualifications;
+  scoreAudit?: ScoreAudit;
+  orchestration?: {
+    provider: string;
+    stages: string[];
+  };
   strengths: string[];
   improvements: Array<{
     title: string;

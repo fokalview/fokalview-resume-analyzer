@@ -32,11 +32,18 @@ ARTIFICIAL_INTELLIGENCE_API_KEY = your real key, encrypted as a secret
 BETA_ACCESS_CODE = your private beta invite code, encrypted as a secret
 ADMIN_ACCESS_CODE = your private admin dashboard code, encrypted as a secret
 OWNER_ACCESS_CODE = optional owner override code, encrypted as a secret
+CLOUDFLARE_AI_MODEL = @cf/meta/llama-3.1-8b-instruct
 ```
 
 For the API key and access codes, choose the encrypted/secret option. Do not add them as normal plaintext variables.
 
 7. Redeploy after adding secrets.
+
+The `AI` Workers AI binding is declared in `wrangler.toml`. Cloudflare uses it
+for the job-structure and score-audit agents. Keep
+`ARTIFICIAL_INTELLIGENCE_PROVIDER=openai` to use the current OpenAI resume
+evaluator behind that Cloudflare orchestration layer, or change it to
+`cloudflare-workers-ai` to run all three AI stages through Cloudflare.
 8. Test:
 
 ```text

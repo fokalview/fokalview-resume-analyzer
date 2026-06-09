@@ -801,3 +801,24 @@ into the opportunity's structured fields.
   job is first analyzed.
 - Preserve structured job details and qualifications in both opportunity
   analysis history and immutable resume review records.
+
+## 2026-06-09 - Added Cloudflare AI Orchestration And Score Auditing
+
+### Decision
+
+Cloudflare AI should coordinate specialized analysis roles without becoming the
+authority over the official readiness score.
+
+### Completed
+
+- Added the Cloudflare Workers AI binding through `wrangler.toml`.
+- Added a job-structure agent that extracts opportunity details and
+  qualifications before resume evaluation.
+- Kept the versioned deterministic SagittaIQ rubric as the official score.
+- Added an independent score-audit agent that checks category evidence and
+  historical runs, then returns a reasonableness verdict and expected range.
+- Display the score-audit result on the readiness report.
+- Preserve score-audit and orchestration metadata in opportunity and resume
+  review records.
+- Support either a hybrid OpenAI-plus-Cloudflare flow or a fully Cloudflare
+  Workers AI evaluation flow.

@@ -15,7 +15,8 @@ flowchart LR
   User["Candidate or administrator"] --> Pages["Cloudflare Pages\nReact + Vite"]
   Pages --> Functions["Cloudflare Pages Functions\n/api/*"]
   Functions --> D1["Cloudflare D1\nSQLite-compatible storage"]
-  Functions --> AI["Configured AI provider"]
+  Functions --> CFAI["Cloudflare Workers AI\njob parser + score auditor"]
+  Functions --> AI["Configured resume evaluator"]
   Extension["Edge job handoff extension"] --> Pages
   GitHub["GitHub main branch"] --> Deploy["Cloudflare automatic deployment"]
   Deploy --> Pages
@@ -68,16 +69,19 @@ Supporting modules:
 
 ## Scoring Architecture
 
-AI is used for structured extraction and narrative guidance. The readiness score is
-calculated by deterministic application logic using a versioned rubric. Extracted
-job qualifications are stored on the opportunity and reused to reduce score drift.
+Cloudflare Workers AI orchestrates a job-structure pass and an independent
+post-score audit. The configured resume evaluator produces structured evidence
+and narrative guidance. The readiness score is calculated by deterministic
+application logic using a versioned rubric. Extracted job qualifications are
+stored on the opportunity and reused to reduce score drift.
 
-Current version: `sagittaiq-readiness-v1.2`
+Current version: `sagittaiq-readiness-v1.3`
 
 This separation is intentional:
 
 - AI handles ambiguity, extraction, and prose.
 - Code handles the auditable numeric score.
+- The score auditor can flag questionable results but cannot change the score.
 
 ## Current Identity And Access
 

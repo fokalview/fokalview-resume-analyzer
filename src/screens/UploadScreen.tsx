@@ -100,7 +100,12 @@ export default function UploadScreen({
         resumeText,
         targetRole,
         jobContext,
-        jobQualifications: existingOpportunity?.jobQualifications
+        jobQualifications: existingOpportunity?.jobQualifications,
+        scoreHistory: existingOpportunity?.analysisHistory?.map(({ score, scoringVersion, analyzedAt }) => ({
+          score,
+          scoringVersion,
+          analyzedAt
+        }))
       });
       const application = await saveApplicationFromHandoff(jobHandoff, targetRole, jobContext, analysis, opportunity);
       const saved = await saveResumeRecord({
