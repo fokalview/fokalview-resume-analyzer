@@ -185,11 +185,10 @@ const scoreAuditSchema = {
 
 export async function onRequestPost({ request, env }) {
   const config = readAiConfig(env);
-  const betaAccessCode = env.BETA_ACCESS_CODE || "";
   const dailyLimit = readDailyAnalysisLimit(env);
 
-  if (!(await hasVerifiedAccess(request, env)) && betaAccessCode && request.headers.get("X-Beta-Access-Code") !== betaAccessCode) {
-    return json({ error: "Invalid beta access code." }, 401);
+  if (!(await hasVerifiedAccess(request, env))) {
+    return json({ error: "Sign in with a verified account." }, 401);
   }
 
   if (!config.apiKey && !config.workersAi) {

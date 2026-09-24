@@ -133,7 +133,9 @@ function termListCoverage(items, resume, resumeTokens, fallback) {
 function termCoverage(item, resume, resumeTokens) {
   const normalizedItem = normalize(item);
   if (!normalizedItem) return 0;
-  if (normalizedItem.length >= 4 && resume.includes(normalizedItem)) return 1;
+  // Match complete technology tokens, including punctuation-bearing C# and C++.
+  const escaped = normalizedItem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  if (new RegExp(`(?:^|[^a-z0-9+#])${escaped}(?=$|[^a-z0-9+#])`).test(resume)) return 1;
 
   const itemTokens = [...new Set(tokens(normalizedItem).map(stem))];
   if (!itemTokens.length) return 0;

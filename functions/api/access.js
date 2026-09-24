@@ -8,7 +8,9 @@ export async function onRequestPost({ request, env }) {
   const email = normalizeEmail(body.email);
   const betaAccessCode = env.BETA_ACCESS_CODE || "";
 
-  if (betaAccessCode && code !== betaAccessCode) {
+  if (!betaAccessCode) return Response.json({ error: "Beta admission is not configured." }, { status: 503 });
+
+  if (code !== betaAccessCode) {
     return Response.json({ error: "Invalid beta access code." }, { status: 401 });
   }
 

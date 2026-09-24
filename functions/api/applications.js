@@ -24,7 +24,7 @@ export async function onRequestGet({ request, env }) {
   if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
 
   const identity = await ensureUser(request, env);
-  if (!identity) return json({ error: "Missing user identifier." }, 400);
+  if (!identity) return json({ error: "Sign in with a verified account." }, 401);
 
   const columns = await tableColumns(env.DB, "application_captures");
   const canStoreSalary = columns.has("salary");
@@ -67,7 +67,7 @@ export async function onRequestPost({ request, env }) {
   if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
 
   const identity = await ensureUser(request, env);
-  if (!identity) return json({ error: "Missing user identifier." }, 400);
+  if (!identity) return json({ error: "Sign in with a verified account." }, 401);
 
   try {
     const body = await request.json();
@@ -76,6 +76,7 @@ export async function onRequestPost({ request, env }) {
     }
 
     const application = normalizeApplication(body.application);
+    application.id = await ownedApplicationId(env.DB, identity.userId, application.id);
     const syncedAt = new Date().toISOString();
     const columns = await tableColumns(env.DB, "application_captures");
     const canStoreSalary = columns.has("salary");
@@ -104,7 +105,8 @@ export async function onRequestPost({ request, env }) {
           source = excluded.source,
           consent_version = excluded.consent_version,
           updated_at = excluded.updated_at,
-          synced_at = excluded.synced_at`
+          synced_at = excluded.synced_at
+        WHERE application_captures.user_id = excluded.user_id`
       )
         .bind(
           application.id,
@@ -143,7 +145,8 @@ export async function onRequestPost({ request, env }) {
           source = excluded.source,
           consent_version = excluded.consent_version,
           updated_at = excluded.updated_at,
-          synced_at = excluded.synced_at`
+          synced_at = excluded.synced_at
+        WHERE application_captures.user_id = excluded.user_id`
       )
         .bind(
           application.id,
@@ -181,7 +184,8 @@ export async function onRequestPost({ request, env }) {
           source = excluded.source,
           consent_version = excluded.consent_version,
           updated_at = excluded.updated_at,
-          synced_at = excluded.synced_at`
+          synced_at = excluded.synced_at
+        WHERE application_captures.user_id = excluded.user_id`
       )
         .bind(
           application.id,
@@ -218,7 +222,8 @@ export async function onRequestPost({ request, env }) {
           source = excluded.source,
           consent_version = excluded.consent_version,
           updated_at = excluded.updated_at,
-          synced_at = excluded.synced_at`
+          synced_at = excluded.synced_at
+        WHERE application_captures.user_id = excluded.user_id`
       )
         .bind(
           application.id,
@@ -256,8 +261,8 @@ export async function onRequestPost({ request, env }) {
     }
 
     const saved = canStoreApplicationId
-      ? await env.DB.prepare("SELECT application_id AS applicationId FROM application_captures WHERE id = ?")
-          .bind(application.id)
+      ? await env.DB.prepare("SELECT application_id AS applicationId FROM application_captures WHERE id = ? AND user_id = ?")
+          .bind(application.id, identity.userId)
           .first()
           .catch(() => null)
       : null;
@@ -309,7 +314,7 @@ export async function onRequestPatch({ request, env }) {
   if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
 
   const identity = await ensureUser(request, env);
-  if (!identity) return json({ error: "Missing user identifier." }, 400);
+  if (!identity) return json({ error: "Sign in with a verified account." }, 401);
 
   try {
     const body = await request.json();
@@ -337,7 +342,7 @@ export async function onRequestDelete({ request, env }) {
   if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
 
   const identity = await ensureUser(request, env);
-  if (!identity) return json({ error: "Missing user identifier." }, 400);
+  if (!identity) return json({ error: "Sign in with a verified account." }, 401);
 
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return json({ error: "Missing application id." }, 400);
@@ -473,10 +478,8 @@ function normalizeJobQualifications(value) {
 }
 
 async function requireAccess(request, env) {
-  const betaAccessCode = env.BETA_ACCESS_CODE || "";
-  if (await hasVerifiedAccess(request, env)) return null;
-  if (betaAccessCode && request.headers.get("X-Beta-Access-Code") !== betaAccessCode) {
-    return json({ error: "Invalid beta access code." }, 401);
+  if (!(await hasVerifiedAccess(request, env))) {
+    return json({ error: "Sign in with a verified account." }, 401);
   }
   return null;
 }
@@ -541,4 +544,13 @@ function json(payload, status = 200) {
     status,
     headers: { "Access-Control-Allow-Origin": "*" }
   });
+}
+
+async function ownedApplicationId(db, userId, suppliedId) {
+  // Keep existing owned IDs stable so saved resume links and old bookmarks survive.
+  const owned = await db.prepare("SELECT id FROM application_captures WHERE id = ? AND user_id = ?")
+    .bind(suppliedId, userId).first();
+  if (owned) return owned.id;
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify([userId, suppliedId])));
+  return `app_${Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("")}`;
 }

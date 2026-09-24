@@ -172,7 +172,7 @@ export async function saveApplicationRecord(input: Omit<ApplicationRecord, "id" 
     throw new Error(payload.error || "Could not save application.");
   }
 
-  return { ...application, applicationId: payload.applicationId, syncedAt: payload.syncedAt } as ApplicationRecord;
+  return { ...application, id: payload.id, applicationId: payload.applicationId, syncedAt: payload.syncedAt } as ApplicationRecord;
 }
 
 export async function updateApplicationStatus(id: string, status: string) {

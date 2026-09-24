@@ -9,7 +9,7 @@ import CandidateDashboard from "./screens/CandidateDashboard";
 import FollowUpScreen from "./screens/FollowUpScreen";
 import WaitlistScreen from "./screens/WaitlistScreen";
 import PublicInfoPage from "./screens/PublicInfoPage";
-import { clearStoredAccess, getStoredAccessCode, getVerifiedAuthSession, type VerifiedAuthSession } from "./services/access";
+import { clearStoredAccess, getVerifiedAuthSession, type VerifiedAuthSession } from "./services/access";
 import { getCurrentUser, recordUserEvent, type ApplicationRecord } from "./services/api";
 import type { ResumeAnalysis, Screen } from "./types";
 import { ProductBrand } from "./components/BrandFamily";
@@ -48,7 +48,7 @@ function publicPageForPath(pathname: string) {
 function ResumeApp() {
   const handoff = readJobHandoff();
   const [theme, setTheme] = useState<"light" | "dark">(() => getStoredTheme());
-  const [hasBetaAccess, setHasBetaAccess] = useState(Boolean(getStoredAccessCode()));
+  const [hasBetaAccess, setHasBetaAccess] = useState(false);
   const [verifiedSession, setVerifiedSession] = useState<VerifiedAuthSession | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [userIdentity, setUserIdentity] = useState<{ userId: string; candidateId?: string; identifierType: string } | null>(null);
@@ -70,6 +70,8 @@ function ResumeApp() {
         .then((session) => {
           if (!active) return;
           setVerifiedSession(session);
+          setHasBetaAccess(Boolean(session));
+          if (!session) { clearStoredAccess(); setUserIdentity(null); }
           if (session) {
             setHasBetaAccess(true);
             setUserIdentity({

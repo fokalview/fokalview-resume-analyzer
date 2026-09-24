@@ -90,7 +90,7 @@ export async function hasVerifiedAccess(request, env) {
   if (!env.WORKOS_API_KEY || !env.WORKOS_CLIENT_ID || !env.WORKOS_COOKIE_PASSWORD) return false;
   try {
     const result = await verifiedSession(request, env);
-    return Boolean(result.authenticated);
+    return Boolean(result.authenticated && result.user?.emailVerified);
   } catch {
     return false;
   }

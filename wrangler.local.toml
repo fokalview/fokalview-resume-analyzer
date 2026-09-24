@@ -1,0 +1,11 @@
+name = "sagittaiq-local"
+compatibility_date = "2026-05-01"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "dist"
+
+# No remote AI binding: local development never invokes Workers AI implicitly.
+[[d1_databases]]
+binding = "DB"
+database_name = "sagittaiq-local"
+database_id = "00000000-0000-0000-0000-000000000001"
+preview_database_id = "DB"
