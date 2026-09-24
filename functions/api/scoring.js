@@ -1,4 +1,4 @@
-const SCORING_VERSION = "sagittaiq-readiness-v1.3";
+const SCORING_VERSION = "sagittaiq-readiness-v1.4";
 const STOP_WORDS = new Set([
   "about", "after", "also", "and", "are", "because", "been", "being", "but", "can", "company",
   "from", "have", "into", "job", "more", "must", "not", "our", "role", "that", "the", "their",

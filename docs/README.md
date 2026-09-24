@@ -14,6 +14,9 @@ on chat history or one person's memory.
 - [PRODUCT_ROADMAP.md](PRODUCT_ROADMAP.md): current product state and prioritized direction
 - [DECISIONS/](DECISIONS/): architecture decision records explaining major choices
 
+- [MIGRATIONS.md](MIGRATIONS.md): schema-aware migration preparation
+- [REPAIR_VALIDATION.md](REPAIR_VALIDATION.md): security/reliability repair evidence
+
 ## Documentation Rule
 
 Update the journal whenever work changes any of the following:

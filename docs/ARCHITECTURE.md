@@ -50,7 +50,7 @@ Cloudflare Pages Functions under `functions/api` provide:
 
 | Endpoint | Purpose |
 | --- | --- |
-| `/api/access` | Validates beta access and current email/PIN identity model |
+| `/api/access` | Validates invitation admission and returns the WorkOS invitation result |
 | `/api/analyze` | Calls AI provider and returns structured analysis |
 | `/api/applications` | Reads, creates, updates, and deletes opportunities |
 | `/api/events` | Records product session and campaign events |
@@ -75,7 +75,7 @@ and narrative guidance. The readiness score is calculated by deterministic
 application logic using a versioned rubric. Extracted job qualifications are
 stored on the opportunity and reused to reduce score drift.
 
-Current version: `sagittaiq-readiness-v1.3`
+Current version: `sagittaiq-readiness-v1.4` (complete-term matching for short technologies)
 
 This separation is intentional:
 
@@ -87,8 +87,10 @@ This separation is intentional:
 
 Current state:
 
-- Candidate beta access uses a shared beta code.
-- Optional email and four-digit user PIN link activity across devices.
+- Beta code and PIN control invitation admission only.
+- Candidate APIs require a WorkOS session with a verified email. Email/device headers do not establish identity.
+- Existing verified email-linked users retain their IDs when the identity salt is unchanged.
+- New application storage IDs are scoped to the owning user; existing owned IDs remain stable.
 - Candidate and other visible platform IDs are generated from counters.
 - Admin access uses shared admin or owner access codes.
 
@@ -127,3 +129,9 @@ Dedicated customer deployments should be a premium exception, not the default.
 - Raw resume retention and administrative access require stronger governance.
 - Product analytics and security audit logging are not yet separated.
 - Admin summary queries have scale limits that can undercount larger datasets.
+
+## Development and validation
+
+Local development and Docker use Wrangler Pages and the same Functions as production,
+with an isolated local D1 database and no implicit remote AI binding. See
+[MIGRATIONS.md](MIGRATIONS.md) and [REPAIR_VALIDATION.md](REPAIR_VALIDATION.md).

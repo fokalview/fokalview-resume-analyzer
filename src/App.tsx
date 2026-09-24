@@ -10,7 +10,7 @@ import FollowUpScreen from "./screens/FollowUpScreen";
 import WaitlistScreen from "./screens/WaitlistScreen";
 import PublicInfoPage from "./screens/PublicInfoPage";
 import { clearStoredAccess, getVerifiedAuthSession, type VerifiedAuthSession } from "./services/access";
-import { getCurrentUser, recordUserEvent, type ApplicationRecord } from "./services/api";
+import { recordUserEvent, type ApplicationRecord } from "./services/api";
 import type { ResumeAnalysis, Screen } from "./types";
 import { ProductBrand } from "./components/BrandFamily";
 
@@ -73,7 +73,6 @@ function ResumeApp() {
           setHasBetaAccess(Boolean(session));
           if (!session) { clearStoredAccess(); setUserIdentity(null); }
           if (session) {
-            setHasBetaAccess(true);
             setUserIdentity({
               userId: session.userId,
               candidateId: session.candidateId,
@@ -81,7 +80,13 @@ function ResumeApp() {
             });
           }
         })
-        .catch(() => undefined)
+        .catch(() => {
+          if (!active) return;
+          clearStoredAccess();
+          setVerifiedSession(null);
+          setUserIdentity(null);
+          setHasBetaAccess(false);
+        })
         .finally(() => {
           if (active) setAuthChecked(true);
         });
@@ -94,17 +99,6 @@ function ResumeApp() {
       window.clearInterval(interval);
     };
   }, []);
-
-  useEffect(() => {
-    if (!hasBetaAccess || verifiedSession) return;
-    void getCurrentUser()
-      .then(setUserIdentity)
-      .catch(() => {
-        clearStoredAccess();
-        setUserIdentity(null);
-        setHasBetaAccess(false);
-      });
-  }, [hasBetaAccess, verifiedSession]);
 
   if (!authChecked && !hasBetaAccess) {
     return <main className="welcome-shell" data-theme={theme} aria-busy="true" />;

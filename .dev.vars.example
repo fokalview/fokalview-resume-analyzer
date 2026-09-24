@@ -1,0 +1,10 @@
+# Copy to .dev.vars; use test credentials only. This file is not a working login.
+WORKOS_API_KEY=sk_test_replace_me
+WORKOS_CLIENT_ID=client_replace_me
+WORKOS_COOKIE_PASSWORD=replace_with_at_least_32_random_characters
+BETA_ACCESS_CODE=choose_a_private_invitation_code
+APPLICATION_SYNC_SALT=keep_this_stable_to_preserve_existing_user_ids
+ARTIFICIAL_INTELLIGENCE_PROVIDER=openai
+ARTIFICIAL_INTELLIGENCE_API_KEY=replace_only_if_testing_paid_analysis
+ARTIFICIAL_INTELLIGENCE_MODEL=gpt-5.4-mini
+DAILY_ANALYSIS_LIMIT=10

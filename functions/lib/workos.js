@@ -22,7 +22,7 @@ export function requireWorkOSConfig(env) {
 export function callbackUrl(request) {
   const url = new URL(request.url);
   if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
-    return "http://localhost:5173/api/auth/callback";
+    return `${url.origin}/api/auth/callback`;
   }
   return "https://sagittaiq.com/api/auth/callback";
 }

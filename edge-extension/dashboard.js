@@ -12,11 +12,7 @@ const elements = {
   goal: document.getElementById("goal"),
   progressBar: document.getElementById("progressBar"),
   table: document.getElementById("table"),
-  statusFilter: document.getElementById("statusFilter"),
-  cloudSyncConsent: document.getElementById("cloudSyncConsent"),
-  cloudAccessCode: document.getElementById("cloudAccessCode"),
-  syncCloud: document.getElementById("syncCloud"),
-  syncMessage: document.getElementById("syncMessage")
+  statusFilter: document.getElementById("statusFilter")
 };
 
 document.getElementById("export").addEventListener("click", exportData);
@@ -35,9 +31,6 @@ elements.statusFilter.addEventListener("change", () => {
   state.filter = elements.statusFilter.value;
   render();
 });
-elements.cloudSyncConsent.addEventListener("change", saveSyncSettings);
-elements.cloudAccessCode.addEventListener("change", saveSyncSettings);
-elements.syncCloud.addEventListener("click", syncAllLocalApplications);
 
 load();
 
@@ -46,8 +39,6 @@ async function load() {
   state.applications = data.applications || [];
   state.settings = { ...state.settings, ...(data.settings || {}) };
   elements.goal.value = state.settings.weeklyGoal;
-  elements.cloudSyncConsent.checked = state.settings.cloudSyncConsent === true;
-  elements.cloudAccessCode.value = state.settings.cloudAccessCode || "";
   render();
 }
 
@@ -144,94 +135,6 @@ async function updateStatus(event) {
   );
   await chrome.storage.local.set({ applications: state.applications });
   render();
-}
-
-async function saveSyncSettings() {
-  state.settings = {
-    ...state.settings,
-    cloudSyncConsent: elements.cloudSyncConsent.checked,
-    cloudAccessCode: elements.cloudAccessCode.value.trim()
-  };
-  await chrome.storage.local.set({ settings: state.settings });
-}
-
-async function syncAllLocalApplications() {
-  await saveSyncSettings();
-
-  if (!state.settings.cloudSyncConsent) {
-    showSyncMessage("Turn on cloud storage consent before syncing.", "error");
-    return;
-  }
-
-  if (!state.settings.cloudAccessCode) {
-    showSyncMessage("Add an access code before syncing.", "error");
-    return;
-  }
-
-  let synced = 0;
-  let failed = 0;
-  const updated = [];
-
-  for (const application of state.applications) {
-    try {
-      const result = await syncApplication(application, state.settings);
-      updated.push({ ...application, syncStatus: "synced", syncedAt: result.syncedAt, syncError: "" });
-      synced += 1;
-    } catch (error) {
-      updated.push({
-        ...application,
-        syncStatus: "error",
-        syncError: error.message || "Sync failed"
-      });
-      failed += 1;
-    }
-  }
-
-  state.applications = updated;
-  await chrome.storage.local.set({ applications: state.applications });
-  render();
-  showSyncMessage(
-    failed ? `Synced ${synced}. ${failed} need another try.` : `Synced ${synced} local jobs.`,
-    failed ? "error" : "success"
-  );
-}
-
-async function syncApplication(application, settings) {
-  const clientId = await getClientId();
-  const response = await fetch(`${FOKALVIEW_API_URL}/api/applications`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Beta-Access-Code": settings.cloudAccessCode,
-      "X-FokalView-Client-ID": clientId
-    },
-    body: JSON.stringify({
-      consent: true,
-      consentVersion: APPLICATION_SYNC_CONSENT_VERSION,
-      application
-    })
-  });
-
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload.error || "Could not sync application.");
-  }
-  return payload;
-}
-
-async function getClientId() {
-  const data = await chrome.storage.local.get("clientId");
-  if (data.clientId) return data.clientId;
-
-  const clientId = crypto.randomUUID();
-  await chrome.storage.local.set({ clientId });
-  return clientId;
-}
-
-function showSyncMessage(text, type) {
-  elements.syncMessage.textContent = text;
-  elements.syncMessage.className = `message ${type}`;
-  elements.syncMessage.hidden = false;
 }
 
 function exportData() {

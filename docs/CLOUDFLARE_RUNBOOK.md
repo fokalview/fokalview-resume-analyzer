@@ -43,9 +43,9 @@ Before deploying verified-account login:
 4. Keep public sign-up disabled while SagittaIQ operates as an invite-only beta.
 5. Deploy, then test login, callback, session refresh, identity linkage, and logout.
 
-The temporary beta code and PIN flow remains available during migration. Do not
-remove it until verified-account access has been tested against existing candidate
-records.
+The beta code and PIN flow controls invitation admission only. Candidate APIs
+require verified WorkOS sessions. Preserve the existing identity salt and verify
+that an existing candidate retains their ID and records after sign-in.
 
 ## Standard Deployment
 
@@ -60,35 +60,11 @@ records.
 
 ## D1 Migration Procedure
 
-Preferred long-term method:
-
-```bash
-wrangler d1 migrations apply fokalview-resume-analyzer --remote
-```
-
-Current dashboard-console method:
-
-1. Open Cloudflare D1 -> `fokalview-resume-analyzer` -> Console.
-2. Open the required migration file locally.
-3. Copy the SQL contents, not the migration filename.
-4. Paste the SQL into the D1 Console and execute it once.
-5. Verify the affected table with:
-
-```sql
-PRAGMA table_info(table_name);
-```
-
-6. Verify new tables with:
-
-```text
-/tables
-```
-
-7. Record the result in the project journal.
-
-Important: the current migration history contains duplicate column additions. If
-D1 reports `duplicate column name`, stop and verify the schema instead of repeatedly
-running the same full migration.
+Follow [MIGRATIONS.md](MIGRATIONS.md) for schema inspection, backup, offline
+preparation, and staged application. Do not apply the original directory blindly:
+0003/0004 contain duplicate column additions. Historical names remain unchanged so
+Wrangler can preserve its migration ledger. Databases changed manually require
+ledger reconciliation before applying any pending migration.
 
 ## Production Verification Checklist
 

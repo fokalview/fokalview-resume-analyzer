@@ -6,6 +6,25 @@ what was learned, and what still needs attention.
 
 <!-- NEW_ENTRIES_BELOW -->
 
+## 2026-09-24 - Repair candidate isolation and reproducible development
+
+Candidate APIs now require verified WorkOS sessions; shared invitation codes and
+claimed email/device headers cannot access candidate records. New opportunity IDs
+are owner-scoped while existing owned IDs and verified email-linked user records
+remain compatible. Keep the existing identity salt unchanged.
+
+Fixed optional upload fields that broke TypeScript, short technology matching
+(Go, R, C#, AI), and duplicate-column migration startup. Historical SQL remains
+unchanged; preparation adapts only the known duplicate additions to the inspected
+schema. Local APIs now run the production Pages Functions. Added a pinned lockfile,
+CI, security/SQLite/scoring regression tests, and browser checks.
+
+Extension direct cloud sync is disabled pending verified extension auth; local
+jobs/export and website handoff remain available. Verification and residual limits
+are recorded in [REPAIR_VALIDATION.md](REPAIR_VALIDATION.md). No production database,
+deployment, real invitation, or paid AI service was used for this repair.
+
+
 ## 2026-06-08 - Added Guided Beta Process Carousel
 
 ### Objective

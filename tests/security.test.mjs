@@ -4,17 +4,18 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, readdirSync } from 'node:fs';
 
 // Only the external WorkOS service is replaced. Production auth and SQL run unchanged.
-mock.module('@workos-inc/node', { namedExports: { WorkOS: class {
+mock.module('@workos-inc/node', { exports: { WorkOS: class {
   userManagement = { loadSealedSession: ({sessionData}) => ({authenticate: async () => {
     if (sessionData === 'service-error') throw new Error('Unavailable');
-    if (!['alice','bob'].includes(sessionData)) return {authenticated:false};
-    return {authenticated:true,user:{id:sessionData,email:`${sessionData}@example.test`,emailVerified:true}};
+    if (!['alice','bob','unverified'].includes(sessionData)) return {authenticated:false};
+    return {authenticated:true,user:{id:sessionData,email:`${sessionData}@example.test`,emailVerified:sessionData!=='unverified'}};
   }}) };
 }}});
 const apps = await import('../functions/api/applications.js');
 const resumes = await import('../functions/api/resume-records.js');
 const me = await import('../functions/api/me.js');
 const analyze = await import('../functions/api/analyze.js');
+const session = await import('../functions/api/auth/session.js');
 const { readIdentity } = await import('../functions/api/identity.js');
 
 function setup() {
@@ -40,7 +41,7 @@ for(const [name,handler,method] of [['apps GET',apps.onRequestGet,'GET'],['apps 
  test(`${name} denies beta-only, missing-config, invalid and unavailable sessions`,async()=>{
   const {env,sql}=setup();
   try {
-   for(const cookie of ['', 'invalid', 'service-error']) {
+   for(const cookie of ['', 'invalid', 'service-error', 'unverified']) {
     const r=await handler({request:request(method,cookie,method==='POST'?job():undefined,{'X-Beta-Access-Code':'beta','X-FokalView-User-Email':'alice@example.test'}),env});
     assert.ok([401,503].includes(r.status),`${cookie}: ${r.status}`);
    }
@@ -76,5 +77,102 @@ test('legacy owned ids remain updatable and cross-user patch/delete do not modif
   const del=new Request('https://example.test/api/applications?id=legacy-job',{method:'DELETE',headers:{Cookie:'wos-session=bob'}});
   await apps.onRequestDelete({request:del,env});
   assert.equal(sql.prepare('SELECT status FROM application_captures WHERE id=?').get('legacy-job').status,'Interested');
+ }finally{sql.close()}
+});
+
+const analysisFixture = {
+ score: 70, summary: 'Synthetic test review',
+ profile: {currentTitle:'Engineer', skills:{technical:['Go','C#'],tools:['SQL'],soft:[]},
+   workHistory:[{title:'Engineer',company:'Example',highlights:['Built services']}],
+   education:[{institution:'Example',credential:'BS',field:'Computing'}]},
+ jobDetails:{title:'Engineer',company:'Example',sourceUrl:'https://example.test/job'},
+ jobQualifications:{requiredSkills:['Go','C#']},
+ scoreAudit:{verdict:'reasonable',confidence:80,expectedMin:60,expectedMax:90,flags:[]},
+ orchestration:{provider:'synthetic',stages:['test']},
+ strengths:['Built services'],improvements:[{title:'Evidence',detail:'Add impact',priority:'High'}],
+ keywordAnalysis:{matched:['Go'],missing:['C#']},sections:[{name:'Skills',score:70,note:'Evidence'}]
+};
+
+test('verified resume CRUD preserves consent and separates owners',async()=>{
+ const {env,sql}=setup();
+ try {
+  const body={consent:true,consentVersion:'workforce-resume-profile-v1',analysis:analysisFixture,
+   resumeText:'Private synthetic resume',retainRawResumeText:false,targetRole:'Engineer'};
+  const denied=await resumes.onRequestPost({request:request('POST','alice',{...body,consent:false}),env});
+  assert.equal(denied.status,400);
+  const saved=await resumes.onRequestPost({request:request('POST','alice',body),env});
+  assert.equal(saved.status,200,await saved.clone().text());const {id}=await saved.json();
+  const list=async user=>(await (await resumes.onRequestGet({request:request('GET',user),env})).json()).records;
+  const records=await list('alice');assert.equal(records.length,1);assert.equal(records[0].rawResumeRetained,false);
+  assert.equal(records[0].profile.currentTitle,'Engineer');assert.equal((await list('bob')).length,0);
+  assert.equal(sql.prepare('SELECT raw_resume_text FROM resume_records WHERE id=?').get(id).raw_resume_text,'');
+  const remove=user=>resumes.onRequestDelete({request:new Request(`https://example.test/api/resume-records?id=${id}`,{method:'DELETE',headers:{Cookie:`wos-session=${user}`}}),env});
+  await remove('bob');assert.equal((await list('alice')).length,1);
+  await remove('alice');assert.equal((await list('alice')).length,0);
+  const own=await me.onRequestGet({request:request('GET','alice'),env});
+  assert.equal((await own.json()).verified,true);
+ }finally{sql.close()}
+});
+
+test('opportunity analysis survives save, update and read with canonical id',async()=>{
+ const {env,sql}=setup();
+ try {
+  const body=job();Object.assign(body.application,{latestAnalysis:analysisFixture,
+   jobQualifications:analysisFixture.jobQualifications,url:'https://example.test/job#section'});
+  const saved=await apps.onRequestPost({request:request('POST','alice',body),env});
+  assert.equal(saved.status,200);const {id}=await saved.json();
+  assert.equal((await apps.onRequestPatch({request:request('PATCH','alice',{id,status:'Applied'}),env})).status,200);
+  const {applications}=await (await apps.onRequestGet({request:request('GET','alice'),env})).json();
+  assert.equal(applications[0].latestAnalysis.score,70);assert.equal(applications[0].status,'Applied');
+  assert.equal(applications[0].url,'https://example.test/job');
+  assert.equal(applications[0].analysisCount,1);
+ }finally{sql.close()}
+});
+
+test('verified analysis uses provider response and enforces daily quota',async()=>{
+ const {env,sql}=setup();let calls=0;
+ const provider=mock.method(globalThis,'fetch',async()=>{calls++;return Response.json({output_text:JSON.stringify(analysisFixture)})});
+ Object.assign(env,{ARTIFICIAL_INTELLIGENCE_API_KEY:'synthetic',DAILY_ANALYSIS_LIMIT:'1'});
+ try {
+  const body={resumeText:'Built Go services and C# applications. '.repeat(12),targetRole:'Engineer',jobQualifications:{requiredSkills:['Go','C#']}};
+  const short=await analyze.onRequestPost({request:request('POST','alice',{resumeText:'short'}),env});
+  assert.equal(short.status,400);assert.equal(calls,0);
+  const success=await analyze.onRequestPost({request:request('POST','alice',body),env});
+  assert.equal(success.status,200,await success.clone().text());
+  const output=await success.json();assert.equal(output.sections[0].score,100);
+  assert.equal(output.orchestration.provider,'openai');assert.equal(success.headers.get('X-RateLimit-Remaining'),'0');
+  const limited=await analyze.onRequestPost({request:request('POST','alice',body),env});
+  assert.equal(limited.status,429);assert.ok(Number(limited.headers.get('Retry-After'))>0);assert.equal(calls,1);
+ }finally{provider.mock.restore();sql.close()}
+});
+
+test('Workers AI orchestration and optional audit failure keep deterministic scoring',async()=>{
+ const {env,sql}=setup();const body={resumeText:'Built Go services. '.repeat(20),jobContext:'Go engineer',scoreHistory:[{score:70}]};
+ let calls=0;
+ env.AI={async run(){calls++;return {response:JSON.stringify(calls%3===1?{jobDetails:analysisFixture.jobDetails,jobQualifications:{requiredSkills:['Go']}}:calls%3===2?analysisFixture:{verdict:'reasonable',confidence:80,expectedMin:70,expectedMax:90})}}};
+ try {
+  const r=await analyze.onRequestPost({request:request('POST','alice',body),env});
+  assert.equal(r.status,200,await r.clone().text());const result=await r.json();
+  assert.equal(result.sections[0].score,100);assert.equal(result.scoreAudit.confidence,80);
+  assert.deepEqual(result.orchestration.stages,['job-structure-agent','resume-evaluation-agent','deterministic-score','score-audit-agent']);
+  let step=0;env.AI.run=async()=>{if(++step===2)return {response:analysisFixture};throw new Error('Optional stage unavailable')};
+  const degraded=await analyze.onRequestPost({request:request('POST','alice',body),env});
+  assert.equal(degraded.status,200);assert.deepEqual((await degraded.json()).scoreAudit,analysisFixture.scoreAudit);
+ }finally{sql.close()}
+});
+
+test('session links existing email-owned records without changing candidate identity',async()=>{
+ const {env,sql}=setup();
+ try {
+  const saved=await apps.onRequestPost({request:request('POST','alice',job()),env});
+  assert.equal(saved.status,200);
+  const before=sql.prepare('SELECT id,candidate_id FROM users').get();
+  sql.exec("UPDATE users SET workos_user_id=NULL, auth_provider=NULL, verified_at=NULL");
+  const result=await session.onRequestGet({request:request('GET','alice'),env});
+  assert.equal(result.status,200);const identity=await result.json();
+  assert.equal(identity.userId,before.id);assert.equal(identity.candidateId,before.candidate_id);
+  assert.equal((await (await apps.onRequestGet({request:request('GET','alice'),env})).json()).applications.length,1);
+  assert.equal((await session.onRequestGet({request:request('GET','unverified'),env})).status,401);
+  assert.equal((await session.onRequestGet({request:request('GET','alice'),env:{...env,DB:undefined}})).status,503);
  }finally{sql.close()}
 });

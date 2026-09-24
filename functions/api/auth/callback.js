@@ -32,7 +32,9 @@ export async function onRequestGet({ request, env }) {
       }
     });
 
-    await linkVerifiedUser(env.DB, env, result.user);
+    if (!result.user?.emailVerified) return Response.json({ error: "Verify your email before signing in." }, { status: 403 });
+    const linked = await linkVerifiedUser(env.DB, env, result.user);
+    if (!linked?.userId) return Response.json({ error: "Identity storage unavailable." }, { status: 503 });
 
     const headers = new Headers({
       Location: new URL("/", callbackUrl(request)).toString()
