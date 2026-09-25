@@ -1,3 +1,4 @@
+import { opportunityStage } from "../services/opportunityMetrics";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { BriefcaseBusiness, CalendarClock, Download, Edit3, ExternalLink, Plus, RefreshCw, RotateCcw, X } from "lucide-react";
 import {
@@ -214,7 +215,7 @@ export default function ApplicationTracker({ onRerun, focusedOpportunityId, onOp
       <section className="application-stats">
         <Metric label="Total" value={applications.length} />
         {["Applied", "Interviewing", "Offer", "Accepted"].map((status) => (
-          <Metric key={status} label={status} value={counts[status] || 0} />
+          <Metric key={status} label={status} value={applications.filter(item=>opportunityStage(item.status)===status).length} />
         ))}
       </section>
 
@@ -391,6 +392,8 @@ export default function ApplicationTracker({ onRerun, focusedOpportunityId, onOp
                 <span>{item.company} - {item.location || "Location not saved"}</span>
                 {item.applicationId && <small>{item.applicationId}</small>}
                 {item.salary && <span>Salary: {item.salary}</span>}
+                {typeof item.latestReadinessScore === "number" && <span className="score-pill">{item.latestReadinessScore}% latest alignment</span>}
+                <details className="opportunity-details"><summary>Review details and history</summary>
                 {typeof item.latestReadinessScore === "number" && (
                   <div className="opportunity-readiness">
                     <div>
@@ -467,7 +470,7 @@ export default function ApplicationTracker({ onRerun, focusedOpportunityId, onOp
                       {expandedNotes[item.id] ? "Collapse notes" : "Expand notes"}
                     </button>
                   </div>
-                )}
+                )}                </details>
               </div>
               <select
                 className={`status-select ${item.status.toLowerCase()}`}

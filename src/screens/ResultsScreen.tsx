@@ -47,10 +47,10 @@ export default function ResultsScreen({
       />
 
       <div className="analysis-summary-strip">
-        <div className="score-ring compact" style={{ "--score": `${analysis.score}%` } as CSSProperties}>
+        <div className="report-score-cell"><div className="score-ring compact" style={{ "--score": `${analysis.score}%` } as CSSProperties}>
           <strong>{analysis.score}</strong>
-          <span>readiness</span>
-        </div>
+          <span>alignment</span>
+        </div></div>
         <div>
           <span>Priority actions</span>
           <strong>{highPriority}</strong>
@@ -76,7 +76,10 @@ export default function ResultsScreen({
 
       {tab === "overview" && (
         <div className="report-view">
-          <InlineNotice title="What this score means">{analysis.summary}</InlineNotice>
+          <section className="report-next-actions" aria-labelledby="report-next-title"><h2 id="report-next-title">Your next improvements</h2><p>Use only changes that reflect your actual experience.</p><ol>{[...analysis.improvements].sort((a,b)=>({High:0,Medium:1,Low:2}[a.priority]-{High:0,Medium:1,Low:2}[b.priority])).slice(0,3).map(item=><li key={item.title}><strong>{item.title}</strong><p>{item.detail}</p></li>)}</ol></section>
+          <InlineNotice title="What your resume shows">{analysis.summary}</InlineNotice>
+          {analysis.sourceEvidence?.length ? <details className="score-details"><summary>Source evidence for this review</summary>{analysis.sourceEvidence.map((item,index)=><article key={index}><h3>{item.claim}</h3><p><strong>Resume:</strong> {item.resumeQuote}</p><p><strong>Job posting:</strong> {item.jobQuote}</p></article>)}</details> : null}
+          {analysis.orchestration?.stages.includes("report-writing-fallback") && <p role="status">The writing step was unavailable. Your completed review is shown below.</p>}
           {analysis.scoreAudit && <details className="score-details"><summary>How this score was checked</summary>
             <InlineNotice
               tone={analysis.scoreAudit.verdict === "reasonable" ? "success" : "warning"}

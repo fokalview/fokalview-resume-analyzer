@@ -77,6 +77,7 @@ export type ScoreAudit = {
 export type ResumeAnalysis = {
   score: number;
   scoringVersion?: string;
+  sourceEvidence?: Array<{claim:string;resumeQuote:string;jobQuote:string}>;
   summary: string;
   profile?: ResumeProfile;
   jobDetails?: JobDetails;

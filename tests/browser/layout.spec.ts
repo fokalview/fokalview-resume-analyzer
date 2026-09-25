@@ -13,7 +13,7 @@ for(const width of [320,390,768,1440]) test(`landing fits ${width}px and sign-in
 test('workspace supports refresh and browser Back; upload supports keyboard',async({page})=>{
  await signedIn(page);await page.goto('/');
  await page.getByRole('button',{name:'Resume review',exact:true}).click();await expect(page).toHaveURL(/view=upload/);
- await page.reload();await expect(page.getByRole('heading',{name:'Compare your career materials with one opportunity.'})).toBeVisible();
+ await page.reload();await expect(page.getByRole('heading',{name:'Compare your resume with a job.'})).toBeVisible();
  const picker=page.waitForEvent('filechooser');await page.getByRole('button',{name:'Upload career materials',exact:true}).press('Enter');await picker;
  await page.getByRole('button',{name:'Opportunities',exact:true}).click();await expect(page).toHaveURL(/view=applications/);
  await page.goBack();await expect(page).toHaveURL(/view=upload/);

@@ -143,7 +143,7 @@ function reportHtml({ analysis, job, applications, title }: ReportData) {
     <button onclick="window.print()">Print or save as PDF</button>
     <h1>${escapeHtml(title)}</h1>
     <p class="summary">${escapeHtml(jobSummary(job))}</p>
-    ${currentAnalysis ? `<div class="score">${currentAnalysis.score}% career readiness</div><p>${escapeHtml(currentAnalysis.summary)}</p><p class="method">Scoring method: ${escapeHtml(currentAnalysis.scoringVersion || "SagittaIQ fixed readiness rubric")}. Identical resume and job inputs receive the same score.</p>${currentAnalysis.scoreAudit ? `<p class="method"><strong>Independent score audit:</strong> ${escapeHtml(currentAnalysis.scoreAudit.verdict)}. ${escapeHtml(currentAnalysis.scoreAudit.explanation)} Expected range: ${currentAnalysis.scoreAudit.expectedMin}-${currentAnalysis.scoreAudit.expectedMax}.</p>` : ""}` : ""}
+    ${currentAnalysis ? `<div class="score">${currentAnalysis.score}% career readiness</div><p>${escapeHtml(currentAnalysis.summary)}</p><p class="method">Scoring method: ${escapeHtml(currentAnalysis.scoringVersion || "SagittaIQ fixed readiness rubric")}. Scores are repeatable for the same resume text, extracted requirements, and scoring version. They do not predict hiring decisions.</p>${currentAnalysis.scoreAudit ? `<p class="method"><strong>Independent score audit:</strong> ${escapeHtml(currentAnalysis.scoreAudit.verdict)}. ${escapeHtml(currentAnalysis.scoreAudit.explanation)} Expected range: ${currentAnalysis.scoreAudit.expectedMin}-${currentAnalysis.scoreAudit.expectedMax}.</p>` : ""}` : ""}
     ${reportSections}
     ${applications.length ? `
       <section class="tracker-section page-break">

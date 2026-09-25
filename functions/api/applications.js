@@ -404,6 +404,7 @@ function normalizeAnalysis(analysis) {
     jobQualifications: normalizeJobQualifications(analysis.jobQualifications),
     scoreAudit: normalizeScoreAudit(analysis.scoreAudit),
     orchestration: normalizeOrchestration(analysis.orchestration),
+    sourceEvidence: Array.isArray(analysis.sourceEvidence) ? analysis.sourceEvidence.slice(0,12).map(item=>({claim:String(item.claim || "").slice(0,800),resumeQuote:String(item.resumeQuote || "").slice(0,2000),jobQuote:String(item.jobQuote || "").slice(0,2000)})) : [],
     strengths: cleanList(analysis.strengths, 8, 240),
     improvements: Array.isArray(analysis.improvements)
       ? analysis.improvements.slice(0, 8).map((item) => ({

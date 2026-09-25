@@ -142,7 +142,7 @@ export default function UploadScreen({
     <div className="screen upload-screen">
       <PageHeader
         eyebrow={opportunity ? "Rerun saved opportunity" : "New readiness review"}
-        title={opportunity ? `Upload a revised resume for ${opportunity.title}.` : "Compare your career materials with one opportunity."}
+        title={opportunity ? `Upload a revised resume for ${opportunity.title}.` : "Compare your resume with a job."}
         description={opportunity
           ? "The saved job description and qualification rubric will be reused. Upload the revised resume to create a separate dated review run."
           : "Add your resume and the job description. SagittaIQ will identify demonstrated strengths, important gaps, and the next improvements worth making."}
@@ -232,26 +232,8 @@ export default function UploadScreen({
         <li className={resumeText.trim().length >= 200 && jobContext.trim() ? "active" : ""}><span>3</span><strong>Run readiness review</strong></li>
       </ol>
 
-      <div className="upload-grid">
-        <label className="field">
-          <span>Target opportunity</span>
-          <input
-            value={targetRole}
-            onChange={(event) => onTargetRoleChange(event.target.value)}
-            placeholder="Frontend Engineer, Product Manager, Data Analyst..."
-          />
-        </label>
-
-        <label className="field">
-          <span>Job description</span>
-          <textarea
-            className="job-context"
-            value={jobContext}
-            onChange={(event) => onJobContextChange(event.target.value)}
-            placeholder="Paste the job description here or send one from the SagittaIQ Chrome extension..."
-          />
-        </label>
-
+      <div className="upload-grid review-input-panels">
+        <section className="review-input-panel" aria-labelledby="resume-input-title"><h2 id="resume-input-title">1. Your resume</h2><p>Upload a file or paste your resume below.</p>
         <div
           className="dropzone"
           onClick={() => fileInputRef.current?.click()}
@@ -295,7 +277,7 @@ export default function UploadScreen({
         <label className="field textarea-field">
           <span>
             <ClipboardPaste size={16} />
-            Career material text
+            Resume text
           </span>
           <textarea
             value={resumeText}
@@ -304,10 +286,32 @@ export default function UploadScreen({
           />
         </label>
 
-        <InlineNotice title="Your progress is saved">
-          Career material text, job context, structured profile, and analysis results are retained under the beta Terms and Privacy Notice so you can return later.
-        </InlineNotice>
+        </section>
+        <section className="review-input-panel" aria-labelledby="job-input-title"><h2 id="job-input-title">2. Target job</h2><p>Add the role and posting you want to compare.</p>
+        <label className="field">
+          <span>Target opportunity</span>
+          <input
+            value={targetRole}
+            onChange={(event) => onTargetRoleChange(event.target.value)}
+            placeholder="Frontend Engineer, Product Manager, Data Analyst..."
+          />
+        </label>
+
+        <label className="field">
+          <span>Job description</span>
+          <textarea
+            className="job-context"
+            value={jobContext}
+            onChange={(event) => onJobContextChange(event.target.value)}
+            placeholder="Paste the job description here or send one from the SagittaIQ Chrome extension..."
+          />
+        </label>
+
+        </section>
       </div>
+        <InlineNotice title="How your review is stored">
+          Your resume text, job details, and review are saved under the beta Terms and Privacy Notice.
+        </InlineNotice>
 
       {error && <p role="alert" className="error-message">{error}</p>}
       {saveStatus && <p className="success-message">{saveStatus}</p>}
