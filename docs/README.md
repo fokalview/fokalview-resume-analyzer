@@ -17,6 +17,9 @@ on chat history or one person's memory.
 - [MIGRATIONS.md](MIGRATIONS.md): schema-aware migration preparation
 - [REPAIR_VALIDATION.md](REPAIR_VALIDATION.md): security/reliability repair evidence
 
+- [CHROME_EXTENSION.md](CHROME_EXTENSION.md): Chrome capture, installation, and store release
+- [CHROME_STORE_LISTING.md](CHROME_STORE_LISTING.md): submission copy and permissions
+
 ## Documentation Rule
 
 Update the journal whenever work changes any of the following:

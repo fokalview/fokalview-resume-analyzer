@@ -19,7 +19,7 @@ export function PageHeader({
     <header className="experience-header">
       <div>
         <p className="eyebrow">{eyebrow}</p>
-        <h2>{title}</h2>
+        <h1>{title}</h1>
         <p>{description}</p>
         {meta && <div className="experience-header-meta">{meta}</div>}
       </div>

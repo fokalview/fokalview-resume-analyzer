@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>SagittaIQ Job Capture</title><link rel="stylesheet" href="popup.css"></head>
+<body>
+  <header><div class="brand"><img src="icons/icon48.png" width="32" height="32" alt=""><span>Sagitta<span class="accent">IQ</span><small>JOB CAPTURE</small></span></div><span class="pill">Your next opportunity</span></header>
+  <main>
+    <div class="intro"><span class="eyebrow">FROM POSTING TO POSSIBILITY</span><h1>Bring the whole role.</h1><p>Capture the posting. Check the details. Make your next move.</p></div>
+    <div class="capture-bar"><button id="capture" type="button" class="primary">Capture this page</button><span id="method">Only the page you choose.</span></div>
+    <p id="status" role="status" aria-live="polite">Open a job posting, then capture its details.</p>
+    <ul id="warnings" class="notice" hidden></ul>
+    <form id="job-form">
+      <div class="section-title"><h2>The opportunity</h2><span>Review & edit</span></div>
+      <div class="grid">
+        <label class="wide">Job title <span class="required">*</span><input name="title" required maxlength="160" placeholder="e.g. Software Engineer"></label>
+        <label class="wide">Company <span class="required">*</span><input name="company" required maxlength="160" placeholder="Employer name, not the job board"></label>
+        <label>Location<input name="location" maxlength="200" placeholder="Not listed"></label>
+        <label>Salary / pay range<input name="salary" maxlength="160" placeholder="Not listed"></label>
+        <label>Employment type<input name="employmentType" maxlength="120" placeholder="Full time, contract…"></label>
+        <label>Workplace<input name="workplaceType" maxlength="120" placeholder="Remote, hybrid, on site…"></label>
+      </div>
+      <details open><summary>Requirements & nice to haves</summary><label>Required qualifications<textarea name="requirements" rows="4" maxlength="2000" placeholder="Explicit requirements from the posting"></textarea></label><label>Preferred qualifications<textarea name="preferred" rows="3" maxlength="2000" placeholder="Nice to have or bonus skills"></textarea></label></details>
+      <details><summary>Responsibilities & company</summary><label>Responsibilities<textarea name="responsibilities" rows="4" maxlength="2000"></textarea></label><label>About the company<textarea name="companyBio" rows="3" maxlength="1500"></textarea></label><label>Benefits<textarea name="benefits" rows="3" maxlength="1500"></textarea></label></details>
+      <details><summary>Experience, education & dates</summary><label>Experience<textarea name="experience" maxlength="1000" rows="2"></textarea></label><label>Education<textarea name="education" maxlength="1000" rows="2"></textarea></label><div class="grid"><label>Date posted<input name="postedAt" maxlength="80"></label><label>Application deadline<input name="deadline" maxlength="80"></label></div></details>
+      <details open><summary>Full job description <span class="required">*</span></summary><label>Posting text<textarea name="description" rows="7" required minlength="40" maxlength="15000" placeholder="Capture a posting or paste its full description here."></textarea></label><small>The description keeps context that individual fields may miss. Maximum 15,000 characters.</small></details>
+      <label>Source URL<input name="url" type="url" maxlength="1500" placeholder="https://…"></label>
+      <label class="consent"><input id="consent" type="checkbox" required><span>Send these reviewed job details to SagittaIQ. I can sign in and choose to save them there.</span></label>
+      <button id="send" type="submit" class="primary send">Review in SagittaIQ <span aria-hidden="true">↗</span></button>
+      <div class="secondary-actions"><button id="export" type="button">Export JSON</button><button id="clear" type="button">Clear draft</button><a href="privacy.html" target="_blank" rel="noopener">Privacy</a></div>
+    </form>
+    <p class="footnote">Nothing is sent until you choose. Missing details stay blank. Always check the employer’s original posting.</p>
+  </main>
+  <script type="module" src="popup.mjs"></script>
+</body></html>

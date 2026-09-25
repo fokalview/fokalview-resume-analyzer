@@ -3,7 +3,7 @@ import { callbackUrl, hasBetaAdmission, stateCookie, workosClient } from "../../
 export async function onRequestGet({ request, env }) {
   try {
     if (!(await hasBetaAdmission(request, env))) {
-      return new Response(null, { status: 302, headers: { Location: new URL("/", request.url).toString() } });
+      return new Response(null, { status: 302, headers: { Location: new URL("/?access=required#beta-access-form", request.url).toString() } });
     }
 
     const state = crypto.randomUUID();

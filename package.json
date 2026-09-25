@@ -13,6 +13,8 @@
     "test": "node --experimental-test-module-mocks --test tests/*.test.mjs",
     "test:coverage": "node --experimental-test-module-mocks --experimental-test-coverage --test-coverage-lines=80 --test tests/*.test.mjs",
     "test:e2e": "playwright test",
+    "extension:package": "node scripts/package-chrome-extension.mjs",
+    "extension:store-assets": "node scripts/chrome-store-assets.mjs",
     "check": "npm test && npm run build",
     "pages:check": "wrangler pages functions build --outdir .wrangler/functions-check"
   },
