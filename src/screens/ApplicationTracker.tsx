@@ -27,11 +27,18 @@ const STATUSES = [
 ];
 
 type Props = {
+  focusedOpportunityId?: string;
+  onOpenReport: (id: string) => void;
   onRerun: (opportunity: ApplicationRecord) => void;
 };
 
-export default function ApplicationTracker({ onRerun }: Props) {
+export default function ApplicationTracker({ onRerun, focusedOpportunityId, onOpenReport }: Props) {
+  const [showForm, setShowForm] = useState(false);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [sort, setSort] = useState("recent");
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
+  const [historyError, setHistoryError] = useState("");
   const [resumeRecords, setResumeRecords] = useState<ResumeRecord[]>([]);
   const [form, setForm] = useState({
     title: "",
@@ -60,16 +67,21 @@ export default function ApplicationTracker({ onRerun }: Props) {
     void loadApplications();
   }, []);
 
+  useEffect(() => {
+    if(isLoading || !focusedOpportunityId) return;
+    document.getElementById(`opportunity-${focusedOpportunityId}`)?.focus();
+  }, [isLoading, focusedOpportunityId]);
+
   async function loadApplications() {
     setIsLoading(true);
-    setError("");
+    setError("");setHistoryError("");
     try {
       const [nextApplications, nextResumeRecords] = await Promise.all([
         getApplications(),
-        getResumeRecords().catch(() => [])
+        getResumeRecords().catch(() => {setHistoryError("Review history could not load. Refresh to retry.");return null;})
       ]);
       setApplications(nextApplications);
-      setResumeRecords(nextResumeRecords);
+      if(nextResumeRecords) setResumeRecords(nextResumeRecords);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Could not load applications.");
     } finally {
@@ -106,6 +118,8 @@ export default function ApplicationTracker({ onRerun }: Props) {
   }
 
   function editApplication(item: ApplicationRecord) {
+    setShowForm(true);
+    requestAnimationFrame(()=>document.querySelector<HTMLInputElement>(".application-form input")?.focus());
     setEditingId(item.id);
     setForm({
       title: item.title,
@@ -121,6 +135,7 @@ export default function ApplicationTracker({ onRerun }: Props) {
   }
 
   function resetForm() {
+    setShowForm(false);
     setEditingId("");
     setForm({
       title: "",
@@ -203,7 +218,8 @@ export default function ApplicationTracker({ onRerun }: Props) {
         ))}
       </section>
 
-      <form className="application-form" onSubmit={submit}>
+      <button className="primary-button" aria-expanded={showForm} aria-controls="opportunity-editor" onClick={()=>setShowForm(!showForm)}>{showForm ? "Close editor" : "Add opportunity"}</button>
+      {showForm && <form id="opportunity-editor" className="application-form" onSubmit={submit}>
         <div className="form-intro">
           <div>
             <span className="eyebrow">{editingId ? "Editing opportunity" : "Add opportunity"}</span>
@@ -341,9 +357,9 @@ export default function ApplicationTracker({ onRerun }: Props) {
           <Plus size={18} />
           {editingId ? "Save changes" : "Add application"}
         </button>
-      </form>
+      </form>}
 
-      {error && <p className="error-message">{error}</p>}
+      {error && <p role="alert" className="error-message">{error}</p>}
 
       <div className="application-toolbar">
         <h3>Recent applications</h3>
@@ -357,10 +373,19 @@ export default function ApplicationTracker({ onRerun }: Props) {
         </div>
       </div>
 
+      {historyError && <p role="alert">{historyError}</p>}
+      {!isLoading && focusedOpportunityId && !applications.some(item=>item.id===focusedOpportunityId) && <p role="status">The linked opportunity is no longer available.</p>}
+      <div className="tracker-filters">
+        <label>Search opportunities<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Job title or company" /></label>
+        <label>Status<select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="">All statuses</option>{STATUSES.map(status=><option key={status}>{status}</option>)}</select></label>
+        <label>Sort<select value={sort} onChange={e=>setSort(e.target.value)}><option value="recent">Recently updated</option><option value="company">Company</option><option value="followup">Next follow-up</option></select></label>
+      </div>
+      {isLoading && <p role="status">Loading opportunities…</p>}
+      {!isLoading && applications.length > 0 && !applications.some(item=>(!statusFilter || item.status===statusFilter) && `${item.title} ${item.company}`.toLowerCase().includes(query.toLowerCase())) && <p role="status">No opportunities match these filters.</p>}
       <section className="application-list">
         {applications.length ? (
-          applications.map((item) => (
-            <article key={item.id}>
+          applications.filter(item=>(!statusFilter || item.status===statusFilter) && `${item.title} ${item.company}`.toLowerCase().includes(query.toLowerCase())).sort((a,b)=>sort==="company"?a.company.localeCompare(b.company):sort==="followup"?(notesToForm(a.notes).followUpDate || "9999").localeCompare(notesToForm(b.notes).followUpDate || "9999"):b.updatedAt.localeCompare(a.updatedAt)).map((item) => (
+            <article key={item.id} id={`opportunity-${item.id}`} tabIndex={-1} className={focusedOpportunityId === item.id ? "selected-opportunity" : undefined}>
               <div>
                 <strong>{item.title}</strong>
                 <span>{item.company} - {item.location || "Location not saved"}</span>
@@ -404,6 +429,7 @@ export default function ApplicationTracker({ onRerun }: Props) {
                   </div>
                 )}
                 <ReviewRuns
+                  onOpenReport={onOpenReport}
                   opportunity={item}
                   runs={resumeRecords.filter((record) => record.opportunityId === item.id)}
                   onRerun={onRerun}
@@ -445,6 +471,7 @@ export default function ApplicationTracker({ onRerun }: Props) {
               </div>
               <select
                 className={`status-select ${item.status.toLowerCase()}`}
+                aria-label={`Status for ${item.title} at ${item.company}`}
                 value={item.status}
                 onChange={(event) => void changeStatus(item.id, event.target.value)}
               >
@@ -457,7 +484,7 @@ export default function ApplicationTracker({ onRerun }: Props) {
                 {ageLabel(item.createdAt)}
               </span>
               {item.url && (
-                <a href={item.url} target="_blank" rel="noreferrer">
+                <a aria-label={`Open posting for ${item.title}`} href={item.url} target="_blank" rel="noreferrer">
                   <ExternalLink size={16} />
                 </a>
               )}
@@ -474,7 +501,7 @@ export default function ApplicationTracker({ onRerun }: Props) {
         ) : (
           <div className="empty-panel">
             <BriefcaseBusiness size={24} />
-            <strong>No applications yet.</strong>
+            <strong>{isLoading ? "Loading your applications…" : error ? "Applications are unavailable." : "No applications yet."}</strong>
             <span>Add your first opportunity above.</span>
           </div>
         )}
@@ -486,10 +513,12 @@ export default function ApplicationTracker({ onRerun }: Props) {
 function ReviewRuns({
   opportunity,
   runs,
+  onOpenReport,
   onRerun
 }: {
   opportunity: ApplicationRecord;
   runs: ResumeRecord[];
+  onOpenReport: (id: string) => void;
   onRerun: (opportunity: ApplicationRecord) => void;
 }) {
   return (
@@ -514,6 +543,7 @@ function ReviewRuns({
                 <strong>{run.resumeLabel || (index === 0 ? "Latest run" : `Run ${runs.length - index}`)}</strong>
                 <small>{formatShortDate(run.updatedAt)} · {run.analysis.scoringVersion || "legacy rubric"} · {run.reportId || run.id.slice(0, 8)}</small>
               </div>
+              <button className="secondary-action" type="button" onClick={()=>onOpenReport(run.id)}>View review</button>
               <button
                 className="secondary-action compact-action"
                 type="button"

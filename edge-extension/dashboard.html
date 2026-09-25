@@ -52,17 +52,10 @@
         </div>
       </section>
 
-      <section class="goal-panel">
-        <label class="checkbox-label">
-          <input id="cloudSyncConsent" type="checkbox" />
-          Save job context to FokalView cloud storage
-        </label>
-        <label>
-          Access code
-          <input id="cloudAccessCode" type="password" autocomplete="off" placeholder="Private beta code" />
-        </label>
-        <button id="syncCloud" class="secondary-button">Sync local jobs</button>
-        <div id="syncMessage" class="message" hidden></div>
+      <section class="cloud-sync-panel">
+        <p>Jobs are saved on this device. Use "Open resume analyzer" or "Send to resume",
+          then sign in to save a job to your SagittaIQ account. Direct extension cloud
+          sync is unavailable until verified extension sign-in is supported.</p>
       </section>
 
       <section class="table-shell">

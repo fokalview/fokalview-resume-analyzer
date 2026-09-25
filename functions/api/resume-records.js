@@ -4,7 +4,7 @@ import { hasVerifiedAccess } from "../lib/workos.js";
 
 const CONSENT_VERSION = "workforce-resume-profile-v1";
 const MAX_RAW_RESUME_LENGTH = 50000;
-const MAX_JOB_CONTEXT_LENGTH = 12000;
+const MAX_JOB_CONTEXT_LENGTH = 30000;
 
 export async function onRequestGet({ request, env }) {
   const auth = await requireAccess(request, env);
@@ -13,7 +13,7 @@ export async function onRequestGet({ request, env }) {
   if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
 
   const identity = await ensureUser(request, env);
-  if (!identity) return json({ error: "Missing user identifier." }, 400);
+  if (!identity) return json({ error: "Sign in with a verified account." }, 401);
 
   const columns = await tableColumns(env.DB, "resume_records");
   const reportIdSelect = columns.has("report_id") ? "report_id AS reportId," : "'' AS reportId,";
@@ -51,7 +51,7 @@ export async function onRequestPost({ request, env }) {
   if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
 
   const identity = await ensureUser(request, env);
-  if (!identity) return json({ error: "Missing user identifier." }, 400);
+  if (!identity) return json({ error: "Sign in with a verified account." }, 401);
 
   try {
     const body = await request.json();
@@ -121,7 +121,7 @@ export async function onRequestDelete({ request, env }) {
   if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
 
   const identity = await ensureUser(request, env);
-  if (!identity) return json({ error: "Missing user identifier." }, 400);
+  if (!identity) return json({ error: "Sign in with a verified account." }, 401);
 
   const id = new URL(request.url).searchParams.get("id");
   if (!id) return json({ error: "Missing resume record id." }, 400);
@@ -288,10 +288,8 @@ function normalizeJobQualifications(value) {
 }
 
 async function requireAccess(request, env) {
-  const betaAccessCode = env.BETA_ACCESS_CODE || "";
-  if (await hasVerifiedAccess(request, env)) return null;
-  if (betaAccessCode && request.headers.get("X-Beta-Access-Code") !== betaAccessCode) {
-    return json({ error: "Invalid beta access code." }, 401);
+  if (!(await hasVerifiedAccess(request, env))) {
+    return json({ error: "Sign in with a verified account." }, 401);
   }
   return null;
 }

@@ -4,27 +4,40 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"vite\" \"node server/analyze.mjs\"",
+    "dev": "npm run build && npm run db:migrate && npm run dev:api",
     "dev:web": "vite",
     "dev:api": "node server/analyze.mjs",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "build": "tsc --noEmit && tsc -p tsconfig.node.json --noEmit && vite build",
+    "preview": "vite preview",
+    "db:migrate": "node scripts/migrate.mjs --local",
+    "test": "node --experimental-test-module-mocks --test tests/*.test.mjs",
+    "test:coverage": "node --experimental-test-module-mocks --experimental-test-coverage --test-coverage-lines=80 --test tests/*.test.mjs",
+    "test:e2e": "playwright test",
+    "extension:package": "node scripts/package-chrome-extension.mjs",
+    "extension:store-assets": "node scripts/chrome-store-assets.mjs",
+    "check": "npm test && npm run build",
+    "pages:check": "wrangler pages functions build --outdir .wrangler/functions-check"
   },
   "dependencies": {
-    "@vitejs/plugin-react": "latest",
-    "@workos-inc/node": "^8.1.0",
-    "concurrently": "latest",
-    "vite": "latest",
-    "typescript": "latest",
-    "react": "latest",
-    "react-dom": "latest",
-    "lucide-react": "latest",
-    "jszip": "latest",
-    "pdfjs-dist": "latest"
+    "@vitejs/plugin-react": "6.1.1",
+    "@workos-inc/node": "8.13.0",
+    "concurrently": "10.0.5",
+    "jszip": "3.10.2",
+    "lucide-react": "1.48.0",
+    "pdfjs-dist": "6.3.289",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "typescript": "7.0.2",
+    "vite": "8.3.1"
   },
   "devDependencies": {
-    "@types/node": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest"
+    "@playwright/test": "1.63.0",
+    "@types/node": "26.6.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "wrangler": "4.139.0"
+  },
+  "engines": {
+    "node": ">=24.13.0 <25"
   }
 }

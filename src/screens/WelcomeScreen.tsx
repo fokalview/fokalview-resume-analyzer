@@ -103,78 +103,18 @@ export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
         {theme === "dark" ? "Light mode" : "Dark mode"}
       </button>
       <section className="welcome-panel">
-        <ProductBrand product="career" />
+        <div className="welcome-intro">
+        <ProductBrand product="career" inverse={theme === "dark"} />
         <p className="eyebrow">Private Beta</p>
-        <h1>Career intelligence that moves with you.</h1>
+        <h1>Compare your resume with the job you want.</h1>
         <p>
-          This private beta helps students and job seekers evaluate career readiness, compare career
-          materials against target opportunities, and track progress from application to interview to
-          offer. Entering your access code means you accept the beta Terms and Privacy Notice.
+          Find your strengths, identify gaps, and track your next opportunity.
         </p>
-        <section className="beta-process-carousel" aria-labelledby="beta-process-title">
-          <div className="beta-process-heading">
-            <div>
-              <p className="eyebrow">Your Beta Journey</p>
-              <h2 id="beta-process-title">Know what happens next.</h2>
-            </div>
-            <span aria-label={`Step ${activeStep + 1} of ${BETA_STEPS.length}`}>
-              {activeStep + 1}/{BETA_STEPS.length}
-            </span>
-          </div>
-          <div className="beta-process-slide" aria-live="polite">
-            <div className="beta-process-icon" aria-hidden="true">
-              <step.Icon size={25} />
-            </div>
-            <div>
-              <strong>{step.title}</strong>
-              <p>{step.detail}</p>
-            </div>
-          </div>
-          <div className="beta-process-controls">
-            <button
-              type="button"
-              aria-label="Previous beta process step"
-              onClick={() => setActiveStep((current) => Math.max(0, current - 1))}
-              disabled={isFirstStep}
-            >
-              <ChevronLeft size={17} />
-              Back
-            </button>
-            <div className="beta-process-dots" aria-label="Choose a beta process step">
-              {BETA_STEPS.map((item, index) => (
-                <button
-                  key={item.title}
-                  type="button"
-                  className={index === activeStep ? "active" : ""}
-                  aria-label={`Step ${index + 1}: ${item.title}`}
-                  aria-current={index === activeStep ? "step" : undefined}
-                  onClick={() => setActiveStep(index)}
-                />
-              ))}
-            </div>
-            {isLastStep ? (
-              <a href="#beta-access-form">
-                Start
-                <ClipboardCheck size={17} />
-              </a>
-            ) : (
-              <button
-                type="button"
-                aria-label="Next beta process step"
-                onClick={() => setActiveStep((current) => Math.min(BETA_STEPS.length - 1, current + 1))}
-              >
-                Next
-                <ChevronRight size={17} />
-              </button>
-            )}
-          </div>
-        </section>
-        <div className="welcome-trust-summary">
-          <span><strong>Your progress returns with you.</strong> Resume analysis and opportunity activity are saved to your beta profile.</span>
-          <span><strong>Your score is guidance.</strong> It estimates alignment and never predicts a hiring decision.</span>
-          <a href="/data-and-privacy">Review data and privacy details</a>
         </div>
-
+        <div className="welcome-access">
+        <div className="welcome-entry"><h2>Welcome back</h2><p>Already accepted your invitation?</p><a className="primary-button" href="/api/auth/login">Sign in to SagittaIQ</a></div>
+        {new URLSearchParams(location.search).get("access") === "required" && <p role="alert">Please confirm your beta code and PIN on this browser, then continue to secure sign-in.</p>}
+        <h2>Join the private beta</h2><p>Have an access code? Request your secure account invitation below.</p>
         {accessResult ? (
           <section className="beta-invitation-confirmation" aria-live="polite">
             <CheckCircle2 size={28} />
@@ -239,6 +179,7 @@ export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
             <small>First visit: choose any 4 digits. Future visits: use the same 4 digits.</small>
           </label>
 
+          <p className="access-consent">By entering the beta, you accept the Beta Terms and Privacy Notice below.</p>
           <details className="terms-panel">
             <summary>Beta Terms and Privacy Notice</summary>
             <div>
@@ -278,11 +219,79 @@ export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
             </div>
           </details>
 
-          {error && <p className="error-message">{error}</p>}
+          {error && <p role="alert" className="error-message">{error}</p>}
           <button className="primary-button" disabled={!code.trim() || !email.trim() || userPin.length !== 4 || isChecking}>
             {isChecking ? "Checking..." : "Enter beta"}
           </button>
         </form>}
+        </div>
+        <div className="welcome-guide">
+        <section className="beta-process-carousel" aria-labelledby="beta-process-title">
+          <div className="beta-process-heading">
+            <div>
+              <p className="eyebrow">Your Beta Journey</p>
+              <h2 id="beta-process-title">Know what happens next.</h2>
+            </div>
+            <span aria-label={`Step ${activeStep + 1} of ${BETA_STEPS.length}`}>
+              {activeStep + 1}/{BETA_STEPS.length}
+            </span>
+          </div>
+          <div className="beta-process-slide" aria-live="polite">
+            <div className="beta-process-icon" aria-hidden="true">
+              <step.Icon size={25} />
+            </div>
+            <div>
+              <strong>{step.title}</strong>
+              <p>{step.detail}</p>
+            </div>
+          </div>
+          <div className="beta-process-controls">
+            <button
+              type="button"
+              aria-label="Previous beta process step"
+              onClick={() => setActiveStep((current) => Math.max(0, current - 1))}
+              disabled={isFirstStep}
+            >
+              <ChevronLeft size={17} />
+              Back
+            </button>
+            <div className="beta-process-dots" aria-label="Choose a beta process step">
+              {BETA_STEPS.map((item, index) => (
+                <button
+                  key={item.title}
+                  type="button"
+                  className={index === activeStep ? "active" : ""}
+                  aria-label={`Step ${index + 1}: ${item.title}`}
+                  aria-current={index === activeStep ? "step" : undefined}
+                  onClick={() => setActiveStep(index)}
+                />
+              ))}
+            </div>
+            {isLastStep ? (
+              <a href="#beta-access-form">
+                Start
+                <ClipboardCheck size={17} />
+              </a>
+            ) : (
+              <button
+                type="button"
+                aria-label="Next beta process step"
+                onClick={() => setActiveStep((current) => Math.min(BETA_STEPS.length - 1, current + 1))}
+              >
+                Next
+                <ChevronRight size={17} />
+              </button>
+            )}
+          </div>
+        </section>
+        <div className="welcome-trust-summary">
+          <span><strong>Your progress returns with you.</strong> Resume analysis and opportunity activity are saved to your beta profile.</span>
+          <span><strong>Your score is guidance.</strong> It estimates alignment and never predicts a hiring decision.</span>
+          <a href="/data-and-privacy">Review data and privacy details</a>
+        </div>
+
+
+        </div>
       </section>
     </main>
   );

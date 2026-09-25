@@ -3,6 +3,8 @@ dist
 .git
 .env
 .dev.vars
+.dev.vars.*
+.env.*
 .wrangler
 imported
 tools

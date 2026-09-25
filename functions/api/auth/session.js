@@ -3,11 +3,12 @@ import { linkVerifiedUser, sessionCookie, verifiedSession } from "../../lib/work
 export async function onRequestGet({ request, env }) {
   try {
     const result = await verifiedSession(request, env, { refresh: true });
-    if (!result.authenticated) {
+    if (!result.authenticated || !result.user?.emailVerified) {
       return Response.json({ authenticated: false, reason: result.reason || "invalid_session" }, { status: 401 });
     }
 
     const linked = await linkVerifiedUser(env.DB, env, result.user);
+    if (!linked?.userId) return Response.json({ authenticated: false, error: "Identity storage unavailable." }, { status: 503 });
     const headers = new Headers({ "Content-Type": "application/json" });
     if (result.sealedSession) headers.append("Set-Cookie", sessionCookie(result.sealedSession, request));
 

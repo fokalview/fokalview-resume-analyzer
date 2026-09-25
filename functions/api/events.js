@@ -41,7 +41,7 @@ export async function onRequestPost({ request, env }) {
       .bind(
         crypto.randomUUID(),
         identity?.userId || "",
-        identity?.candidateId || clean(body.candidateId, 80),
+        identity?.candidateId || "",
         clean(body.leadId, 80),
         eventType,
         clean(body.eventSource, 120),

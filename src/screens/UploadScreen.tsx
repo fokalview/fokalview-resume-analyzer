@@ -1,15 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, ClipboardPaste, Loader2, Search, Upload } from "lucide-react";
-import JSZip from "jszip";
-import * as pdfjsLib from "pdfjs-dist";
 import { analyzeResume, getApplications, saveApplicationRecord, saveResumeRecord, type ApplicationRecord } from "../services/api";
 import type { JobHandoff, ResumeAnalysis } from "../types";
 import { InlineNotice, PageHeader } from "../components/ExperienceUI";
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.mjs",
-  import.meta.url
-).toString();
 
 type Props = {
   resumeText: string;
@@ -21,7 +14,7 @@ type Props = {
   onResumeTextChange: (value: string) => void;
   onTargetRoleChange: (value: string) => void;
   onJobContextChange: (value: string) => void;
-  onAnalysisComplete: (analysis: ResumeAnalysis) => void;
+  onAnalysisComplete: (analysis: ResumeAnalysis, warning?: string, reportId?: string, opportunity?: ApplicationRecord | null) => void;
 };
 
 export default function UploadScreen({
@@ -38,6 +31,10 @@ export default function UploadScreen({
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [opportunityRetry, setOpportunityRetry] = useState(0);
+  const [opportunitiesLoading, setOpportunitiesLoading] = useState(true);
+  const [opportunityError, setOpportunityError] = useState("");
+  const [stage, setStage] = useState("");
   const [error, setError] = useState("");
   const [fileStatus, setFileStatus] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
@@ -47,8 +44,13 @@ export default function UploadScreen({
   const [opportunitySearchOpen, setOpportunitySearchOpen] = useState(false);
 
   useEffect(() => {
-    void getApplications().then(setSavedOpportunities).catch(() => setSavedOpportunities([]));
-  }, []);
+    let active = true;
+    setOpportunitiesLoading(true);setOpportunityError("");
+    void getApplications().then(items => {if(active)setSavedOpportunities(items);})
+      .catch(() => {if(active)setOpportunityError("Saved opportunities could not load. Retry or enter a new job below.");})
+      .finally(() => {if(active)setOpportunitiesLoading(false);});
+    return () => {active=false;};
+  }, [opportunityRetry]);
 
   useEffect(() => {
     setOpportunitySearch(opportunity ? opportunityLabel(opportunity) : "");
@@ -91,11 +93,12 @@ export default function UploadScreen({
   }
 
   async function submit() {
-    setIsLoading(true);
+    setIsLoading(true);setStage("Preparing your review…");
     setError("");
     setSaveStatus("");
     try {
       const existingOpportunity = opportunity || await findExistingOpportunity(jobHandoff, targetRole, jobContext);
+      setStage("Comparing your resume…");
       const analysis = await analyzeResume({
         resumeText,
         targetRole,
@@ -107,6 +110,8 @@ export default function UploadScreen({
           analyzedAt
         }))
       });
+      setStage("Saving your review…");
+      try {
       const application = await saveApplicationFromHandoff(jobHandoff, targetRole, jobContext, analysis, opportunity);
       const saved = await saveResumeRecord({
         resumeText,
@@ -120,7 +125,10 @@ export default function UploadScreen({
       setSaveStatus(application
         ? `Updated readiness history for ${application.title}.`
         : `Saved workforce profile ${saved.id.slice(0, 8)}.`);
-      onAnalysisComplete(analysis);
+      onAnalysisComplete(analysis, undefined, saved.id, application);
+      } catch {
+        onAnalysisComplete(analysis, "Your review is ready, but saving did not finish. Download this report now to keep a copy; it may not appear in your saved history.");
+      }
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Something went wrong.");
     } finally {
@@ -128,7 +136,7 @@ export default function UploadScreen({
     }
   }
 
-  const canSubmit = resumeText.trim().length >= 200 && !isLoading;
+  const canSubmit = resumeText.trim().length >= 200 && jobContext.trim().length >= 40 && !isLoading;
 
   return (
     <div className="screen upload-screen">
@@ -141,6 +149,8 @@ export default function UploadScreen({
         meta={<span>PDF, DOCX, ODT, RTF, TXT, MD, and CSV supported</span>}
       />
 
+      {opportunityError && <div><p role="alert">{opportunityError}</p><button className="secondary-action" onClick={()=>setOpportunityRetry(value=>value+1)}>Retry saved opportunities</button></div>}
+      {opportunitiesLoading && <p role="status">Loading saved opportunities…</p>}
       <section className="saved-opportunity-search">
         <div>
           <span className="eyebrow">Saved opportunity search</span>
@@ -153,10 +163,10 @@ export default function UploadScreen({
             <Search size={17} />
             <input
               id="saved-opportunity-search"
-              role="combobox"
+              aria-label="Search saved opportunities"
               aria-expanded={opportunitySearchOpen}
               aria-controls="saved-opportunity-options"
-              aria-autocomplete="list"
+              onKeyDown={event => {if(event.key === "Escape") setOpportunitySearchOpen(false);}}
               value={opportunitySearch}
               onFocus={() => setOpportunitySearchOpen(true)}
               onChange={(event) => {
@@ -170,11 +180,11 @@ export default function UploadScreen({
             </button>
           </div>
           {opportunitySearchOpen && (
-            <div className="opportunity-search-options" id="saved-opportunity-options" role="listbox">
+            <div className="opportunity-search-options" id="saved-opportunity-options">
               <button
                 type="button"
-                role="option"
-                aria-selected={!opportunity}
+
+                aria-pressed={!opportunity}
                 onClick={() => {
                   onOpportunitySelect(null);
                   setOpportunitySearch("");
@@ -187,8 +197,8 @@ export default function UploadScreen({
               {filteredOpportunities.map((item) => (
                 <button
                   type="button"
-                  role="option"
-                  aria-selected={opportunity?.id === item.id}
+
+                  aria-pressed={opportunity?.id === item.id}
                   key={item.id}
                   onClick={() => {
                     onOpportunitySelect(item);
@@ -238,7 +248,7 @@ export default function UploadScreen({
             className="job-context"
             value={jobContext}
             onChange={(event) => onJobContextChange(event.target.value)}
-            placeholder="Paste the job description here or send one from the Edge extension..."
+            placeholder="Paste the job description here or send one from the SagittaIQ Chrome extension..."
           />
         </label>
 
@@ -252,14 +262,17 @@ export default function UploadScreen({
             if (file) void handleFile(file);
           }}
           role="button"
+          aria-label="Upload career materials"
+          onKeyDown={event => {if(event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {event.preventDefault();fileInputRef.current?.click();}}}
           tabIndex={0}
         >
           <Upload size={24} />
           <strong>Upload career materials</strong>
           <span>PDF, DOCX, ODT, RTF, TXT, MD, and CSV are supported.</span>
-          {fileStatus && <small className="file-status">{fileStatus}</small>}
+          {fileStatus && <small role="status" className="file-status">{fileStatus}</small>}
           <input
             ref={fileInputRef}
+            aria-label="Choose resume file"
             type="file"
             accept=".pdf,.docx,.odt,.rtf,.txt,.md,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.oasis.opendocument.text,application/rtf,text/rtf,text/plain,text/markdown,text/csv"
             onChange={(event) => {
@@ -296,9 +309,10 @@ export default function UploadScreen({
         </InlineNotice>
       </div>
 
-      {error && <p className="error-message">{error}</p>}
+      {error && <p role="alert" className="error-message">{error}</p>}
       {saveStatus && <p className="success-message">{saveStatus}</p>}
 
+      <p role="status">{isLoading ? stage : "To compare: add at least 200 characters of resume text and 40 characters of job description."}</p>
       <div className="actions">
         <span>{resumeText.trim().length.toLocaleString()} characters ready</span>
         <button className="primary-button" disabled={!canSubmit} onClick={submit}>
@@ -352,13 +366,13 @@ async function saveApplicationFromHandoff(
     id,
     title,
     company,
-    location: existing?.location || jobHandoff.location || parsedJob.location || jobDetails?.location,
-    salary: existing?.salary || salary,
+    location: existing?.location || jobHandoff.location || parsedJob.location || jobDetails?.location || "",
+    salary: existing?.salary || salary || "",
     status: existing?.status || "Interested",
     jobDescription: jobContext,
     jobQualifications: existing?.jobQualifications || analysis.jobQualifications,
     notes: existing?.notes || jobHandoff.notes,
-    url: existing?.url || jobHandoff.url || parsedJob.url || jobDetails?.sourceUrl,
+    url: existing?.url || jobHandoff.url || parsedJob.url || jobDetails?.sourceUrl || "",
     source: existing?.source || jobHandoff.source || parsedJob.source || sourceFromUrl(jobDetails?.sourceUrl),
     latestReadinessScore: analysis.score,
     latestAnalysis: analysis,
@@ -440,6 +454,8 @@ async function extractTextFromFile(file: File) {
 
 async function extractPdfText(file: File) {
   const data = await file.arrayBuffer();
+  const pdfjsLib = await import("pdfjs-dist");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url).toString();
   const pdf = await pdfjsLib.getDocument({ data }).promise;
   const pages: string[] = [];
 
@@ -457,6 +473,7 @@ async function extractPdfText(file: File) {
 }
 
 async function extractDocxText(file: File) {
+  const {default: JSZip} = await import("jszip");
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const documentXml = await zip.file("word/document.xml")?.async("text");
   if (!documentXml) throw new Error("This DOCX file did not contain readable document text.");
@@ -464,6 +481,7 @@ async function extractDocxText(file: File) {
 }
 
 async function extractOdtText(file: File) {
+  const {default: JSZip} = await import("jszip");
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const documentXml = await zip.file("content.xml")?.async("text");
   if (!documentXml) throw new Error("This ODT file did not contain readable document text.");

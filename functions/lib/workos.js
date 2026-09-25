@@ -22,7 +22,7 @@ export function requireWorkOSConfig(env) {
 export function callbackUrl(request) {
   const url = new URL(request.url);
   if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
-    return "http://localhost:5173/api/auth/callback";
+    return `${url.origin}/api/auth/callback`;
   }
   return "https://sagittaiq.com/api/auth/callback";
 }
@@ -90,7 +90,7 @@ export async function hasVerifiedAccess(request, env) {
   if (!env.WORKOS_API_KEY || !env.WORKOS_CLIENT_ID || !env.WORKOS_COOKIE_PASSWORD) return false;
   try {
     const result = await verifiedSession(request, env);
-    return Boolean(result.authenticated);
+    return Boolean(result.authenticated && result.user?.emailVerified);
   } catch {
     return false;
   }

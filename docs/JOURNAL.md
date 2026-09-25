@@ -6,6 +6,46 @@ what was learned, and what still needs attention.
 
 <!-- NEW_ENTRIES_BELOW -->
 
+## 2026-09-24 - Add Chrome job capture and reviewed website import
+
+Added a separate Manifest V3 Chrome extension with on-demand extraction from
+JobPosting JSON-LD and visible posting text. It captures the complete opportunity
+context, separates required/preferred qualifications, and leaves unknown fields
+blank. Users review/edit before sending; one local draft can also be exported.
+
+A bounded, versioned URL-fragment handoff imports into the website without placing
+job text in server request URLs. The app removes the fragment, preserves the draft
+through verified sign-in in per-tab session storage, and requires an explicit save.
+No extension credentials or direct cloud write are introduced. Job-context limits
+are aligned at 30,000 characters so longer captured descriptions reach evaluation;
+this can increase AI input usage per analysis.
+
+Added extraction fixtures, malformed/ambiguous input checks, Unicode payload tests,
+website handoff tests, an installed-extension browser test, package tooling, privacy
+notices, and store listing/image tooling. See [CHROME_EXTENSION.md](CHROME_EXTENSION.md)
+for verification scope, installation, and publication prerequisites. No store
+submission or production deployment was performed.
+
+
+## 2026-09-24 - Repair candidate isolation and reproducible development
+
+Candidate APIs now require verified WorkOS sessions; shared invitation codes and
+claimed email/device headers cannot access candidate records. New opportunity IDs
+are owner-scoped while existing owned IDs and verified email-linked user records
+remain compatible. Keep the existing identity salt unchanged.
+
+Fixed optional upload fields that broke TypeScript, short technology matching
+(Go, R, C#, AI), and duplicate-column migration startup. Historical SQL remains
+unchanged; preparation adapts only the known duplicate additions to the inspected
+schema. Local APIs now run the production Pages Functions. Added a pinned lockfile,
+CI, security/SQLite/scoring regression tests, and browser checks.
+
+Extension direct cloud sync is disabled pending verified extension auth; local
+jobs/export and website handoff remain available. Verification and residual limits
+are recorded in [REPAIR_VALIDATION.md](REPAIR_VALIDATION.md). No production database,
+deployment, real invitation, or paid AI service was used for this repair.
+
+
 ## 2026-06-08 - Added Guided Beta Process Carousel
 
 ### Objective

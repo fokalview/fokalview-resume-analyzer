@@ -1,16 +1,9 @@
-FROM node:24-alpine AS build
+# Local development container only. Production uses Cloudflare Pages.
+FROM node:24-bookworm-slim
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm install
+COPY package.json package-lock.json ./
+RUN npm ci
 COPY . .
 RUN npm run build
-
-FROM node:24-alpine AS runtime
-WORKDIR /app
-ENV NODE_ENV=production
-ENV API_PORT=8787
-COPY --from=build /app/dist ./dist
-COPY server ./server
-COPY package.json ./
-EXPOSE 8787
-CMD ["node", "server/analyze.mjs"]
+EXPOSE 8788
+CMD ["sh", "-c", "npm run db:migrate && npm run dev:api -- --ip 0.0.0.0"]

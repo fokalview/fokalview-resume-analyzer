@@ -33,11 +33,15 @@ BETA_ACCESS_CODE = your private beta invite code, encrypted as a secret
 ADMIN_ACCESS_CODE = your private admin dashboard code, encrypted as a secret
 OWNER_ACCESS_CODE = optional owner override code, encrypted as a secret
 CLOUDFLARE_AI_MODEL = @cf/meta/llama-3.1-8b-instruct
+WORKOS_API_KEY = encrypted WorkOS key
+WORKOS_CLIENT_ID = WorkOS client ID
+WORKOS_COOKIE_PASSWORD = encrypted random secret, at least 32 characters
+APPLICATION_SYNC_SALT = encrypted stable identity salt
 ```
 
 For the API key and access codes, choose the encrypted/secret option. Do not add them as normal plaintext variables.
 
-7. Redeploy after adding secrets.
+7. Use Node.js 24 LTS and `npm ci` for reproducible builds. Register the configured production callback `https://sagittaiq.com/api/auth/callback` with WorkOS. Other production domains require an explicit callback configuration change. Redeploy after adding secrets.
 
 The `AI` Workers AI binding is declared in `wrangler.toml`. Cloudflare uses it
 for the job-structure and score-audit agents. Keep
@@ -77,7 +81,7 @@ This is a temporary second-level access model. For production student tracking, 
 
 ## D1 Storage For Captured Job And Resume Context
 
-The app can sync saved job/application context and structured resume workforce profiles to Cloudflare D1. Resume analysis records are stored under the beta usage terms after the user enters a valid beta access code.
+The app can sync saved job/application context and structured resume workforce profiles to Cloudflare D1. Candidate records require a verified WorkOS session and current storage consent. A beta code only admits a user to the invitation flow.
 
 1. Create a D1 database:
 
@@ -94,13 +98,10 @@ database_name = "fokalview-resume-analyzer"
 database_id = "your-real-d1-database-id"
 ```
 
-3. Apply the migration:
-
-```bash
-wrangler d1 migrations apply fokalview-resume-analyzer --remote
-```
-
-If you are using the Cloudflare dashboard console instead of Wrangler, run each file in `migrations/` once and in filename order. `0002_users_relations.sql` adds the relational `users` table and links resume/application records through `user_id` foreign keys.
+3. Prepare and review migrations using [docs/MIGRATIONS.md](docs/MIGRATIONS.md).
+   Historical migrations 0003/0004 repeat columns already present in the baseline.
+   Do not run the original sequence blindly or rewrite migration history. Back up
+   the database and review its schema and ledger before applying the staged files.
 
 4. Add an encrypted secret for a server-side hash salt:
 
@@ -112,8 +113,7 @@ APPLICATION_SYNC_SALT = long random secret value
 
 The `/api/applications` and `/api/resume-records` endpoints require:
 
-- `X-Beta-Access-Code`
-- `X-FokalView-Client-ID`
+- A verified `wos-session` cookie issued by the WorkOS sign-in flow
 - `consent: true`
 
 Use `consentVersion: ferpa-minimum-necessary-v1` for `/api/applications`.
@@ -144,7 +144,7 @@ Then upload the generated `dist` folder. Confirm the `functions` folder is deplo
 
 ## Docker Note
 
-This repo includes a `Dockerfile`, but Docker is mainly for container hosts like Render, Fly.io, Railway, or a VPS. For Cloudflare Pages, use the Vite build plus the `functions/api` Pages Functions.
+The Dockerfile runs a local Wrangler development environment only. For production, deploy the Vite build plus Pages Functions to Cloudflare Pages.
 
 ## Custom Domain
 
