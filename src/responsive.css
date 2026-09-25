@@ -1,0 +1,48 @@
+/* Content-width-driven reflow. Keep this after the visual theme rules. */
+.app-shell { grid-template-columns: clamp(13rem, 18vw, 16.5rem) minmax(0, 1fr); }
+.workspace { padding: clamp(1rem, 2.5vw, 3rem); }
+.screen { width: 100%; max-width: 105rem; }
+.screen :where(h1, h2, h3, p, label, button, a, dd, summary) { overflow-wrap: anywhere; }
+.screen :where(input, textarea, select) { max-inline-size: 100%; min-inline-size: 0; font-size: 1rem; }
+.screen :where(button, a) { white-space: normal; }
+.screen :where(.experience-header-actions, .toolbar-actions, .actions, .action-row) { flex-wrap: wrap; }
+.screen .dashboard-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)); }
+.screen .dashboard-panel { grid-column: auto; min-height: 0; }
+.screen :where(.upload-grid, .split-panel, .feedback-layout, .alignment-workspace) {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+}
+.screen .saved-opportunity-search { grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 1fr)); }
+.screen .application-form { grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); }
+.screen .application-notes { grid-column: 1 / -1; }
+.screen :where(.application-stats, .analysis-summary-strip) { grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); }
+.screen .dashboard-hero { grid-template-columns: minmax(0, 1fr) minmax(10rem, 14rem); }
+.screen .dashboard-score-card { min-width: 0; }
+.screen :where(.experience-header h1, .dashboard-hero h1) { font-size: clamp(1.75rem, 1.25rem + 2cqi, 3rem); line-height: 1.15; }
+.screen .application-list article { grid-template-columns: minmax(18rem, 1fr) repeat(5, auto); }
+.screen .application-list article > * { min-width: 0; }
+.screen .application-list select { width: 100%; }
+.screen .report-tabs { display: flex; flex-wrap: wrap; overflow: visible; }
+.screen .report-tabs button { flex: 1 1 10rem; }
+.screen .review-run-list li { grid-template-columns: auto minmax(0, 1fr); }
+.screen .review-run-list li button { justify-self: start; }
+@container workspace-screen (max-width: 64rem) {
+  .screen .application-list article { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .screen .application-list article > div:first-child { grid-column: 1 / -1; }
+  .screen .experience-header { flex-direction: column; align-items: stretch; }
+  .screen .experience-header-actions { justify-content: flex-start; }
+}
+@container workspace-screen (max-width: 36rem) {
+  .screen .dashboard-hero { grid-template-columns: minmax(0, 1fr); }
+  .screen .dashboard-score-card { justify-self: stretch; }
+  .screen .application-list article { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .screen .workflow-steps { grid-template-columns: minmax(0, 1fr); }
+  .screen .experience-header-actions > button { flex: 1 1 100%; }
+  .screen .opportunity-search-options button { grid-template-columns: minmax(0, 1fr); }
+  .screen .opportunity-search-options strong { white-space: normal; }
+}
+@media (max-width: 60rem) {
+  .app-shell { grid-template-columns: minmax(0, 1fr); }
+  .sidebar { position: static; height: auto; padding: 1rem; gap: 1rem; }
+  .step-list { grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); }
+  .sidebar .api-status { margin-top: 0; }
+}

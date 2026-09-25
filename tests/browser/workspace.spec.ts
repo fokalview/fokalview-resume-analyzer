@@ -49,3 +49,21 @@ test('dark tracker metrics have readable text contrast',async({page})=>{
   return [...document.querySelectorAll('.application-stats span,.application-stats strong')].map(e=>{const a=light(getComputedStyle(e).color),b=light(getComputedStyle(e.closest('article')!).backgroundColor);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05)});
  });expect(ratios.length).toBeGreaterThan(0);for(const ratio of ratios)expect(ratio).toBeGreaterThanOrEqual(4.5);
 });
+
+test('layout reflows continuously at intermediate widths and enlarged text',async({page})=>{
+ await fixture(page);
+ for(const view of ['dashboard','upload','results','applications']) {
+  await page.goto(`/?view=${view}`);await expect(page.locator('.workspace h1')).toBeVisible();
+  for(const width of [375,600,860,961,1024,1180,1280,1600,1920]) {
+   await page.setViewportSize({width,height:900});
+   expect(await page.evaluate(()=>document.documentElement.scrollWidth),`${view} at ${width}px`).toBeLessThanOrEqual(width);
+  }
+ }
+ await page.setViewportSize({width:1024,height:900});
+ await page.addStyleTag({content:'html { font-size: 200% !important; }'});
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth),'tracker at enlarged text').toBeLessThanOrEqual(1024);
+ const controls=page.locator('.application-list article').first().locator('select,button,a');
+ for(const control of await controls.all()) {
+  const box=await control.boundingBox();if(box) expect(box.x+box.width).toBeLessThanOrEqual(1024);
+ }
+});
