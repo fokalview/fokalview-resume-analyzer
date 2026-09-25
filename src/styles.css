@@ -5125,3 +5125,66 @@ button {
     flex-direction: column;
   }
 }
+
+/* Accessible entry and workspace refinements. */
+.welcome-panel { width: min(100%, 760px); min-width: 0; }
+.welcome-panel h1 { font-size: clamp(2rem, 5vw, 3.1rem); line-height: 1.08; max-width: 19ch; }
+.welcome-panel > h2 { margin-top: 28px; }
+.welcome-entry { padding: 20px; border: 1px solid var(--border); border-radius: 10px; margin: 24px 0; }
+.welcome-entry h2 { margin: 0; }
+.welcome-entry .primary-button { display: inline-flex; text-decoration: none; min-height: 44px; }
+.welcome-shell[data-theme="dark"] .eyebrow,
+.welcome-shell[data-theme="dark"] .product-brand em { color: #5eead4; }
+.welcome-shell[data-theme="dark"] .welcome-entry { border-color: #526477; }
+.welcome-shell[data-theme="dark"] .welcome-entry h2,
+.welcome-shell[data-theme="dark"] .welcome-panel > h2 { color: #f1f5f9; }
+.welcome-panel .beta-process-carousel { margin-top: 32px; }
+.beta-process-dots { flex-wrap: wrap; justify-content: center; }
+.beta-process-dots button { min-width: 28px; min-height: 28px; }
+.beta-process-controls { flex-wrap: wrap; }
+.tracker-filters { display: flex; flex-wrap: wrap; gap: 16px; margin: 24px 0; }
+.tracker-filters label { display: grid; gap: 8px; flex: 1 1 180px; min-width: 0; }
+.tracker-filters input, .tracker-filters select { width: 100%; padding: 12px; font: inherit; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); }
+.first-review { max-width: 780px; padding-block: 48px; }
+.first-review button { margin: 12px 12px 0 0; }
+.public-cta { padding: 32px 0; }
+.public-cta a { display: inline-flex; margin: 8px; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+.next-step-list > div { padding: 12px 0; border-bottom: 1px solid var(--border); }
+@media (max-width: 600px) {
+  .welcome-shell { padding: 76px 12px 24px; grid-template-columns: minmax(0,1fr); }
+  .welcome-panel { width: 100%; min-width: 0; padding: 20px; }
+  .welcome-panel > *, .access-form > *, .beta-process-slide > * { min-width: 0; }
+  .welcome-panel input { width: 100%; min-width: 0; font-size: 16px; }
+  .beta-process-controls { display: flex; }
+  .beta-process-dots { order: 3; width: 100%; }
+  .welcome-entry { padding: 16px; }
+  .welcome-entry .primary-button { width: 100%; justify-content: center; }
+}
+
+.experience-header h1 { margin: 0; font-size: clamp(1.7rem, 3vw, 2.75rem); line-height: 1.15; overflow-wrap: anywhere; }
+.selected-opportunity { outline: 3px solid var(--brand); outline-offset: 4px; }
+.score-details { margin-block: 16px; }
+.score-details summary { padding: 12px; cursor: pointer; }
+.screen, .workspace, .experience-header > div, .application-list article > div { min-width: 0; }
+.screen h1, .screen h2, .application-list strong, .profile-list dd { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+ .sidebar { padding: 14px; gap: 12px; }
+ .sidebar .api-status { display: none; }
+ .workspace { padding: 22px 14px; }
+ .application-list article { grid-template-columns: minmax(0,1fr); }
+ .application-list article > *, .screen input, .screen textarea, .screen select { max-width: 100%; min-width: 0; }
+ .review-run-list li { flex-wrap: wrap; }
+ .experience-header-actions, .actions { flex-wrap: wrap; }
+}
+.app-shell[data-theme="dark"] .eyebrow,
+.app-shell[data-theme="dark"] .application-stats strong { color: var(--brand); }
+.app-shell[data-theme="dark"] .application-stats span,
+.app-shell[data-theme="dark"] .application-list p,
+.app-shell[data-theme="dark"] .application-list span,
+.app-shell[data-theme="dark"] .dashboard-empty,
+.app-shell[data-theme="dark"] .age-label { color: var(--text-muted); }
+.app-shell[data-theme="dark"] .score-pill { background: #243241; color: #f8d36b; }
+.app-shell[data-theme="dark"] .application-stats article { background: var(--surface); border-color: var(--border); }
+.application-stats { grid-template-columns: repeat(5,minmax(0,1fr)); }
+@media (max-width:600px) { .application-stats { grid-template-columns: repeat(2,minmax(0,1fr)); } }
