@@ -6,6 +6,27 @@ what was learned, and what still needs attention.
 
 <!-- NEW_ENTRIES_BELOW -->
 
+## 2026-09-24 - Add Chrome job capture and reviewed website import
+
+Added a separate Manifest V3 Chrome extension with on-demand extraction from
+JobPosting JSON-LD and visible posting text. It captures the complete opportunity
+context, separates required/preferred qualifications, and leaves unknown fields
+blank. Users review/edit before sending; one local draft can also be exported.
+
+A bounded, versioned URL-fragment handoff imports into the website without placing
+job text in server request URLs. The app removes the fragment, preserves the draft
+through verified sign-in in per-tab session storage, and requires an explicit save.
+No extension credentials or direct cloud write are introduced. Job-context limits
+are aligned at 30,000 characters so longer captured descriptions reach evaluation;
+this can increase AI input usage per analysis.
+
+Added extraction fixtures, malformed/ambiguous input checks, Unicode payload tests,
+website handoff tests, an installed-extension browser test, package tooling, privacy
+notices, and store listing/image tooling. See [CHROME_EXTENSION.md](CHROME_EXTENSION.md)
+for verification scope, installation, and publication prerequisites. No store
+submission or production deployment was performed.
+
+
 ## 2026-09-24 - Repair candidate isolation and reproducible development
 
 Candidate APIs now require verified WorkOS sessions; shared invitation codes and

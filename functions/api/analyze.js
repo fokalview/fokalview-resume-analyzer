@@ -304,7 +304,7 @@ async function analyzeResume({ resumeText, targetRole, jobContext, extractedJob 
     `Target Role: ${targetRole || "Not specified"}`,
     "",
     "--- JOB CONTEXT ---",
-    jobContext ? jobContext.slice(0, 12000) : "Not provided.",
+    jobContext ? jobContext.slice(0, 30000) : "Not provided.",
     "",
     "--- CLOUDFLARE JOB STRUCTURE PASS ---",
     extractedJob ? JSON.stringify(extractedJob) : "Not available. Extract directly from Job Context.",
@@ -430,7 +430,7 @@ async function extractJobWithWorkersAi({ targetRole, jobContext }, config) {
     "Use empty strings and empty arrays when information is absent.",
     `Target role supplied by user: ${targetRole || "Not specified"}`,
     "--- JOB DESCRIPTION ---",
-    jobContext.slice(0, 16000),
+    jobContext.slice(0, 30000),
     "--- REQUIRED JSON SCHEMA ---",
     JSON.stringify(jobExtractionSchema)
   ].join("\n");

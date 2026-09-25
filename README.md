@@ -127,7 +127,19 @@ docker run --rm -p 8788:8788 --mount type=bind,source="$(pwd)/.dev.vars",target=
 The mount example uses a POSIX shell. In PowerShell use the full Windows path for
 `source`. Open `http://localhost:8788`.
 
-## Edge Extension
+## Chrome Job Capture
+
+The new `chrome-extension` folder contains a Manifest V3 extension for capturing
+an individual job posting, reviewing its details, and importing a draft into
+SagittaIQ. It captures the full description, requirements, preferred qualifications,
+responsibilities, employer, location, pay, benefits, and other explicit details.
+
+Use `npm run extension:package` to create the Chrome Web Store ZIP. See
+[installation and release instructions](docs/CHROME_EXTENSION.md) and the
+[store listing draft](docs/CHROME_STORE_LISTING.md). Deploy the companion website
+import flow before publishing the extension.
+
+## Legacy Edge Extension
 
 Local capture, export/import, and "Send to resume" remain available. Direct
 extension cloud sync is disabled until verified extension authentication is

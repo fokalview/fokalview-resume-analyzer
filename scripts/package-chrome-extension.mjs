@@ -1,0 +1,15 @@
+import JSZip from 'jszip';
+import {readFile,mkdir,writeFile} from 'node:fs/promises';
+import {resolve,join} from 'node:path';
+const root=resolve(import.meta.dirname,'..');
+const source=join(root,'chrome-extension');
+const output=resolve(process.argv[2] || join(root,'.wrangler/releases'));
+const files=['manifest.json','background.mjs','popup.html','popup.css','popup.mjs','extract.mjs','privacy.html','shared/job-capture.mjs',...[16,32,48,128].map(size=>`icons/icon${size}.png`)];
+const manifest=JSON.parse(await readFile(join(source,'manifest.json'),'utf8'));
+if(manifest.manifest_version!==3 || manifest.description.length>132) throw new Error('Invalid store manifest');
+const zip=new JSZip();
+for(const file of files) zip.file(file,await readFile(join(source,file)));
+await mkdir(output,{recursive:true});
+const path=join(output,`SagittaIQ-Chrome-Extension-${manifest.version}.zip`);
+await writeFile(path,await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'}));
+console.log(path);

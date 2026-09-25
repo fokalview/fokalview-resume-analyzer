@@ -1,0 +1,17 @@
+import JSZip from 'jszip';
+import {readFile,writeFile,mkdir} from 'node:fs/promises';
+import {resolve,join} from 'node:path';
+const root=resolve(import.meta.dirname,'..');
+const output=resolve(process.argv[2] || join(root,'.wrangler/releases'));
+const assets=resolve(process.argv[3] || join(root,'.wrangler/store-assets'));
+const zip=new JSZip();
+for(const name of ['screenshot-1280x800.png','details-1280x800.png','promo-440x280.png']) zip.file(name,await readFile(join(assets,name)));
+zip.file('icon-128.png',await readFile(join(root,'chrome-extension/icons/icon128.png')));
+zip.file('INSTALL-AND-SUBMIT.md',await readFile(join(root,'docs/CHROME_EXTENSION.md')));
+zip.file('STORE-LISTING.md',await readFile(join(root,'docs/CHROME_STORE_LISTING.md')));
+zip.file('privacy.html',await readFile(join(root,'chrome-extension/privacy.html')));
+zip.file('popup.css',await readFile(join(root,'chrome-extension/popup.css')));
+await mkdir(output,{recursive:true});
+const path=join(output,'SagittaIQ-Chrome-Store-Kit.zip');
+await writeFile(path,await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'}));
+console.log(path);

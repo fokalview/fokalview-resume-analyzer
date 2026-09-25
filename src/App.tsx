@@ -13,6 +13,8 @@ import { clearStoredAccess, getVerifiedAuthSession, type VerifiedAuthSession } f
 import { recordUserEvent, type ApplicationRecord } from "./services/api";
 import type { ResumeAnalysis, Screen } from "./types";
 import { ProductBrand } from "./components/BrandFamily";
+import JobImportScreen from "./screens/JobImportScreen";
+import {readJobHandoff,clearPendingJob} from "./services/jobHandoff";
 
 export default function App() {
   useSessionTracking();
@@ -46,13 +48,13 @@ function publicPageForPath(pathname: string) {
 }
 
 function ResumeApp() {
-  const handoff = readJobHandoff();
+  const [handoff,setHandoff] = useState(readJobHandoff);
   const [theme, setTheme] = useState<"light" | "dark">(() => getStoredTheme());
   const [hasBetaAccess, setHasBetaAccess] = useState(false);
   const [verifiedSession, setVerifiedSession] = useState<VerifiedAuthSession | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [userIdentity, setUserIdentity] = useState<{ userId: string; candidateId?: string; identifierType: string } | null>(null);
-  const [screen, setScreen] = useState<Screen>("dashboard");
+  const [screen, setScreen] = useState<Screen>(handoff.capturedJob ? "import" : "dashboard");
   const [analysis, setAnalysis] = useState<ResumeAnalysis | null>(null);
   const [resumeText, setResumeText] = useState("");
   const [targetRole, setTargetRole] = useState(handoff.targetRole);
@@ -106,10 +108,14 @@ function ResumeApp() {
 
   if (!hasBetaAccess) {
     return (
+      <>
+      {handoff.capturedJob && <p role="status" className="capture-signin-notice">Your captured job is ready. Sign in to review and save it.</p>}
+      {handoff.importError && <p role="alert" className="capture-signin-notice">{handoff.importError}</p>}
       <WelcomeScreen
         theme={theme}
         onToggleTheme={() => setTheme(theme === "dark" ? "light" : "dark")}
       />
+      </>
     );
   }
 
@@ -119,6 +125,7 @@ function ResumeApp() {
         <ProductBrand product="career" inverse />
 
         <nav className="step-list">
+          {handoff.capturedJob && <button className={screen === "import" ? "active" : ""} onClick={()=>setScreen("import")}>Review captured job</button>}
           <button className={screen === "dashboard" ? "active" : ""} onClick={() => setScreen("dashboard")}>
             <Gauge size={18} />
             Dashboard
@@ -197,6 +204,10 @@ function ResumeApp() {
             onNavigate={setScreen}
           />
         )}
+        {handoff.importError && <p role="alert">{handoff.importError}</p>}
+        {screen === "import" && handoff.capturedJob && <JobImportScreen job={handoff.capturedJob}
+          onDiscard={()=>{clearPendingJob();setHandoff({targetRole:'',jobContext:'',title:'',company:'',location:'',salary:'',url:'',notes:'',source:''});setTargetRole('');setJobContext('');setScreen("dashboard");}}
+          onSaved={opportunity=>{clearPendingJob();setHandoff({...handoff,capturedJob:undefined});setReviewOpportunity(opportunity);setTargetRole(opportunity.title);setJobContext(opportunity.jobDescription);setScreen("upload");}}/>}
         {screen === "upload" && (
           <UploadScreen
             resumeText={resumeText}
@@ -238,32 +249,6 @@ function ResumeApp() {
       </section>
     </main>
   );
-}
-
-function readJobHandoff() {
-  const params = new URLSearchParams(window.location.search);
-  const title = params.get("jobTitle") || "";
-  const company = params.get("company") || "";
-  const location = params.get("location") || "";
-  const salary = params.get("salary") || "";
-  const url = params.get("jobUrl") || "";
-  const notes = params.get("notes") || "";
-  const source = params.get("source") || "";
-
-  const targetRole = title;
-  const jobContext = [
-    title && `Job title: ${title}`,
-    company && `Company: ${company}`,
-    location && `Location: ${location}`,
-    salary && `Salary: ${salary}`,
-    source && `Source: ${source}`,
-    url && `Job URL: ${url}`,
-    notes && `Tracker notes: ${notes}`
-  ]
-    .filter(Boolean)
-    .join("\n");
-
-  return { targetRole, jobContext, title, company, location, salary, url, notes, source };
 }
 
 function getStoredTheme() {

@@ -4,7 +4,7 @@ import { hasVerifiedAccess } from "../lib/workos.js";
 
 const CONSENT_VERSION = "workforce-resume-profile-v1";
 const MAX_RAW_RESUME_LENGTH = 50000;
-const MAX_JOB_CONTEXT_LENGTH = 12000;
+const MAX_JOB_CONTEXT_LENGTH = 30000;
 
 export async function onRequestGet({ request, env }) {
   const auth = await requireAccess(request, env);

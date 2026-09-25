@@ -238,7 +238,7 @@ export default function UploadScreen({
             className="job-context"
             value={jobContext}
             onChange={(event) => onJobContextChange(event.target.value)}
-            placeholder="Paste the job description here or send one from the Edge extension..."
+            placeholder="Paste the job description here or send one from the SagittaIQ Chrome extension..."
           />
         </label>
 
