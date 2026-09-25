@@ -35,3 +35,20 @@ test('latest saved report restores after reload',async({page})=>{
 test('expired beta admission explains the next step without weakening sign-in',async({page})=>{
  await page.goto('/api/auth/login');await expect(page).toHaveURL(/access=required/);await expect(page.getByRole('alert')).toContainText('confirm your beta code and PIN');
 });
+
+for (const theme of ['light','dark']) test(`landing explains the product and opens beta access with the keyboard in ${theme}`,async({page})=>{
+ await page.goto('/');
+ if(await page.getByRole('button',{name:theme==='dark'?'Dark mode':'Light mode',exact:true}).count()) await page.getByRole('button',{name:theme==='dark'?'Dark mode':'Light mode',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Your next move, made clearer.'})).toBeVisible();
+ await expect(page.locator('.landing-steps li')).toHaveCount(3);
+ await expect(page.getByPlaceholder('Enter beta code')).toBeHidden();
+ await page.getByRole('link',{name:'Start your resume review'}).press('Enter');
+ await expect(page.getByLabel('Access code',{exact:true})).toBeVisible();
+ await expect(page.getByRole('link',{name:'Start your resume review'})).toHaveAttribute('aria-expanded','true');
+ for(const width of [320,768,1440,2560]){
+  await page.setViewportSize({width,height:900});
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ }
+ await page.reload();
+ await expect(page.getByLabel('Access code',{exact:true})).toBeVisible();
+});

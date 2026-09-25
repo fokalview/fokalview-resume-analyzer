@@ -46,6 +46,7 @@ for (const surface of ['popup','dashboard']) {
 test('old browser beta storage does not bypass sign-in',async({page})=>{
   await page.addInitScript(()=>sessionStorage.setItem('fokalview_beta_access_code','old-beta-code'));
   await page.goto('/');
+  await page.getByRole('link',{name:'Start your resume review'}).click();
   await expect(page.getByRole('button',{name:'Enter beta',exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:'Dashboard',exact:true})).toHaveCount(0);
 });
@@ -54,6 +55,7 @@ test('invitation result is rendered and server failures are visible',async({page
   // Hosted email delivery is deliberately mocked; no real invitations are sent.
   await page.route('**/api/access',route=>route.fulfill({json:{ok:true,pinCreated:true,invitation:{status:'invitation_pending'}}}));
   await page.goto('/');
+  await page.getByRole('link',{name:'Start your resume review'}).click();
   await page.getByPlaceholder('Enter beta code').fill('synthetic');
   await page.getByPlaceholder('student@example.com').fill('test@example.test');
   await page.getByPlaceholder('Choose or enter 4 digits').fill('1234');
@@ -63,6 +65,7 @@ test('invitation result is rendered and server failures are visible',async({page
   await page.unroute('**/api/access');
   await page.route('**/api/access',route=>route.fulfill({status:503,json:{error:'Beta admission is not configured.'}}));
   await page.reload();
+  await page.getByRole('link',{name:'Start your resume review'}).click();
   await page.getByPlaceholder('Enter beta code').fill('synthetic');
   await page.getByPlaceholder('student@example.com').fill('test@example.test');
   await page.getByPlaceholder('Choose or enter 4 digits').fill('1234');

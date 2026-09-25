@@ -1,19 +1,5 @@
 import { FormEvent, useState } from "react";
-import {
-  BriefcaseBusiness,
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  ClipboardCheck,
-  Download,
-  FileSearch,
-  LockKeyhole,
-  Mail,
-  Moon,
-  Send,
-  Sun,
-  Upload
-} from "lucide-react";
+import { ArrowRight, CheckCircle2, FileSearch, LockKeyhole, Mail, Moon, Sun, Upload } from "lucide-react";
 import { validateAccessCode, type BetaAccessResult } from "../services/access";
 import { ProductBrand } from "../components/BrandFamily";
 import PublicSiteMenu from "../components/PublicSiteMenu";
@@ -23,44 +9,6 @@ type Props = {
   onToggleTheme: () => void;
 };
 
-const BETA_STEPS = [
-  {
-    title: "Verify your beta access",
-    detail: "Enter the shared beta code, your email address, and the four-digit PIN you choose.",
-    Icon: LockKeyhole
-  },
-  {
-    title: "Accept your secure invitation",
-    detail: "Open the WorkOS invitation sent to your email and create your verified SagittaIQ account.",
-    Icon: Mail
-  },
-  {
-    title: "Return and sign in",
-    detail: "Come back through the beta gate, then continue to the secure sign-in screen.",
-    Icon: Send
-  },
-  {
-    title: "Upload your resume",
-    detail: "Add your current resume so SagittaIQ can build your career profile and evaluate readiness.",
-    Icon: Upload
-  },
-  {
-    title: "Analyze a target job",
-    detail: "Paste a job description to compare its qualifications against your resume.",
-    Icon: FileSearch
-  },
-  {
-    title: "Track the opportunity",
-    detail: "Save the role and update it as you apply, interview, receive an offer, or close the opportunity.",
-    Icon: BriefcaseBusiness
-  },
-  {
-    title: "Download your report",
-    detail: "Keep a complete readiness report with your score, feedback, and prioritized improvements.",
-    Icon: Download
-  }
-];
-
 export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
   const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
@@ -68,11 +16,8 @@ export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
   const [error, setError] = useState("");
   const [isChecking, setIsChecking] = useState(false);
   const [accessResult, setAccessResult] = useState<BetaAccessResult | null>(null);
-  const [activeStep, setActiveStep] = useState(0);
-
-  const step = BETA_STEPS[activeStep];
-  const isFirstStep = activeStep === 0;
-  const isLastStep = activeStep === BETA_STEPS.length - 1;
+  const needsAccess = new URLSearchParams(location.search).get("access") === "required";
+  const [accessOpen, setAccessOpen] = useState(needsAccess || location.hash === "#beta-access-form");
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -102,19 +47,40 @@ export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
         {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
         {theme === "dark" ? "Light mode" : "Dark mode"}
       </button>
-      <section className="welcome-panel">
+      <section className="welcome-panel landing-panel">
+        <header className="landing-header">
+          <ProductBrand product="career" inverse={theme === "dark"} />
+          <a className="landing-sign-in" href="/api/auth/login">Sign in to SagittaIQ <ArrowRight size={16} aria-hidden="true" /></a>
+        </header>
         <div className="welcome-intro">
-        <ProductBrand product="career" inverse={theme === "dark"} />
         <p className="eyebrow">Private Beta</p>
         <h1>Compare your resume with the job you want.</h1>
         <p>
           Find your strengths, identify gaps, and track your next opportunity.
         </p>
+        <a className="primary-button landing-cta" href="#beta-access-form" aria-expanded={accessOpen} aria-controls="beta-access-panel" onClick={() => setAccessOpen(true)}>Start your resume review <ArrowRight size={18} aria-hidden="true" /></a>
+        <p className="landing-access-note">Private beta · An invitation code is required.</p>
         </div>
-        <div className="welcome-access">
-        <div className="welcome-entry"><h2>Welcome back</h2><p>Already accepted your invitation?</p><a className="primary-button" href="/api/auth/login">Sign in to SagittaIQ</a></div>
-        {new URLSearchParams(location.search).get("access") === "required" && <p role="alert">Please confirm your beta code and PIN on this browser, then continue to secure sign-in.</p>}
-        <h2>Join the private beta</h2><p>Have an access code? Request your secure account invitation below.</p>
+        <section className="example-report" aria-labelledby="example-report-title">
+          <div className="example-report-top"><span className="example-label">Example report</span><span>Illustrative data</span></div>
+          <h2 id="example-report-title">Your next move, made clearer.</h2>
+          <p className="example-role">Data Analyst · Sample role</p>
+          <div className="example-score"><strong>78<span>/100</span></strong><div><b>Resume alignment</b><p>A starting point for your next revision.</p></div></div>
+          <h3>Skills already showing up</h3>
+          <ul className="example-skills"><li>SQL</li><li>Python</li><li>Data visualization</li></ul>
+          <h3>Two ways to strengthen this resume</h3>
+          <ol className="example-improvements"><li><strong>Show the outcome.</strong><span>Add a measurable result to your reporting project.</span></li><li><strong>Make your experience specific.</strong><span>Name the dashboard tools you actually used.</span></li></ol>
+          <p className="example-disclaimer">This example is not an assessment of your resume. Scores guide revision; they do not predict hiring outcomes.</p>
+        </section>
+        <section className="landing-steps" aria-labelledby="landing-steps-title">
+          <h2 id="landing-steps-title">From resume to next steps.</h2>
+          <ol><li><Upload size={22} aria-hidden="true" /><div><h3>1. Add your resume</h3><p>Start with your current experience and skills.</p></div></li><li><FileSearch size={22} aria-hidden="true" /><div><h3>2. Add a job</h3><p>Bring the role you want to work toward.</p></div></li><li><CheckCircle2 size={22} aria-hidden="true" /><div><h3>3. Review your match</h3><p>See strengths, gaps, and practical improvements.</p></div></li></ol>
+        </section>
+        <details className="welcome-access landing-access" id="beta-access-form" open={accessOpen} onToggle={event => setAccessOpen(event.currentTarget.open)}>
+        <summary>Have a beta code? Set up your access</summary>
+        <div id="beta-access-panel">
+        {needsAccess && <p role="alert">Please confirm your beta code and PIN on this browser, then continue to secure sign-in.</p>}
+        <h2>Join the private beta</h2><p>Enter your code to request a secure account invitation. Accept it by email, then return to sign in.</p>
         {accessResult ? (
           <section className="beta-invitation-confirmation" aria-live="polite">
             <CheckCircle2 size={28} />
@@ -136,7 +102,7 @@ export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
               <a className="primary-button" href="/api/auth/login">Continue to verified sign in</a>
             </div>
           </section>
-        ) : <form className="access-form" id="beta-access-form" onSubmit={submit}>
+        ) : <form className="access-form" onSubmit={submit}>
           <label>
             <span>
               <LockKeyhole size={16} />
@@ -146,19 +112,23 @@ export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
               value={code}
               onChange={(event) => setCode(event.target.value)}
               placeholder="Enter beta code"
+              required
               autoComplete="off"
             />
           </label>
 
           <label>
-            <span>Email address <small>required for your beta PIN and saved progress</small></span>
+            <span>Email address</span>
             <input
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               type="email"
+              aria-describedby="beta-email-help"
+              required
               placeholder="student@example.com"
               autoComplete="email"
             />
+            <small id="beta-email-help">Used for your invitation and saved progress.</small>
           </label>
 
           <label>
@@ -170,13 +140,15 @@ export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
               value={userPin}
               onChange={(event) => setUserPin(event.target.value.replace(/\D/g, "").slice(0, 4))}
               type="password"
+              required
+              aria-describedby="beta-pin-help"
               inputMode="numeric"
               pattern="[0-9]{4}"
               maxLength={4}
               placeholder="Choose or enter 4 digits"
               autoComplete="one-time-code"
             />
-            <small>First visit: choose any 4 digits. Future visits: use the same 4 digits.</small>
+            <small id="beta-pin-help">First visit: choose any 4 digits. Future visits: use the same 4 digits.</small>
           </label>
 
           <p className="access-consent">By entering the beta, you accept the Beta Terms and Privacy Notice below.</p>
@@ -225,72 +197,11 @@ export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
           </button>
         </form>}
         </div>
-        <div className="welcome-guide">
-        <section className="beta-process-carousel" aria-labelledby="beta-process-title">
-          <div className="beta-process-heading">
-            <div>
-              <p className="eyebrow">Your Beta Journey</p>
-              <h2 id="beta-process-title">Know what happens next.</h2>
-            </div>
-            <span aria-label={`Step ${activeStep + 1} of ${BETA_STEPS.length}`}>
-              {activeStep + 1}/{BETA_STEPS.length}
-            </span>
-          </div>
-          <div className="beta-process-slide" aria-live="polite">
-            <div className="beta-process-icon" aria-hidden="true">
-              <step.Icon size={25} />
-            </div>
-            <div>
-              <strong>{step.title}</strong>
-              <p>{step.detail}</p>
-            </div>
-          </div>
-          <div className="beta-process-controls">
-            <button
-              type="button"
-              aria-label="Previous beta process step"
-              onClick={() => setActiveStep((current) => Math.max(0, current - 1))}
-              disabled={isFirstStep}
-            >
-              <ChevronLeft size={17} />
-              Back
-            </button>
-            <div className="beta-process-dots" aria-label="Choose a beta process step">
-              {BETA_STEPS.map((item, index) => (
-                <button
-                  key={item.title}
-                  type="button"
-                  className={index === activeStep ? "active" : ""}
-                  aria-label={`Step ${index + 1}: ${item.title}`}
-                  aria-current={index === activeStep ? "step" : undefined}
-                  onClick={() => setActiveStep(index)}
-                />
-              ))}
-            </div>
-            {isLastStep ? (
-              <a href="#beta-access-form">
-                Start
-                <ClipboardCheck size={17} />
-              </a>
-            ) : (
-              <button
-                type="button"
-                aria-label="Next beta process step"
-                onClick={() => setActiveStep((current) => Math.min(BETA_STEPS.length - 1, current + 1))}
-              >
-                Next
-                <ChevronRight size={17} />
-              </button>
-            )}
-          </div>
-        </section>
+        </details>
         <div className="welcome-trust-summary">
           <span><strong>Your progress returns with you.</strong> Resume analysis and opportunity activity are saved to your beta profile.</span>
           <span><strong>Your score is guidance.</strong> It estimates alignment and never predicts a hiring decision.</span>
           <a href="/data-and-privacy">Review data and privacy details</a>
-        </div>
-
-
         </div>
       </section>
     </main>
