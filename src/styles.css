@@ -5161,3 +5161,30 @@ button {
   .welcome-entry { padding: 16px; }
   .welcome-entry .primary-button { width: 100%; justify-content: center; }
 }
+
+.experience-header h1 { margin: 0; font-size: clamp(1.7rem, 3vw, 2.75rem); line-height: 1.15; overflow-wrap: anywhere; }
+.selected-opportunity { outline: 3px solid var(--brand); outline-offset: 4px; }
+.score-details { margin-block: 16px; }
+.score-details summary { padding: 12px; cursor: pointer; }
+.screen, .workspace, .experience-header > div, .application-list article > div { min-width: 0; }
+.screen h1, .screen h2, .application-list strong, .profile-list dd { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+ .sidebar { padding: 14px; gap: 12px; }
+ .sidebar .api-status { display: none; }
+ .workspace { padding: 22px 14px; }
+ .application-list article { grid-template-columns: minmax(0,1fr); }
+ .application-list article > *, .screen input, .screen textarea, .screen select { max-width: 100%; min-width: 0; }
+ .review-run-list li { flex-wrap: wrap; }
+ .experience-header-actions, .actions { flex-wrap: wrap; }
+}
+.app-shell[data-theme="dark"] .eyebrow,
+.app-shell[data-theme="dark"] .application-stats strong { color: var(--brand); }
+.app-shell[data-theme="dark"] .application-stats span,
+.app-shell[data-theme="dark"] .application-list p,
+.app-shell[data-theme="dark"] .application-list span,
+.app-shell[data-theme="dark"] .dashboard-empty,
+.app-shell[data-theme="dark"] .age-label { color: var(--text-muted); }
+.app-shell[data-theme="dark"] .score-pill { background: #243241; color: #f8d36b; }
+.app-shell[data-theme="dark"] .application-stats article { background: var(--surface); border-color: var(--border); }
+.application-stats { grid-template-columns: repeat(5,minmax(0,1fr)); }
+@media (max-width:600px) { .application-stats { grid-template-columns: repeat(2,minmax(0,1fr)); } }

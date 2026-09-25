@@ -10,11 +10,13 @@ type ReportTab = "overview" | "recommendations" | "alignment";
 export default function ResultsScreen({
   analysis,
   jobHandoff,
-  onOpenTracker
+  onOpenTracker,
+  hasOpportunity = false
 }: {
   analysis: ResumeAnalysis;
   jobHandoff: JobHandoff;
   onOpenTracker: () => void;
+  hasOpportunity?: boolean;
 }) {
   const [tab, setTab] = useState<ReportTab>("overview");
   const highPriority = analysis.improvements.filter((item) => item.priority === "High").length;
@@ -38,7 +40,7 @@ export default function ResultsScreen({
             </button>
             <button className="primary-button" onClick={onOpenTracker}>
               <BriefcaseBusiness size={17} />
-              Open opportunities
+              {hasOpportunity ? "Open this opportunity" : "Open opportunities"}
             </button>
           </>
         }
@@ -75,14 +77,14 @@ export default function ResultsScreen({
       {tab === "overview" && (
         <div className="report-view">
           <InlineNotice title="What this score means">{analysis.summary}</InlineNotice>
-          {analysis.scoreAudit && (
+          {analysis.scoreAudit && <details className="score-details"><summary>How this score was checked</summary>
             <InlineNotice
               tone={analysis.scoreAudit.verdict === "reasonable" ? "success" : "warning"}
               title={`Score audit: ${analysis.scoreAudit.verdict === "reasonable" ? "reasonable" : "review recommended"}`}
             >
               {analysis.scoreAudit.explanation} Expected range: {analysis.scoreAudit.expectedMin}-{analysis.scoreAudit.expectedMax}.
             </InlineNotice>
-          )}
+          </details>}
           <section className="split-panel">
             <div>
               <h3>Evidence supporting your fit</h3>
@@ -98,7 +100,7 @@ export default function ResultsScreen({
                 {analysis.sections.map((section) => (
                   <div className="section-row" key={section.name}>
                     <div><strong>{section.name}</strong><span>{section.note}</span></div>
-                    <meter min="0" max="100" value={section.score} />
+                    <meter aria-label={`${section.name} alignment`} min="0" max="100" value={section.score} />
                   </div>
                 ))}
               </div>

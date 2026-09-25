@@ -31,3 +31,7 @@ test('latest saved report restores after reload',async({page})=>{
  await page.goto('/?view=results');await expect(page.getByRole('heading',{name:'72% alignment with Engineer'})).toBeVisible();
  await page.reload();await expect(page.getByRole('heading',{name:'72% alignment with Engineer'})).toBeVisible();
 });
+
+test('expired beta admission explains the next step without weakening sign-in',async({page})=>{
+ await page.goto('/api/auth/login');await expect(page).toHaveURL(/access=required/);await expect(page.getByRole('alert')).toContainText('confirm your beta code and PIN');
+});

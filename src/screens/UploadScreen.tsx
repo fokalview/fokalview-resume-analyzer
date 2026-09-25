@@ -1,15 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, ClipboardPaste, Loader2, Search, Upload } from "lucide-react";
-import JSZip from "jszip";
-import * as pdfjsLib from "pdfjs-dist";
 import { analyzeResume, getApplications, saveApplicationRecord, saveResumeRecord, type ApplicationRecord } from "../services/api";
 import type { JobHandoff, ResumeAnalysis } from "../types";
 import { InlineNotice, PageHeader } from "../components/ExperienceUI";
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.mjs",
-  import.meta.url
-).toString();
 
 type Props = {
   resumeText: string;
@@ -21,7 +14,7 @@ type Props = {
   onResumeTextChange: (value: string) => void;
   onTargetRoleChange: (value: string) => void;
   onJobContextChange: (value: string) => void;
-  onAnalysisComplete: (analysis: ResumeAnalysis, warning?: string) => void;
+  onAnalysisComplete: (analysis: ResumeAnalysis, warning?: string, reportId?: string, opportunity?: ApplicationRecord | null) => void;
 };
 
 export default function UploadScreen({
@@ -38,6 +31,8 @@ export default function UploadScreen({
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [opportunityRetry, setOpportunityRetry] = useState(0);
+  const [opportunitiesLoading, setOpportunitiesLoading] = useState(true);
   const [opportunityError, setOpportunityError] = useState("");
   const [stage, setStage] = useState("");
   const [error, setError] = useState("");
@@ -49,8 +44,13 @@ export default function UploadScreen({
   const [opportunitySearchOpen, setOpportunitySearchOpen] = useState(false);
 
   useEffect(() => {
-    void getApplications().then(setSavedOpportunities).catch(() => setOpportunityError("Saved opportunities could not load. Reload this page to retry, or enter a new job below."));
-  }, []);
+    let active = true;
+    setOpportunitiesLoading(true);setOpportunityError("");
+    void getApplications().then(items => {if(active)setSavedOpportunities(items);})
+      .catch(() => {if(active)setOpportunityError("Saved opportunities could not load. Retry or enter a new job below.");})
+      .finally(() => {if(active)setOpportunitiesLoading(false);});
+    return () => {active=false;};
+  }, [opportunityRetry]);
 
   useEffect(() => {
     setOpportunitySearch(opportunity ? opportunityLabel(opportunity) : "");
@@ -125,7 +125,7 @@ export default function UploadScreen({
       setSaveStatus(application
         ? `Updated readiness history for ${application.title}.`
         : `Saved workforce profile ${saved.id.slice(0, 8)}.`);
-      onAnalysisComplete(analysis);
+      onAnalysisComplete(analysis, undefined, saved.id, application);
       } catch {
         onAnalysisComplete(analysis, "Your review is ready, but saving did not finish. Download this report now to keep a copy; it may not appear in your saved history.");
       }
@@ -149,7 +149,8 @@ export default function UploadScreen({
         meta={<span>PDF, DOCX, ODT, RTF, TXT, MD, and CSV supported</span>}
       />
 
-      {opportunityError && <p role="alert">{opportunityError}</p>}
+      {opportunityError && <div><p role="alert">{opportunityError}</p><button className="secondary-action" onClick={()=>setOpportunityRetry(value=>value+1)}>Retry saved opportunities</button></div>}
+      {opportunitiesLoading && <p role="status">Loading saved opportunities…</p>}
       <section className="saved-opportunity-search">
         <div>
           <span className="eyebrow">Saved opportunity search</span>
@@ -453,6 +454,8 @@ async function extractTextFromFile(file: File) {
 
 async function extractPdfText(file: File) {
   const data = await file.arrayBuffer();
+  const pdfjsLib = await import("pdfjs-dist");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url).toString();
   const pdf = await pdfjsLib.getDocument({ data }).promise;
   const pages: string[] = [];
 
@@ -470,6 +473,7 @@ async function extractPdfText(file: File) {
 }
 
 async function extractDocxText(file: File) {
+  const {default: JSZip} = await import("jszip");
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const documentXml = await zip.file("word/document.xml")?.async("text");
   if (!documentXml) throw new Error("This DOCX file did not contain readable document text.");
@@ -477,6 +481,7 @@ async function extractDocxText(file: File) {
 }
 
 async function extractOdtText(file: File) {
+  const {default: JSZip} = await import("jszip");
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
   const documentXml = await zip.file("content.xml")?.async("text");
   if (!documentXml) throw new Error("This ODT file did not contain readable document text.");

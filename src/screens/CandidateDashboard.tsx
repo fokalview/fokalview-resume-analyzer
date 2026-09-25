@@ -151,7 +151,7 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
             {statusCounts.map((item) => (
               <div key={item.label}>
                 <span>{item.label}</span>
-                <meter min="0" max={Math.max(...statusCounts.map((entry) => entry.count), 1)} value={item.count} />
+                <meter aria-label={`${item.label} opportunities`} min="0" max={Math.max(...statusCounts.map((entry) => entry.count), 1)} value={item.count} />
                 <strong>{item.count}</strong>
               </div>
             ))}
@@ -200,11 +200,11 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
             <Target size={18} />
             <h3>Readiness Drivers</h3>
           </div>
-          <div className="driver-chart" role="img" aria-label="Readiness driver scores by resume section">
+          <div className="driver-chart" aria-label="Readiness driver scores by resume section">
             {readinessDrivers.map((driver) => (
               <div key={driver.label}>
                 <span>{driver.label}</span>
-                <meter min="0" max="100" value={driver.score} />
+                <meter aria-label={`${driver.label} score`} min="0" max="100" value={driver.score} />
                 <strong>{driver.score}%</strong>
               </div>
             ))}

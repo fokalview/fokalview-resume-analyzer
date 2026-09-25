@@ -110,6 +110,7 @@ export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
           Find your strengths, identify gaps, and track your next opportunity.
         </p>
         <div className="welcome-entry"><h2>Welcome back</h2><p>Already accepted your invitation?</p><a className="primary-button" href="/api/auth/login">Sign in to SagittaIQ</a></div>
+        {new URLSearchParams(location.search).get("access") === "required" && <p role="alert">Please confirm your beta code and PIN on this browser, then continue to secure sign-in.</p>}
         <h2>Join the private beta</h2><p>Have an access code? Request your secure account invitation below.</p>
         {accessResult ? (
           <section className="beta-invitation-confirmation" aria-live="polite">
