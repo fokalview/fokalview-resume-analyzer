@@ -21,7 +21,7 @@ type Props = {
   onResumeTextChange: (value: string) => void;
   onTargetRoleChange: (value: string) => void;
   onJobContextChange: (value: string) => void;
-  onAnalysisComplete: (analysis: ResumeAnalysis) => void;
+  onAnalysisComplete: (analysis: ResumeAnalysis, warning?: string) => void;
 };
 
 export default function UploadScreen({
@@ -38,6 +38,8 @@ export default function UploadScreen({
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [opportunityError, setOpportunityError] = useState("");
+  const [stage, setStage] = useState("");
   const [error, setError] = useState("");
   const [fileStatus, setFileStatus] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
@@ -47,7 +49,7 @@ export default function UploadScreen({
   const [opportunitySearchOpen, setOpportunitySearchOpen] = useState(false);
 
   useEffect(() => {
-    void getApplications().then(setSavedOpportunities).catch(() => setSavedOpportunities([]));
+    void getApplications().then(setSavedOpportunities).catch(() => setOpportunityError("Saved opportunities could not load. Reload this page to retry, or enter a new job below."));
   }, []);
 
   useEffect(() => {
@@ -91,11 +93,12 @@ export default function UploadScreen({
   }
 
   async function submit() {
-    setIsLoading(true);
+    setIsLoading(true);setStage("Preparing your review…");
     setError("");
     setSaveStatus("");
     try {
       const existingOpportunity = opportunity || await findExistingOpportunity(jobHandoff, targetRole, jobContext);
+      setStage("Comparing your resume…");
       const analysis = await analyzeResume({
         resumeText,
         targetRole,
@@ -107,6 +110,8 @@ export default function UploadScreen({
           analyzedAt
         }))
       });
+      setStage("Saving your review…");
+      try {
       const application = await saveApplicationFromHandoff(jobHandoff, targetRole, jobContext, analysis, opportunity);
       const saved = await saveResumeRecord({
         resumeText,
@@ -121,6 +126,9 @@ export default function UploadScreen({
         ? `Updated readiness history for ${application.title}.`
         : `Saved workforce profile ${saved.id.slice(0, 8)}.`);
       onAnalysisComplete(analysis);
+      } catch {
+        onAnalysisComplete(analysis, "Your review is ready, but saving did not finish. Download this report now to keep a copy; it may not appear in your saved history.");
+      }
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Something went wrong.");
     } finally {
@@ -128,7 +136,7 @@ export default function UploadScreen({
     }
   }
 
-  const canSubmit = resumeText.trim().length >= 200 && !isLoading;
+  const canSubmit = resumeText.trim().length >= 200 && jobContext.trim().length >= 40 && !isLoading;
 
   return (
     <div className="screen upload-screen">
@@ -141,6 +149,7 @@ export default function UploadScreen({
         meta={<span>PDF, DOCX, ODT, RTF, TXT, MD, and CSV supported</span>}
       />
 
+      {opportunityError && <p role="alert">{opportunityError}</p>}
       <section className="saved-opportunity-search">
         <div>
           <span className="eyebrow">Saved opportunity search</span>
@@ -153,10 +162,10 @@ export default function UploadScreen({
             <Search size={17} />
             <input
               id="saved-opportunity-search"
-              role="combobox"
+              aria-label="Search saved opportunities"
               aria-expanded={opportunitySearchOpen}
               aria-controls="saved-opportunity-options"
-              aria-autocomplete="list"
+              onKeyDown={event => {if(event.key === "Escape") setOpportunitySearchOpen(false);}}
               value={opportunitySearch}
               onFocus={() => setOpportunitySearchOpen(true)}
               onChange={(event) => {
@@ -170,11 +179,11 @@ export default function UploadScreen({
             </button>
           </div>
           {opportunitySearchOpen && (
-            <div className="opportunity-search-options" id="saved-opportunity-options" role="listbox">
+            <div className="opportunity-search-options" id="saved-opportunity-options">
               <button
                 type="button"
-                role="option"
-                aria-selected={!opportunity}
+
+                aria-pressed={!opportunity}
                 onClick={() => {
                   onOpportunitySelect(null);
                   setOpportunitySearch("");
@@ -187,8 +196,8 @@ export default function UploadScreen({
               {filteredOpportunities.map((item) => (
                 <button
                   type="button"
-                  role="option"
-                  aria-selected={opportunity?.id === item.id}
+
+                  aria-pressed={opportunity?.id === item.id}
                   key={item.id}
                   onClick={() => {
                     onOpportunitySelect(item);
@@ -252,14 +261,17 @@ export default function UploadScreen({
             if (file) void handleFile(file);
           }}
           role="button"
+          aria-label="Upload career materials"
+          onKeyDown={event => {if(event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {event.preventDefault();fileInputRef.current?.click();}}}
           tabIndex={0}
         >
           <Upload size={24} />
           <strong>Upload career materials</strong>
           <span>PDF, DOCX, ODT, RTF, TXT, MD, and CSV are supported.</span>
-          {fileStatus && <small className="file-status">{fileStatus}</small>}
+          {fileStatus && <small role="status" className="file-status">{fileStatus}</small>}
           <input
             ref={fileInputRef}
+            aria-label="Choose resume file"
             type="file"
             accept=".pdf,.docx,.odt,.rtf,.txt,.md,.csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.oasis.opendocument.text,application/rtf,text/rtf,text/plain,text/markdown,text/csv"
             onChange={(event) => {
@@ -296,9 +308,10 @@ export default function UploadScreen({
         </InlineNotice>
       </div>
 
-      {error && <p className="error-message">{error}</p>}
+      {error && <p role="alert" className="error-message">{error}</p>}
       {saveStatus && <p className="success-message">{saveStatus}</p>}
 
+      <p role="status">{isLoading ? stage : "To compare: add at least 200 characters of resume text and 40 characters of job description."}</p>
       <div className="actions">
         <span>{resumeText.trim().length.toLocaleString()} characters ready</span>
         <button className="primary-button" disabled={!canSubmit} onClick={submit}>

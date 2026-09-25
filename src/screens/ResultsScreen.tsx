@@ -38,7 +38,7 @@ export default function ResultsScreen({
             </button>
             <button className="primary-button" onClick={onOpenTracker}>
               <BriefcaseBusiness size={17} />
-              Open opportunity
+              Open opportunities
             </button>
           </>
         }

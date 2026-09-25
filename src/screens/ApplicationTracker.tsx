@@ -31,6 +31,10 @@ type Props = {
 };
 
 export default function ApplicationTracker({ onRerun }: Props) {
+  const [showForm, setShowForm] = useState(false);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [sort, setSort] = useState("recent");
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
   const [resumeRecords, setResumeRecords] = useState<ResumeRecord[]>([]);
   const [form, setForm] = useState({
@@ -106,6 +110,8 @@ export default function ApplicationTracker({ onRerun }: Props) {
   }
 
   function editApplication(item: ApplicationRecord) {
+    setShowForm(true);
+    requestAnimationFrame(()=>document.querySelector<HTMLInputElement>(".application-form input")?.focus());
     setEditingId(item.id);
     setForm({
       title: item.title,
@@ -121,6 +127,7 @@ export default function ApplicationTracker({ onRerun }: Props) {
   }
 
   function resetForm() {
+    setShowForm(false);
     setEditingId("");
     setForm({
       title: "",
@@ -203,7 +210,8 @@ export default function ApplicationTracker({ onRerun }: Props) {
         ))}
       </section>
 
-      <form className="application-form" onSubmit={submit}>
+      <button className="primary-button" aria-expanded={showForm} aria-controls="opportunity-editor" onClick={()=>setShowForm(!showForm)}>{showForm ? "Close editor" : "Add opportunity"}</button>
+      {showForm && <form id="opportunity-editor" className="application-form" onSubmit={submit}>
         <div className="form-intro">
           <div>
             <span className="eyebrow">{editingId ? "Editing opportunity" : "Add opportunity"}</span>
@@ -341,9 +349,9 @@ export default function ApplicationTracker({ onRerun }: Props) {
           <Plus size={18} />
           {editingId ? "Save changes" : "Add application"}
         </button>
-      </form>
+      </form>}
 
-      {error && <p className="error-message">{error}</p>}
+      {error && <p role="alert" className="error-message">{error}</p>}
 
       <div className="application-toolbar">
         <h3>Recent applications</h3>
@@ -357,9 +365,16 @@ export default function ApplicationTracker({ onRerun }: Props) {
         </div>
       </div>
 
+      <div className="tracker-filters">
+        <label>Search opportunities<input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Job title or company" /></label>
+        <label>Status<select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)}><option value="">All statuses</option>{STATUSES.map(status=><option key={status}>{status}</option>)}</select></label>
+        <label>Sort<select value={sort} onChange={e=>setSort(e.target.value)}><option value="recent">Recently updated</option><option value="company">Company</option></select></label>
+      </div>
+      {isLoading && <p role="status">Loading opportunities…</p>}
+      {!isLoading && applications.length > 0 && !applications.some(item=>(!statusFilter || item.status===statusFilter) && `${item.title} ${item.company}`.toLowerCase().includes(query.toLowerCase())) && <p role="status">No opportunities match these filters.</p>}
       <section className="application-list">
         {applications.length ? (
-          applications.map((item) => (
+          applications.filter(item=>(!statusFilter || item.status===statusFilter) && `${item.title} ${item.company}`.toLowerCase().includes(query.toLowerCase())).sort((a,b)=>sort==="company"?a.company.localeCompare(b.company):b.updatedAt.localeCompare(a.updatedAt)).map((item) => (
             <article key={item.id}>
               <div>
                 <strong>{item.title}</strong>
@@ -445,6 +460,7 @@ export default function ApplicationTracker({ onRerun }: Props) {
               </div>
               <select
                 className={`status-select ${item.status.toLowerCase()}`}
+                aria-label={`Status for ${item.title} at ${item.company}`}
                 value={item.status}
                 onChange={(event) => void changeStatus(item.id, event.target.value)}
               >
@@ -457,7 +473,7 @@ export default function ApplicationTracker({ onRerun }: Props) {
                 {ageLabel(item.createdAt)}
               </span>
               {item.url && (
-                <a href={item.url} target="_blank" rel="noreferrer">
+                <a aria-label={`Open posting for ${item.title}`} href={item.url} target="_blank" rel="noreferrer">
                   <ExternalLink size={16} />
                 </a>
               )}
@@ -474,7 +490,7 @@ export default function ApplicationTracker({ onRerun }: Props) {
         ) : (
           <div className="empty-panel">
             <BriefcaseBusiness size={24} />
-            <strong>No applications yet.</strong>
+            <strong>{isLoading ? "Loading your applications…" : error ? "Applications are unavailable." : "No applications yet."}</strong>
             <span>Add your first opportunity above.</span>
           </div>
         )}

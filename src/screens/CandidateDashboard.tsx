@@ -17,12 +17,14 @@ type Props = {
 };
 
 export default function CandidateDashboard({ analysis, targetRole, userIdentity, onNavigate }: Props) {
+  const [loading, setLoading] = useState(true);
+  const [retry, setRetry] = useState(0);
   const [applications, setApplications] = useState<ApplicationRecord[]>([]);
   const [resumeRecords, setResumeRecords] = useState<ResumeRecord[]>([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    let isMounted = true;
+    let isMounted = true;setLoading(true);setError("");
     Promise.all([getApplications(), getResumeRecords()])
       .then(([nextApplications, nextRecords]) => {
         if (!isMounted) return;
@@ -32,12 +34,12 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
       .catch((nextError) => {
         if (!isMounted) return;
         setError(nextError instanceof Error ? nextError.message : "Could not load dashboard data.");
-      });
+      }).finally(()=>{if(isMounted)setLoading(false);});
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [retry]);
 
   const latestRecord = resumeRecords[0];
   const currentAnalysis = analysis || latestRecord?.analysis || null;
@@ -51,12 +53,15 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
   const readinessDrivers = readinessDriverScores(currentAnalysis);
   const timeline = buildTimeline(resumeRecords, applications, userIdentity);
 
+  if(loading) return <section className="screen" role="status">Loading your career dashboard…</section>;
+  if(error) return <section className="screen"><p role="alert">{error}</p><button className="primary-button" onClick={()=>setRetry(retry+1)}>Retry dashboard</button></section>;
+  if(!currentAnalysis && !applications.length) return <section className="screen first-review"><p className="eyebrow">Your next step</p><h1>Start with one resume and one job.</h1><p>Compare your experience with the role you want, then keep your applications and progress together.</p><button className="primary-button" onClick={()=>onNavigate("upload")}>Start your first review</button><button className="secondary-action" onClick={()=>onNavigate("applications")}>Add an opportunity</button></section>;
   return (
     <section className="screen dashboard-screen">
       <div className="dashboard-hero">
         <div>
           <p className="eyebrow">Candidate Dashboard</p>
-          <h2>Your career readiness command center.</h2>
+          <h1>Your career progress.</h1>
           <p>
             Track your resume score, role alignment, application activity, and the next moves that matter most.
           </p>
@@ -124,6 +129,7 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
                 />
               ))}
               </div>
+              <ul className="sr-only">{resumeRecords.slice(0,8).map(record=><li key={record.id}>{formatDate(record.updatedAt)}: {record.analysis.score} percent</li>)}</ul>
             </div>
           ) : (
             <EmptyState icon={FileText} title="No score history yet" detail="Analyze a resume to start tracking progress." />
@@ -164,10 +170,9 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
           {nextSteps.length ? (
             <div className="next-step-list">
               {nextSteps.map((step) => (
-                <label key={step}>
-                  <input type="checkbox" />
+                <div key={step}>
                   <span>{step}</span>
-                </label>
+                </div>
               ))}
             </div>
           ) : (
