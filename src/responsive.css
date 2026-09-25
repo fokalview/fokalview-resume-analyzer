@@ -1,7 +1,7 @@
 /* Content-width-driven reflow. Keep this after the visual theme rules. */
 .app-shell { grid-template-columns: clamp(13rem, 18vw, 16.5rem) minmax(0, 1fr); }
 .workspace { padding: clamp(1rem, 2.5vw, 3rem); }
-.screen { width: 100%; max-width: 105rem; }
+.workspace > .screen { width: 100%; max-width: none; margin-inline: 0; }
 .screen :where(h1, h2, h3, p, label, button, a, dd, summary) { overflow-wrap: anywhere; }
 .screen :where(input, textarea, select) { max-inline-size: 100%; min-inline-size: 0; font-size: 1rem; }
 .screen :where(button, a) { white-space: normal; }
@@ -45,4 +45,54 @@
   .sidebar { position: static; height: auto; padding: 1rem; gap: 1rem; }
   .step-list { grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); }
   .sidebar .api-status { margin-top: 0; }
+}
+
+/* Standard full-width shell: 1440px reference, fluid gutters and bounded type. */
+:root {
+  --layout-gutter: clamp(1rem, 2vw, 2.5rem);
+  --layout-body: clamp(1rem, .95rem + .15vw, 1.125rem);
+  --layout-title: clamp(1.75rem, 1.25rem + 1.5vw, 3rem);
+}
+.app-shell, .public-page-shell, .admin-shell { width: 100%; max-width: none; }
+.workspace { padding: var(--layout-gutter); font-size: var(--layout-body); }
+.workspace > .analysis-workspace, .workspace > .first-review { max-width: none; }
+.screen :where(.experience-header, .screen-heading) { max-width: none; width: 100%; }
+.screen :where(.experience-header h1, .dashboard-hero h1) { max-width: none; font-size: var(--layout-title); }
+.screen :where(.experience-header p, .dashboard-hero p) { max-width: 75ch; font-size: var(--layout-body); line-height: 1.6; }
+.screen .dashboard-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); }
+.public-page-header, .public-page-content { width: 100%; max-width: none; }
+.welcome-shell { padding: 5rem var(--layout-gutter) 2rem; align-items: start; }
+.welcome-panel {
+  width: 100%; max-width: none; padding: clamp(1.25rem, 3vw, 3rem);
+  display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(20rem, .85fr);
+  column-gap: clamp(2rem, 5vw, 6rem); align-items: start;
+}
+.welcome-panel > * { min-width: 0; }
+.welcome-intro { grid-column: 1; }
+.welcome-intro > .product-brand { margin-bottom: 2rem; }
+.welcome-panel h1 { font-size: clamp(2rem, 1.25rem + 3vw, 4rem); max-width: 20ch; }
+.welcome-intro > p:not(.eyebrow) { font-size: var(--layout-body); max-width: 55ch; line-height: 1.65; }
+.welcome-access { grid-column: 2; grid-row: 1 / span 2; }
+.welcome-access .welcome-entry { margin-top: 0; }
+.welcome-guide { grid-column: 1; }
+.welcome-access > h2 { margin-top: 2rem; }
+.welcome-access > p { line-height: 1.6; }
+@media (max-width: 60rem) {
+  .welcome-panel { display: flex; flex-direction: column; gap: 1.5rem; }
+  .welcome-panel > * { width: 100%; }
+  .welcome-panel h1 { max-width: 24ch; }
+}
+/* Keep hierarchy consistent without stretching paragraphs across the display. */
+.screen .experience-header > div:first-child { max-width: none; flex: 1; }
+.screen .experience-header p:not(.eyebrow),
+.screen .dashboard-hero p:not(.eyebrow) { font-size: var(--layout-body); max-width: 72ch; }
+.screen .dashboard-hero { align-items: start; }
+.screen .dashboard-hero h1 { margin: .5rem 0 1rem; }
+.screen .dashboard-hero .eyebrow { margin: 0; color: var(--brand); font-size: .8rem; line-height: 1.4; }
+@container workspace-screen (min-width: 64rem) {
+  .screen .dashboard-hero { grid-template-columns: minmax(0,1fr) minmax(24rem, .65fr); }
+  .screen .dashboard-score-card { display: grid; grid-template-columns: 8rem minmax(0,1fr); gap: .75rem 1rem; align-items: center; }
+  .screen .dashboard-score-card .score-ring { width: 8rem; height: 8rem; grid-row: 1 / span 2; grid-column: 1; }
+  .screen .dashboard-score-card > small { grid-column: 2; text-align: left; }
+  .screen .dashboard-score-card .score-context { grid-column: 2; margin-top: 0; }
 }

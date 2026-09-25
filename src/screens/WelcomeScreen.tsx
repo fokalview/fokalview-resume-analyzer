@@ -103,12 +103,15 @@ export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
         {theme === "dark" ? "Light mode" : "Dark mode"}
       </button>
       <section className="welcome-panel">
+        <div className="welcome-intro">
         <ProductBrand product="career" inverse={theme === "dark"} />
         <p className="eyebrow">Private Beta</p>
         <h1>Compare your resume with the job you want.</h1>
         <p>
           Find your strengths, identify gaps, and track your next opportunity.
         </p>
+        </div>
+        <div className="welcome-access">
         <div className="welcome-entry"><h2>Welcome back</h2><p>Already accepted your invitation?</p><a className="primary-button" href="/api/auth/login">Sign in to SagittaIQ</a></div>
         {new URLSearchParams(location.search).get("access") === "required" && <p role="alert">Please confirm your beta code and PIN on this browser, then continue to secure sign-in.</p>}
         <h2>Join the private beta</h2><p>Have an access code? Request your secure account invitation below.</p>
@@ -221,6 +224,8 @@ export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
             {isChecking ? "Checking..." : "Enter beta"}
           </button>
         </form>}
+        </div>
+        <div className="welcome-guide">
         <section className="beta-process-carousel" aria-labelledby="beta-process-title">
           <div className="beta-process-heading">
             <div>
@@ -286,6 +291,7 @@ export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
         </div>
 
 
+        </div>
       </section>
     </main>
   );

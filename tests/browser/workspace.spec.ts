@@ -67,3 +67,20 @@ test('layout reflows continuously at intermediate widths and enlarged text',asyn
   const box=await control.boundingBox();if(box) expect(box.x+box.width).toBeLessThanOrEqual(1024);
  }
 });
+
+test('workspace uses the available horizontal space on wide screens',async({page})=>{
+ await fixture(page);
+ for(const width of [1440,1920,2560]) {
+  await page.setViewportSize({width,height:1080});
+  for(const view of ['dashboard','upload','results','applications']) {
+   await page.goto(`/?view=${view}`);await expect(page.locator('.workspace h1')).toBeVisible();
+   const sizes=await page.evaluate(()=>{const workspace=document.querySelector('.workspace')!;const screen=workspace.querySelector('.screen')!;const style=getComputedStyle(workspace);return {available:workspace.clientWidth-parseFloat(style.paddingLeft)-parseFloat(style.paddingRight),actual:screen.getBoundingClientRect().width,overflow:document.documentElement.scrollWidth>innerWidth};});
+   expect(Math.abs(sizes.available-sizes.actual)).toBeLessThan(2);expect(sizes.overflow).toBe(false);
+  }
+ }
+});
+
+test('large-screen dashboard keeps its heading and score summary compact',async({page})=>{
+ await fixture(page);await page.setViewportSize({width:1920,height:1080});await page.goto('/?view=dashboard');await expect(page.locator('.dashboard-hero')).toBeVisible();
+ const box=await page.locator('.dashboard-hero').boundingBox();expect(box!.height).toBeLessThan(320);
+});
