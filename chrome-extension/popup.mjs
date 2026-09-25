@@ -23,25 +23,26 @@ async function hydrate(){
   }catch{notify('Could not restore the previous draft. You can capture again.',true);}
 }
 button.addEventListener('click',async()=>{
-  revision++;clearTimeout(timer);button.disabled=true;notify('Reading this job posting…');
+  const started=++revision;clearTimeout(timer);button.disabled=true;notify('Reading this job posting…');
   try {
     const [tab]=await chrome.tabs.query({active:true,currentWindow:true});
     if(!tab?.id || !/^https?:\/\//.test(tab.url || '')) throw new Error('Open a job posting on a normal website first. Chrome settings, the Web Store, and PDF viewers cannot be captured.');
     const [response]=await chrome.scripting.executeScript({target:{tabId:tab.id},func:extractJobPosting});
+    if(started!==revision) return;
     if(!response?.result?.job) throw new Error('This page could not be read. Copy the posting into the form instead.');
     populate(normalizeJob(response.result.job));form.querySelector('#consent').checked=false;
     const clipped=Object.entries(FIELD_LIMITS).filter(([key,limit])=>typeof response.result.job[key]==='string' && response.result.job[key].length>limit)
       .map(([key])=>`${form.elements.namedItem(key)?.closest('label')?.textContent?.trim() || 'A captured field'} was shortened. Review it before sending.`);
     showWarnings([...(response.result.warnings || []),...clipped]);document.querySelector('#method').textContent=response.result.method;
     await persist();notify('Captured. Review the fields before sending to SagittaIQ.');
-  }catch(error){notify(error.message || 'Capture failed. You can paste the job details manually.',true);}
+  }catch(error){if(started!==revision) return;notify(error.message || 'Capture failed. You can paste the job details manually.',true);}
   finally{button.disabled=false;}
 });
 form.addEventListener('input',()=>{revision++;clearTimeout(timer);timer=setTimeout(()=>persist().catch(()=>notify('Draft storage is unavailable. Export JSON to keep a copy.',true)),300);});
 form.addEventListener('submit',async event=>{
   event.preventDefault();
   if(!form.reportValidity()) return;
-  const send=document.querySelector('#send');send.disabled=true;form.inert=true;clearTimeout(timer);
+  revision++;const send=document.querySelector('#send');button.disabled=true;send.disabled=true;form.inert=true;clearTimeout(timer);
   try {
     const job=readForm();if(!job.title || !job.company || job.description.length<40) throw new Error('Enter a title, company, and at least 40 characters of job description.');
     // The fragment is never sent in the HTTP request; the website removes it on import.
@@ -50,7 +51,7 @@ form.addEventListener('submit',async event=>{
     await erase();
     notify('Opened SagittaIQ. Sign in there to review and save this opportunity.');
   }catch(error){notify(error.message || 'Could not open SagittaIQ.',true);}
-  finally{send.disabled=false;form.inert=false;}
+  finally{button.disabled=false;send.disabled=false;form.inert=false;}
 });
 document.querySelector('#export').addEventListener('click',()=>{
   const blob=new Blob([JSON.stringify(readForm(),null,2)],{type:'application/json'});

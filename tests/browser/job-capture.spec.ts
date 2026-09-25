@@ -99,7 +99,7 @@ test('unpacked Manifest V3 extension restores, edits, exports, and sends a draft
  }finally{await context.close();}
 });
 
-for(const denied of [false,true]) test(`capture button ${denied?'handles restricted pages':'fills the editable form and clears the draft'}`,async({page})=>{
+for(const denied of [false,true,'delayed']) test(`capture button ${denied==='delayed'?'ignores capture after clearing':denied?'handles restricted pages':'fills the editable form and clears the draft'}`,async({page})=>{
  await page.setContent(`<script type="application/ld+json">${JSON.stringify(structured)}</script>`);
  const result=await page.evaluate(extractJobPosting);
  await page.route('**/chrome-fixture/**',async route=>{
@@ -108,14 +108,28 @@ for(const denied of [false,true]) test(`capture button ${denied?'handles restric
   await route.fulfill({body:await readFile(resolve('chrome-extension',file)),contentType:file.endsWith('html')?'text/html':file.endsWith('css')?'text/css':file.endsWith('png')?'image/png':'text/javascript'});
  });
  await page.addInitScript(({result,denied})=>{
-  (window as any).chrome={tabs:{query:async()=>[{id:1,url:denied?'chrome://settings':'https://jobs.example.test/42'}]},
-   scripting:{executeScript:async()=>[{result}]},storage:{local:{get:async()=>({}),set:async()=>{},remove:async()=>{}}}};
+  (window as any).chrome={tabs:{query:async()=>[{id:1,url:denied===true?'chrome://settings':'https://jobs.example.test/42'}]},
+   scripting:{executeScript:async()=>denied==='delayed'?await new Promise(resolve=>{(window as any).finishCapture=()=>resolve([{result}]);}):[{result}]},storage:{local:{get:async()=>({}),set:async()=>{},remove:async()=>{}}}};
  },{result,denied});
  await page.goto('/chrome-fixture/popup.html');await page.getByRole('button',{name:'Capture this page'}).click();
- if(denied){await expect(page.getByRole('status')).toContainText('normal website');await expect(page.getByLabel('Job title')).toBeEditable();}
+ if(denied==='delayed'){
+  await page.waitForFunction(()=>typeof (window as any).finishCapture==='function');
+  await page.getByRole('button',{name:'Clear draft'}).click();
+  await page.evaluate(()=>(window as any).finishCapture());
+  await expect(page.getByRole('button',{name:'Capture this page'})).toBeEnabled();
+  await expect(page.getByLabel('Job title')).toBeEmpty();
+  await expect(page.getByRole('status')).toContainText('Draft cleared');
+ }else if(denied){await expect(page.getByRole('status')).toContainText('normal website');await expect(page.getByLabel('Job title')).toBeEditable();}
  else {
   await expect(page.getByLabel('Job title')).toHaveValue('Platform Engineer');await expect(page.getByLabel('Required qualifications')).toHaveValue(/SQL/);
   await expect(page.getByRole('status')).toContainText('Captured.');
   await page.getByRole('button',{name:'Clear draft'}).click();await expect(page.getByLabel('Job title')).toBeEmpty();await expect(page.getByRole('status')).toContainText('Draft cleared');
+ }
+});
+
+test('Pages middleware rejects cross-origin candidate writes before authentication', async ({request})=>{
+ for(const path of ['applications','resume-records','analyze']) {
+  const response=await request.post(`/api/${path}`,{headers:{Origin:'https://untrusted.sagittaiq.com'},data:{}});
+  expect(response.status()).toBe(403);
  }
 });

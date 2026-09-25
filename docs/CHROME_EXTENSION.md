@@ -2,7 +2,7 @@
 
 ## What it does
 
-Chrome Manifest V3 extension, version 1.0.0. Click **Capture this page** on an
+Chrome Manifest V3 extension, version 1.0.1. Click **Capture this page** on an
 individual job posting. Review/edit title, employer, location, salary, employment
 type, workplace, full description, company background, requirements, preferred
 qualifications, responsibilities, benefits, experience, education, and dates.
@@ -96,7 +96,7 @@ can select another supported test channel locally.
    with `chrome-extension/privacy.html` when data practices change.
 2. Create/sign in to your Chrome Web Store developer account and complete its
    registration and publisher contact requirements.
-3. Upload `SagittaIQ-Chrome-Extension-1.0.0.zip` as a new item.
+3. Upload `SagittaIQ-Chrome-Extension-1.0.1.zip` as a new item.
 4. Use the listing draft in `CHROME_STORE_LISTING.md`, the 128px icon, the
    1280×800 screenshots, and the 440×280 promotional tile.
 5. Complete privacy disclosures and permission justifications truthfully. The
