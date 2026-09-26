@@ -146,7 +146,8 @@ export async function onRequestGet({ request, env }) {
   const events = filterEvents(eventRows.results || [], query);
   const sessionMetrics = buildSessionMetrics(events);
   const readinessThreshold = Number(env.READINESS_THRESHOLD || 85);
-  const averageReadinessScore = average(resumes.map((item) => item.analysis.score));
+  const historicalResumes = resumes.filter(item => !item.analysis.readiness && typeof item.analysis.score === "number");
+  const averageReadinessScore = average(historicalResumes.map((item) => item.analysis.score));
   const followUpTotals = buildFollowUpTotals(followups);
   const salaryStats = buildSalaryStats(followups);
   const followUpQueues = buildFollowUpQueues(waitlist, followups);
@@ -195,6 +196,8 @@ export async function onRequestGet({ request, env }) {
       totalSessionMinutes: sessionMetrics.totalSessionMinutes,
       uniqueUsers,
       rawResumeRecords: resumes.filter((item) => item.rawResumeRetained).length,
+      historicalReadinessCount: historicalResumes.length,
+      evidenceReadinessCount: resumes.filter(item => item.analysis.readiness).length,
       averageReadinessScore,
       readinessDelta: averageReadinessScore - readinessThreshold
     },
@@ -259,10 +262,10 @@ export async function onRequestGet({ request, env }) {
     emailDomainTypes: countBy(resumes.map((item) => item.emailDomainType).filter(Boolean)),
     countries: topCounts(resumes.map((item) => item.country).filter(Boolean), 12),
     readinessBands: {
-      "0-49": resumes.filter((item) => item.analysis.score < 50).length,
-      "50-69": resumes.filter((item) => item.analysis.score >= 50 && item.analysis.score < 70).length,
-      "70-84": resumes.filter((item) => item.analysis.score >= 70 && item.analysis.score < 85).length,
-      "85-100": resumes.filter((item) => item.analysis.score >= 85).length
+      "0-49": historicalResumes.filter((item) => item.analysis.score < 50).length,
+      "50-69": historicalResumes.filter((item) => item.analysis.score >= 50 && item.analysis.score < 70).length,
+      "70-84": historicalResumes.filter((item) => item.analysis.score >= 70 && item.analysis.score < 85).length,
+      "85-100": historicalResumes.filter((item) => item.analysis.score >= 85).length
     },
     recentResumeRecords: resumes.slice(0, 20).map((item) => ({
       id: item.reportId || "",
@@ -274,6 +277,7 @@ export async function onRequestGet({ request, env }) {
       currentTitle: item.profile.currentTitle,
       careerLevel: item.profile.careerLevel,
       score: item.analysis.score,
+      readiness: item.analysis.readiness,
       searchableText: item.searchableText,
       emailDomain: item.emailDomain,
       emailDomainType: item.emailDomainType,
@@ -896,7 +900,7 @@ function buildDecisionSignals({
   readinessThreshold,
   sessionMetrics
 }) {
-  const belowThreshold = resumes.filter((item) => Number(item.analysis?.score || 0) < readinessThreshold).length;
+  const belowThreshold = resumes.filter((item) => !item.analysis?.readiness && typeof item.analysis?.score === "number" && item.analysis.score < readinessThreshold).length;
   const interviewConversion = percentNumber(followUpTotals.interviews, followUpTotals.applications);
   const offerConversion = percentNumber(followUpTotals.offers, followUpTotals.interviews);
   const followUpCoverage = percentNumber(followups.length, waitlist.length);

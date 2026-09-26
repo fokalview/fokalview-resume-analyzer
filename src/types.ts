@@ -74,9 +74,23 @@ export type ScoreAudit = {
   historicalContext: string;
 };
 
+export type Readiness = {
+  version: string;
+  level: string;
+  explanation: string;
+  requirements: Array<{id:string; requirement:string; jobQuote:string; importance:string; category:string; status:string; resumeQuote:string; reason:string; nextAction:string}>;
+  counts: Record<string, number>;
+  criticalUnresolved: number;
+  assessed: number;
+  total: number;
+  extractionIncomplete: boolean;
+};
+
 export type ResumeAnalysis = {
-  score: number;
+  score: number | null;
+  readiness?: Readiness;
   scoringVersion?: string;
+  sourceEvidence?: Array<{claim:string;resumeQuote:string;jobQuote:string}>;
   summary: string;
   profile?: ResumeProfile;
   jobDetails?: JobDetails;

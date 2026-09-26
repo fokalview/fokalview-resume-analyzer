@@ -1,3 +1,4 @@
+import { opportunityStage } from "../services/opportunityMetrics";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { BriefcaseBusiness, CalendarClock, Download, Edit3, ExternalLink, Plus, RefreshCw, RotateCcw, X } from "lucide-react";
 import {
@@ -214,7 +215,7 @@ export default function ApplicationTracker({ onRerun, focusedOpportunityId, onOp
       <section className="application-stats">
         <Metric label="Total" value={applications.length} />
         {["Applied", "Interviewing", "Offer", "Accepted"].map((status) => (
-          <Metric key={status} label={status} value={counts[status] || 0} />
+          <Metric key={status} label={status} value={applications.filter(item=>opportunityStage(item.status)===status).length} />
         ))}
       </section>
 
@@ -391,6 +392,8 @@ export default function ApplicationTracker({ onRerun, focusedOpportunityId, onOp
                 <span>{item.company} - {item.location || "Location not saved"}</span>
                 {item.applicationId && <small>{item.applicationId}</small>}
                 {item.salary && <span>Salary: {item.salary}</span>}
+                {item.latestAnalysis?.readiness ? <span className="score-pill">{item.latestAnalysis.readiness.level}</span> : typeof item.latestReadinessScore === "number" && <span className="score-pill">{item.latestReadinessScore}% historical alignment</span>}
+                <details className="opportunity-details"><summary>Review details and history</summary>{item.latestAnalysis?.readiness && <><p>{item.latestAnalysis.readiness.explanation}</p><p>{item.latestAnalysis.readiness.criticalUnresolved} critical checks unresolved</p></>}
                 {typeof item.latestReadinessScore === "number" && (
                   <div className="opportunity-readiness">
                     <div>
@@ -407,10 +410,10 @@ export default function ApplicationTracker({ onRerun, focusedOpportunityId, onOp
                     </div>
                     {item.analysisHistory && item.analysisHistory.length > 1 && (
                       <div className="opportunity-score-history" aria-label="Readiness score history">
-                        {item.analysisHistory.slice(0, 8).reverse().map((entry, index) => (
+                        {item.analysisHistory.filter(entry => typeof entry.score === "number").slice(0, 8).reverse().map((entry, index) => (
                           <span
                             key={`${entry.analyzedAt}-${index}`}
-                            style={{ height: `${Math.max(12, entry.score)}%` }}
+                            style={{ height: `${Math.max(12, entry.score ?? 0)}%` }}
                             title={`${entry.score}% - ${entry.scoringVersion || "legacy rubric"} - ${formatShortDate(entry.analyzedAt)}`}
                           />
                         ))}
@@ -467,7 +470,7 @@ export default function ApplicationTracker({ onRerun, focusedOpportunityId, onOp
                       {expandedNotes[item.id] ? "Collapse notes" : "Expand notes"}
                     </button>
                   </div>
-                )}
+                )}                </details>
               </div>
               <select
                 className={`status-select ${item.status.toLowerCase()}`}
@@ -538,7 +541,7 @@ function ReviewRuns({
         <ol className="review-run-list">
           {runs.map((run, index) => (
             <li key={run.id}>
-              <span className={`score-pill ${scoreTone(run.analysis.score)}`}>{run.analysis.score}%</span>
+              <span className={`score-pill ${scoreTone(run.analysis.score ?? 0)}`}>{run.analysis.readiness?.level || `${run.analysis.score}% historical`}</span>
               <div>
                 <strong>{run.resumeLabel || (index === 0 ? "Latest run" : `Run ${runs.length - index}`)}</strong>
                 <small>{formatShortDate(run.updatedAt)} · {run.analysis.scoringVersion || "legacy rubric"} · {run.reportId || run.id.slice(0, 8)}</small>

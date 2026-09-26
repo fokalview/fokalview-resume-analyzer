@@ -129,35 +129,43 @@ test('opportunity analysis survives save, update and read with canonical id',asy
  }finally{sql.close()}
 });
 
-test('verified analysis uses provider response and enforces daily quota',async()=>{
- const {env,sql}=setup();let calls=0;
- const provider=mock.method(globalThis,'fetch',async()=>{calls++;return Response.json({output_text:JSON.stringify(analysisFixture)})});
+function outputForSchema(schema) {
+ if(schema.type==='object') return Object.fromEntries(Object.entries(schema.properties).map(([k,v])=>[k,outputForSchema(v)]));
+ if(schema.type==='array') return Array.from({length:schema.minItems || 0},()=>outputForSchema(schema.items));
+ if(schema.type==='string') return schema.enum?.[0] || '';
+ return schema.minimum || 0;
+}
+
+test('staged analysis validates provider contracts and enforces quota per review',async()=>{
+ const {env,sql}=setup();let calls=0;const names=[];
+ const provider=mock.method(globalThis,'fetch',async(_url,options)=>{
+  calls++;const input=JSON.parse(options.body);names.push(input.text.format.name);
+  const value=outputForSchema(input.text.format.schema);
+  if(input.text.format.name==='job_extraction')value.jobQualifications.requiredSkills=['Go'];
+  return Response.json({output_text:JSON.stringify(value)});
+ });
  Object.assign(env,{ARTIFICIAL_INTELLIGENCE_API_KEY:'synthetic',DAILY_ANALYSIS_LIMIT:'1'});
  try {
-  const body={resumeText:'Built Go services and C# applications. '.repeat(12),targetRole:'Engineer',jobQualifications:{requiredSkills:['Go','C#']}};
-  const short=await analyze.onRequestPost({request:request('POST','alice',{resumeText:'short'}),env});
-  assert.equal(short.status,400);assert.equal(calls,0);
+  const body={resumeText:'Built Go services and C# applications. '.repeat(12),targetRole:'Engineer',jobContext:'Go engineer'};
+  const short=await analyze.onRequestPost({request:request('POST','alice',{resumeText:'short'}),env});assert.equal(short.status,400);assert.equal(calls,0);
   const success=await analyze.onRequestPost({request:request('POST','alice',body),env});
-  assert.equal(success.status,200,await success.clone().text());
-  const output=await success.json();assert.equal(output.sections[0].score,100);
-  assert.equal(output.orchestration.provider,'openai');assert.equal(success.headers.get('X-RateLimit-Remaining'),'0');
-  const limited=await analyze.onRequestPost({request:request('POST','alice',body),env});
-  assert.equal(limited.status,429);assert.ok(Number(limited.headers.get('Retry-After'))>0);assert.equal(calls,1);
+  assert.equal(success.status,200,await success.clone().text());const output=await success.json();
+  assert.equal(output.score,null);assert.equal(output.readiness.level,'More information needed');assert.equal(output.orchestration.provider,'openai');
+  assert.deepEqual(names,['job_extraction','profile_extraction','opportunity_review','report_writing']);
+  assert.equal(success.headers.get('X-RateLimit-Remaining'),'0');
+  const limited=await analyze.onRequestPost({request:request('POST','alice',body),env});assert.equal(limited.status,429);assert.equal(calls,4);
  }finally{provider.mock.restore();sql.close()}
 });
 
-test('Workers AI orchestration and optional audit failure keep deterministic scoring',async()=>{
- const {env,sql}=setup();const body={resumeText:'Built Go services. '.repeat(20),jobContext:'Go engineer',scoreHistory:[{score:70}]};
- let calls=0;
- env.AI={async run(){calls++;return {response:JSON.stringify(calls%3===1?{jobDetails:analysisFixture.jobDetails,jobQualifications:{requiredSkills:['Go']}}:calls%3===2?analysisFixture:{verdict:'reasonable',confidence:80,expectedMin:70,expectedMax:90})}}};
+test('Workers AI staged review keeps assessment when the writer fails',async()=>{
+ const {env,sql}=setup();let calls=0;
+ env.AI={async run(_model,input){calls++;if(calls===4)throw new Error('Writer unavailable');
+ const prompt=input.messages[1].content;const schema=JSON.parse(prompt.slice(prompt.lastIndexOf('JSON schema: ')+13));
+ const value=outputForSchema(schema);if(calls===1)value.jobQualifications.requiredSkills=['Go'];return {response:value};}};
  try {
-  const r=await analyze.onRequestPost({request:request('POST','alice',body),env});
-  assert.equal(r.status,200,await r.clone().text());const result=await r.json();
-  assert.equal(result.sections[0].score,100);assert.equal(result.scoreAudit.confidence,80);
-  assert.deepEqual(result.orchestration.stages,['job-structure-agent','resume-evaluation-agent','deterministic-score','score-audit-agent']);
-  let step=0;env.AI.run=async()=>{if(++step===2)return {response:analysisFixture};throw new Error('Optional stage unavailable')};
-  const degraded=await analyze.onRequestPost({request:request('POST','alice',body),env});
-  assert.equal(degraded.status,200);assert.deepEqual((await degraded.json()).scoreAudit,analysisFixture.scoreAudit);
+  const r=await analyze.onRequestPost({request:request('POST','alice',{resumeText:'Built Go services. '.repeat(20),jobContext:'Go engineer'}),env});
+  assert.equal(r.status,200,await r.clone().text());const output=await r.json();assert.equal(output.score,null);assert.equal(output.readiness.level,'More information needed');
+  assert.ok(output.orchestration.stages.includes('report-writing-fallback'));
  }finally{sql.close()}
 });
 
@@ -175,4 +183,19 @@ test('session links existing email-owned records without changing candidate iden
   assert.equal((await session.onRequestGet({request:request('GET','unverified'),env})).status,401);
   assert.equal((await session.onRequestGet({request:request('GET','alice'),env:{...env,DB:undefined}})).status,503);
  }finally{sql.close()}
+});
+
+test('evidence assessment round trips through resume and opportunity storage without a numeric score',async()=>{
+ const {env,sql}=setup();
+ const readiness={version:'sagittaiq-evidence-v2',extractionIncomplete:false,requirements:[{id:'a',requirement:'Teach lessons',jobQuote:'Teach lessons',importance:'core',category:'responsibility',status:'demonstrated',resumeQuote:'Taught lessons',reason:'Direct example',nextAction:'Retain example'}]};
+ const analysis={...analysisFixture,score:null,scoringVersion:readiness.version,readiness,sections:[]};
+ try {
+  const body=job();body.application.latestAnalysis=analysis;
+  const app=await apps.onRequestPost({request:request('POST','alice',body),env});assert.equal(app.status,200,await app.clone().text());
+  const saved=await resumes.onRequestPost({request:request('POST','alice',{consent:true,consentVersion:'workforce-resume-profile-v1',analysis,resumeText:'Taught lessons',jobContext:'Teach lessons',retainRawResumeText:false,targetRole:'Teacher'}),env});assert.equal(saved.status,200,await saved.clone().text());
+  const {applications}=await (await apps.onRequestGet({request:request('GET','alice'),env})).json();
+  const {records}=await (await resumes.onRequestGet({request:request('GET','alice'),env})).json();
+  for(const value of [applications[0].latestAnalysis,records[0].analysis]) {assert.equal(value.score,null);assert.equal(value.readiness.level,'Strong alignment');assert.equal(value.readiness.requirements[0].resumeQuote,'Taught lessons');}
+  assert.equal(applications[0].latestReadinessScore,null);
+ } finally {sql.close();}
 });

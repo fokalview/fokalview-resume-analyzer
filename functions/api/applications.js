@@ -1,3 +1,4 @@
+import { normalizeReadiness } from '../lib/readiness.js';
 import { ensureUser } from "./identity.js";
 import { nextPlatformId, tableColumns } from "./ids.js";
 import { hasVerifiedAccess } from "../lib/workos.js";
@@ -277,6 +278,7 @@ export async function onRequestPost({ request, env }) {
       const history = parseJson(existing?.analysisHistoryJson, []);
       history.unshift({
         score: application.latestAnalysis.score,
+        readinessLevel: application.latestAnalysis.readiness?.level,
         scoringVersion: application.latestAnalysis.scoringVersion,
         analyzedAt: application.lastAnalyzedAt,
         improvements: application.latestAnalysis.improvements
@@ -397,13 +399,15 @@ function normalizeApplication(input) {
 function normalizeAnalysis(analysis) {
   if (!analysis || typeof analysis !== "object") return null;
   return {
-    score: clampNumber(analysis.score, 0, 100),
+    score: analysis.readiness ? null : clampNumber(analysis.score, 0, 100),
+    readiness: normalizeReadiness(analysis.readiness),
     scoringVersion: clean(analysis.scoringVersion, 80),
     summary: clean(analysis.summary, 1200),
     jobDetails: normalizeJobDetails(analysis.jobDetails),
     jobQualifications: normalizeJobQualifications(analysis.jobQualifications),
     scoreAudit: normalizeScoreAudit(analysis.scoreAudit),
     orchestration: normalizeOrchestration(analysis.orchestration),
+    sourceEvidence: Array.isArray(analysis.sourceEvidence) ? analysis.sourceEvidence.slice(0,12).map(item=>({claim:String(item.claim || "").slice(0,800),resumeQuote:String(item.resumeQuote || "").slice(0,2000),jobQuote:String(item.jobQuote || "").slice(0,2000)})) : [],
     strengths: cleanList(analysis.strengths, 8, 240),
     improvements: Array.isArray(analysis.improvements)
       ? analysis.improvements.slice(0, 8).map((item) => ({

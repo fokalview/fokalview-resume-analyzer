@@ -23,8 +23,8 @@ test('unknown report never substitutes another saved report',async({page})=>{
 });
 test('opportunity picker retries without losing entered resume text',async({page})=>{
  await fixture(page);let fail=true;await page.route('**/api/applications',route=>route.fulfill(fail?{status:503,json:{error:'Unavailable'}}:{json:{applications:data.applications}}));
- await page.goto('/?view=upload');await page.getByLabel('Career material text').fill('Keep this draft');await expect(page.getByRole('alert')).toContainText('could not load');fail=false;
- await page.getByRole('button',{name:'Retry saved opportunities'}).click();await expect(page.getByRole('alert')).toHaveCount(0);await expect(page.getByLabel('Career material text')).toHaveValue('Keep this draft');
+ await page.goto('/?view=upload');await page.getByLabel('Resume text').fill('Keep this draft');await expect(page.getByRole('alert')).toContainText('could not load');fail=false;
+ await page.getByRole('button',{name:'Retry saved opportunities'}).click();await expect(page.getByRole('alert')).toHaveCount(0);await expect(page.getByLabel('Resume text')).toHaveValue('Keep this draft');
 });
 
 test('analysis remains visible and downloadable when saving fails',async({page})=>{
@@ -33,9 +33,9 @@ test('analysis remains visible and downloadable when saving fails',async({page})
  await page.route('**/api/applications',route=>route.fulfill(route.request().method()==='POST'?{status:503,json:{error:'Save unavailable'}}:{json:{applications:[]}}));
  await page.goto('/?view=upload');await page.getByLabel('Target opportunity',{exact:true}).fill('Platform Engineer');
  await page.getByLabel('Job description',{exact:true}).fill('Build and maintain reliable data infrastructure with SQL and Python.');
- await page.getByLabel('Career material text').fill('I built reliable data services using SQL and Python and worked with product teams to improve reporting. '.repeat(4));
+ await page.getByLabel('Resume text').fill('I built reliable data services using SQL and Python and worked with product teams to improve reporting. '.repeat(4));
  await page.getByRole('button',{name:'Analyze career readiness'}).click();
- await expect(page.getByRole('heading',{name:'72% alignment with Platform Engineer'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Historical review: 72% alignment with Platform Engineer'})).toBeVisible();
  await expect(page.getByRole('alert')).toContainText('saving did not finish');await expect(page.getByRole('button',{name:'Download report',exact:true})).toBeEnabled();
 });
 test('review history failures are visible while opportunities remain usable',async({page})=>{
@@ -83,4 +83,20 @@ test('workspace uses the available horizontal space on wide screens',async({page
 test('large-screen dashboard keeps its heading and score summary compact',async({page})=>{
  await fixture(page);await page.setViewportSize({width:1920,height:1080});await page.goto('/?view=dashboard');await expect(page.locator('.dashboard-hero')).toBeVisible();
  const box=await page.locator('.dashboard-hero').boundingBox();expect(box!.height).toBeLessThan(320);
+});
+
+test('review groups inputs and report score stays inside its cell',async({page})=>{
+ await fixture(page);await page.setViewportSize({width:1920,height:1080});await page.goto('/?view=upload');
+ await expect(page.getByRole('region',{name:'1. Your resume'}).getByLabel('Resume text')).toBeVisible();
+ await expect(page.getByRole('region',{name:'2. Target job'}).getByLabel('Job description',{exact:true})).toBeVisible();
+ await page.goto('/?view=results');await expect(page.getByRole('heading',{name:'Your next improvements'})).toBeVisible();
+ const cell=await page.locator('.report-score-cell').boundingBox();const ring=await page.locator('.report-score-cell .score-ring').boundingBox();
+ expect(ring!.x).toBeGreaterThanOrEqual(cell!.x);expect(ring!.x+ring!.width).toBeLessThanOrEqual(cell!.x+cell!.width);
+});
+test('tracker counts final interviews and starts with compact details',async({page})=>{
+ await fixture(page);await page.route('**/api/applications',route=>route.fulfill({json:{applications:[{...data.applications[0],status:'Final Interview'}]}}));
+ await page.goto('/?view=applications');
+ await expect(page.locator('.application-stats article').filter({hasText:'Interviewing'}).locator('strong')).toHaveText('1');
+ await expect(page.locator('.opportunity-details')).not.toHaveAttribute('open');
+ await page.getByText('Review details and history',{exact:true}).click();await expect(page.locator('.opportunity-details')).toHaveAttribute('open','');
 });
