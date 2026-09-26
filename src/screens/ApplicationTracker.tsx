@@ -531,7 +531,7 @@ function ReviewRuns({
         <strong>{runs.length}</strong>
       </summary>
       <div className="review-runs-header">
-        <p>Each run preserves its resume profile, analysis, score, rubric version, and timestamp.</p>
+        <p>Each run preserves its resume profile, assessment, method version, and timestamp.</p>
         <button className="secondary-action compact-action" type="button" onClick={() => onRerun(opportunity)}>
           <RotateCcw size={15} />
           Rerun with revised resume
@@ -541,7 +541,7 @@ function ReviewRuns({
         <ol className="review-run-list">
           {runs.map((run, index) => (
             <li key={run.id}>
-              <span className={`score-pill ${scoreTone(run.analysis.score ?? 0)}`}>{run.analysis.readiness?.level || `${run.analysis.score}% historical`}</span>
+              <span className={`score-pill ${run.analysis.readiness ? "" : scoreTone(run.analysis.score ?? 0)}`}>{run.analysis.readiness?.level || `${run.analysis.score}% historical`}</span>
               <div>
                 <strong>{run.resumeLabel || (index === 0 ? "Latest run" : `Run ${runs.length - index}`)}</strong>
                 <small>{formatShortDate(run.updatedAt)} · {run.analysis.scoringVersion || "legacy rubric"} · {run.reportId || run.id.slice(0, 8)}</small>

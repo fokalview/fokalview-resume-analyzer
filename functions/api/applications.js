@@ -1,3 +1,4 @@
+import { verifyAnalysisReceipt } from '../lib/analysis-receipt.js';
 import { normalizeReadiness } from '../lib/readiness.js';
 import { ensureUser } from "./identity.js";
 import { nextPlatformId, tableColumns } from "./ids.js";
@@ -76,8 +77,14 @@ export async function onRequestPost({ request, env }) {
       return json({ error: "Cloud sync requires explicit current consent." }, 400);
     }
 
+    const receipt = body.application?.latestAnalysis ? await verifyAnalysisReceipt(body.application.latestAnalysis,{userId:identity.userId,jobContext:String(body.application.jobDescription || '').trim()},env) : null;
     const application = normalizeApplication(body.application);
+    if (receipt) application.latestAnalysis = body.application.latestAnalysis;
     application.id = await ownedApplicationId(env.DB, identity.userId, application.id);
+    if (receipt) {
+      const prior = await env.DB.prepare('SELECT user_id AS userId, application_id AS applicationId FROM review_save_receipts WHERE review_id = ?').bind(receipt.reviewId).first();
+      if (prior && (prior.userId !== identity.userId || prior.applicationId !== application.id)) throw new Error('This review is already linked to a different opportunity.');
+    }
     const syncedAt = new Date().toISOString();
     const columns = await tableColumns(env.DB, "application_captures");
     const canStoreSalary = columns.has("salary");
@@ -269,38 +276,18 @@ export async function onRequestPost({ request, env }) {
       : null;
 
     if (canStoreReadiness && application.latestAnalysis) {
-      const existing = await env.DB.prepare(
-        "SELECT analysis_history_json AS analysisHistoryJson, analysis_count AS analysisCount FROM application_captures WHERE id = ? AND user_id = ?"
-      )
-        .bind(application.id, identity.userId)
-        .first()
-        .catch(() => null);
-      const history = parseJson(existing?.analysisHistoryJson, []);
-      history.unshift({
-        score: application.latestAnalysis.score,
-        readinessLevel: application.latestAnalysis.readiness?.level,
-        scoringVersion: application.latestAnalysis.scoringVersion,
-        analyzedAt: application.lastAnalyzedAt,
-        improvements: application.latestAnalysis.improvements
-      });
-      await env.DB.prepare(
-        `UPDATE application_captures
-         SET latest_readiness_score = ?, latest_analysis_json = ?, analysis_history_json = ?,
-             analysis_count = ?, last_analyzed_at = ?, updated_at = ?, synced_at = ?
-         WHERE id = ? AND user_id = ?`
-      )
-        .bind(
-          application.latestAnalysis.score,
-          JSON.stringify(application.latestAnalysis),
-          JSON.stringify(history.slice(0, 20)),
-          Number(existing?.analysisCount || 0) + 1,
-          application.lastAnalyzedAt,
-          application.updatedAt,
-          syncedAt,
-          application.id,
-          identity.userId
-        )
-        .run();
+      const entry = JSON.stringify({reviewId:receipt.reviewId,score:application.latestAnalysis.score,readinessLevel:application.latestAnalysis.readiness?.level,scoringVersion:application.latestAnalysis.scoringVersion,analyzedAt:application.lastAnalyzedAt,improvements:application.latestAnalysis.improvements});
+      await env.DB.batch([
+        env.DB.prepare('INSERT INTO review_save_receipts (review_id,user_id,application_id,created_at) VALUES (?,?,?,?) ON CONFLICT(review_id) DO NOTHING').bind(receipt.reviewId,identity.userId,application.id,syncedAt),
+        env.DB.prepare(`UPDATE application_captures SET latest_readiness_score=?,latest_analysis_json=?,
+          analysis_history_json=(SELECT json_group_array(json(value)) FROM (SELECT ? AS value UNION ALL SELECT value FROM json_each(COALESCE(application_captures.analysis_history_json,'[]')) LIMIT 20)),
+          analysis_count=COALESCE(analysis_count,0)+1,last_analyzed_at=?,updated_at=?,synced_at=?
+          WHERE id=? AND user_id=? AND EXISTS (SELECT 1 FROM review_save_receipts WHERE review_id=? AND user_id=? AND application_id=? AND applied=0)`)
+          .bind(application.latestAnalysis.score,JSON.stringify(application.latestAnalysis),entry,application.lastAnalyzedAt,application.updatedAt,syncedAt,application.id,identity.userId,receipt.reviewId,identity.userId,application.id),
+        env.DB.prepare('UPDATE review_save_receipts SET applied=1 WHERE review_id=? AND user_id=? AND application_id=?').bind(receipt.reviewId,identity.userId,application.id)
+      ]);
+      const linked = await env.DB.prepare('SELECT application_id AS applicationId FROM review_save_receipts WHERE review_id=? AND user_id=?').bind(receipt.reviewId,identity.userId).first();
+      if (linked?.applicationId !== application.id) throw new Error('This review is already linked to a different opportunity.');
     }
 
     return json({ ok: true, id: application.id, applicationId: saved?.applicationId || applicationId, syncedAt });

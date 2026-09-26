@@ -4,7 +4,15 @@ import { analyzeResume, getApplications, saveApplicationRecord, saveResumeRecord
 import type { JobHandoff, ResumeAnalysis } from "../types";
 import { InlineNotice, PageHeader } from "../components/ExperienceUI";
 
+export type PendingReview = {
+  analysis: ResumeAnalysis; resumeText: string; targetRole: string; jobContext: string;
+  jobHandoff: JobHandoff; resumeLabel: string; opportunity?: ApplicationRecord | null;
+  application?: ApplicationRecord | null; applicationSaved: boolean;
+};
+
 type Props = {
+  pendingReview: PendingReview | null;
+  onPendingReviewChange: (value: PendingReview | null) => void;
   resumeText: string;
   targetRole: string;
   jobContext: string;
@@ -18,6 +26,8 @@ type Props = {
 };
 
 export default function UploadScreen({
+  pendingReview,
+  onPendingReviewChange,
   resumeText,
   targetRole,
   jobContext,
@@ -110,25 +120,11 @@ export default function UploadScreen({
           analyzedAt
         }))
       });
-      setStage("Saving your review…");
-      try {
-      const application = await saveApplicationFromHandoff(jobHandoff, targetRole, jobContext, analysis, opportunity);
-      const saved = await saveResumeRecord({
-        resumeText,
-        targetRole,
-        jobContext,
-        analysis,
-        retainRawResumeText: true,
-        opportunityId: application?.id,
-        resumeLabel: resumeLabel || defaultResumeLabel(targetRole)
-      });
-      setSaveStatus(application
-        ? `Updated readiness history for ${application.title}.`
-        : `Saved workforce profile ${saved.id.slice(0, 8)}.`);
-      onAnalysisComplete(analysis, undefined, saved.id, application);
-      } catch {
-        onAnalysisComplete(analysis, "Your review is ready, but saving did not finish. Download this report now to keep a copy; it may not appear in your saved history.");
-      }
+      const pending: PendingReview = {analysis, resumeText, targetRole, jobContext,
+        jobHandoff: {...jobHandoff}, resumeLabel: resumeLabel || defaultResumeLabel(targetRole),
+        opportunity: existingOpportunity, applicationSaved: false};
+      onPendingReviewChange(pending);
+      await persistReview(pending);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Something went wrong.");
     } finally {
@@ -136,7 +132,30 @@ export default function UploadScreen({
     }
   }
 
-  const canSubmit = resumeText.trim().length >= 200 && jobContext.trim().length >= 40 && !isLoading;
+  async function persistReview(pending: PendingReview) {
+    setIsLoading(true);
+    setStage("Saving your completed review…");
+    setError("");
+    let captured = pending;
+    try {
+      if (!captured.applicationSaved) {
+        const application = await saveApplicationFromHandoff(captured.jobHandoff, captured.targetRole, captured.jobContext, captured.analysis, captured.opportunity);
+        captured = {...captured, application, applicationSaved: true};
+        onPendingReviewChange(captured);
+      }
+      const saved = await saveResumeRecord({resumeText: captured.resumeText, targetRole: captured.targetRole,
+        jobContext: captured.jobContext, analysis: captured.analysis, retainRawResumeText: true,
+        opportunityId: captured.application?.id, resumeLabel: captured.resumeLabel});
+      onPendingReviewChange(null);
+      onAnalysisComplete(captured.analysis, undefined, saved.id, captured.application);
+    } catch (saveError) {
+      setError((saveError instanceof Error ? saveError.message + " " : "") + "Your review is complete, but saving did not finish. Retry saving without running another AI review. Keep this tab open until your review is saved.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const canSubmit = resumeText.trim().length >= 200 && jobContext.trim().length >= 40 && !isLoading && !pendingReview;
 
   return (
     <div className="screen upload-screen">
@@ -149,6 +168,13 @@ export default function UploadScreen({
         meta={<span>PDF, DOCX, ODT, RTF, TXT, MD, and CSV supported</span>}
       />
 
+      {pendingReview && <section aria-label="Completed review awaiting save" className="readiness-summary">
+        <h2>Your completed review is ready to save</h2>
+        <p>Retry uses the completed review for {pendingReview.targetRole || "this job"}. It does not use another AI review credit. The pending result remains available while this app is open.</p>
+        <button className="primary-button" disabled={isLoading} onClick={() => void persistReview(pendingReview)}>Retry save</button>
+        <button className="secondary-action" disabled={isLoading} onClick={() => onAnalysisComplete(pendingReview.analysis, "This review is not fully saved. Return to Resume review to retry saving. Download a copy before closing this tab.")}>View unsaved report</button>
+        <button className="secondary-action" disabled={isLoading} onClick={() => {onPendingReviewChange(null);setError("");}}>Discard pending review</button>
+      </section>}
       {opportunityError && <div><p role="alert">{opportunityError}</p><button className="secondary-action" onClick={()=>setOpportunityRetry(value=>value+1)}>Retry saved opportunities</button></div>}
       {opportunitiesLoading && <p role="status">Loading saved opportunities…</p>}
       <section className="saved-opportunity-search">

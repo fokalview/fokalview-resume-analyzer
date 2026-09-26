@@ -1,3 +1,5 @@
+import { issueAnalysisReceipt } from '../lib/analysis-receipt.js';
+import { ensureUser } from './identity.js';
 import { runReviewPipeline, validateStage } from "../lib/review-pipeline.js";
 import { hasVerifiedAccess } from "../lib/workos.js";
 
@@ -197,6 +199,10 @@ export async function onRequestPost({ request, env }) {
       return json({ error: "Please upload or paste at least 200 characters of resume text." }, 400);
     }
 
+    const identity = await ensureUser(request, env);
+    if (!identity) return json({error:'Sign in with a verified account.'},401);
+    if (jobContext.length < 40 || jobContext.length > 30000 || resumeText.length > 50000) return json({error:'Use 40–30000 characters of job description and at most 50000 characters of resume text.'},400);
+    if (String(env.ANALYSIS_SIGNING_SECRET || env.WORKOS_COOKIE_PASSWORD || '').length < 32) return json({error:'Analysis signing is not configured.'},503);
     const quota = await reserveDailyAnalysis(env, dailyLimit);
     if (!quota.allowed) {
       return json(
@@ -219,17 +225,10 @@ export async function onRequestPost({ request, env }) {
     });
     const stages = scoredAnalysis.orchestration.stages;
 
-    return json(
-      {
-        ...scoredAnalysis,
-        orchestration: {
-          provider: config.provider,
-          stages
-        }
-      },
-      200,
-      quotaHeaders(dailyLimit, quota.remaining, quota.resetsAt)
-    );
+    const analysis = {...scoredAnalysis, orchestration:{provider:config.provider,stages}};
+    analysis.provenance = await issueAnalysisReceipt(analysis, {userId:identity.userId,resumeText,jobContext,targetRole}, env);
+    return json(analysis, 200, quotaHeaders(dailyLimit, quota.remaining, quota.resetsAt));
+
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Analysis failed" }, 500);
   }

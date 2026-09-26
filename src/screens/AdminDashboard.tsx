@@ -8,7 +8,6 @@ import {
   Download,
   FileText,
   ImageDown,
-  LockKeyhole,
   Moon,
   RefreshCw,
   Search,
@@ -128,10 +127,10 @@ type AdminSummary = {
     totalSessionMinutes?: number;
     uniqueUsers: number;
     rawResumeRecords: number;
-    averageReadinessScore: number;
+    averageReadinessScore: number | null;
     historicalReadinessCount?: number;
     evidenceReadinessCount?: number;
-    readinessDelta: number;
+    readinessDelta: number | null;
   };
   systemInfo: { rawResumeRecords: number; rawResumeRetentionRate: number };
   usageByDay: UsageDay[];
@@ -193,7 +192,6 @@ type AdminSummary = {
     careerLevel: string;
     score: number | null;
     readiness?: {level:string};
-    searchableText?: string;
     emailDomain?: string;
     emailDomainType?: string;
     country?: string;
@@ -273,7 +271,7 @@ type AdminSummary = {
 };
 
 export default function AdminDashboard() {
-  const [code, setCode] = useState(sessionStorage.getItem("fokalview_admin_access_code") || "");
+  useEffect(() => { sessionStorage.removeItem("fokalview_admin_access_code"); void loadSummary(); }, []);
   const [theme, setTheme] = useState<"light" | "dark">(() => getStoredTheme());
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [query, setQuery] = useState("");
@@ -307,7 +305,7 @@ export default function AdminDashboard() {
       const params = new URLSearchParams();
       if (searchQuery.trim()) params.set("q", searchQuery.trim());
       const response = await fetch(`/api/admin/summary${params.toString() ? `?${params}` : ""}`, {
-        headers: { "X-Admin-Access-Code": code.trim() }
+        credentials: "same-origin"
       });
       const payload = await response.json();
 
@@ -315,7 +313,6 @@ export default function AdminDashboard() {
         throw new Error(payload.error || "Could not load admin summary.");
       }
 
-      sessionStorage.setItem("fokalview_admin_access_code", code.trim());
       setSummary(payload as AdminSummary);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Could not load admin summary.");
@@ -334,18 +331,8 @@ export default function AdminDashboard() {
           {summary && <span className="connected-pill">Connected - Last synced {formatDateTime(summary.meta.lastLoadedAt)}</span>}
         </div>
         <form className="admin-access-form" onSubmit={loadSummary}>
-          {!summary && (
-            <label>
-              <LockKeyhole size={16} />
-              <input
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-                type="password"
-                placeholder="Admin access code"
-              />
-            </label>
-          )}
-          <button className="primary-button" disabled={!code.trim() || isLoading}>
+          {!summary && <a href="/api/auth/login">Sign in with an administrator account</a>}
+          <button className="primary-button" disabled={isLoading}>
             {isLoading ? <RefreshCw className="spin" size={18} /> : <BarChart3 size={18} />}
             {summary ? "Refresh" : "Load"}
           </button>
@@ -402,7 +389,7 @@ export default function AdminDashboard() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search candidate, role, company, skill, score, country, domain..."
+              placeholder="Search candidate ID, role, company, country..."
             />
             {summary.meta.query && <span>Filtering: {summary.meta.query}</span>}
           </div>
@@ -493,7 +480,7 @@ export default function AdminDashboard() {
                 <ChartPanel title="Session Pages" items={summary.sessionPages || []} />
                 <ChartPanel title="Session Campaigns" items={summary.sessionCampaigns || []} />
                 <ChartPanel title="User Event Types" items={toCountItems(summary.userEventTypes || {})} />
-                <ReadinessBands bands={summary.readinessBands} total={summary.totals.resumeRecords} />
+                <ReadinessBands bands={summary.readinessBands} total={summary.totals.historicalReadinessCount || 0} />
                 <ChartPanel title="Career Levels" items={toCountItems(summary.careerLevels)} showZeroRows />
                 <SkillGapPanel groups={summary.commonSkillGaps} total={summary.totals.resumeRecords} />
                 <ApplicationStatusPanel statuses={summary.applicationStatuses} />
@@ -525,7 +512,7 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                   <span>{record.targetRole || "No target opportunity"}</span>
-                  <span className={`score-pill ${scoreClass(record.score ?? 0)}`} title={scoreExplanation(record.score ?? 0, summary.meta.readinessThreshold)}>{record.readiness?.level || `${record.score}% historical`}</span>
+                  <span className={`score-pill ${record.readiness || record.score === null ? "" : scoreClass(record.score)}`} title={record.readiness || record.score === null ? undefined : scoreExplanation(record.score, summary.meta.readinessThreshold)}>{record.readiness?.level || (record.score === null ? "Not assessed" : `${record.score}% historical`)}</span>
                   <span>{formatDate(record.capturedAt)}</span>
                   <span className="status-pill applied">Active</span>
                   <span className="record-action-label">Saved</span>
@@ -1029,8 +1016,8 @@ function SectionHeader({ eyebrow, title, detail }: { eyebrow: string; title: str
 
 function ReadinessMetric({ summary }: { summary: AdminSummary }) {
   const score = summary.totals.averageReadinessScore;
-  if (summary.totals.historicalReadinessCount === 0) return <article className="readiness-metric"><strong>{summary.totals.evidenceReadinessCount || 0}</strong><span>Evidence-based reviews</span><small>No historical percentage scores available.</small></article>;
-  const delta = summary.totals.readinessDelta;
+  if (score === null || summary.totals.historicalReadinessCount === 0) return <article className="readiness-metric"><strong>{summary.totals.evidenceReadinessCount || 0}</strong><span>Evidence-based reviews</span><small>No historical percentage scores available.</small></article>;
+  const delta = summary.totals.readinessDelta ?? 0;
   const threshold = summary.meta.readinessThreshold;
   return (
     <article className="readiness-metric">
@@ -1079,7 +1066,7 @@ function UsagePanel({ days }: { days: UsageDay[] }) {
 }
 
 function ReadinessBands({ bands, total }: { bands: Record<string, number>; total: number }) {
-  const title = "Readiness Bands";
+  const title = "Historical readiness bands";
   const panelId = panelIdFor(title);
   const ordered = ["0-49", "50-69", "70-84", "85-100"].map((label) => ({
     label,
@@ -1099,7 +1086,7 @@ function ReadinessBands({ bands, total }: { bands: Record<string, number>; total
           </div>
         ))}
       </div>
-      <small>{total} of {total} records scored</small>
+      <small>{total ? `${total} historical percentage reviews; evidence-based reviews are excluded.` : "No historical percentage reviews."}</small>
     </section>
   );
 }
@@ -1621,10 +1608,10 @@ function buildEnterpriseTiles(summary: AdminSummary, view: AdminView): Enterpris
       {
         tone: "green",
         icon: <Activity size={44} />,
-        value: `${summary.totals.averageReadinessScore}%`,
+        value: summary.totals.averageReadinessScore === null ? "No historical scores" : `${summary.totals.averageReadinessScore}%`,
         label: "Historical average readiness",
         primaryAction: "Open readiness bands",
-        secondaryAction: `${summary.totals.readinessDelta} pts from threshold`
+        secondaryAction: summary.totals.readinessDelta === null ? "Evidence reviews are reported separately" : `${summary.totals.readinessDelta} pts from threshold`
       },
       {
         tone: "amber",
@@ -1718,7 +1705,7 @@ function buildEnterpriseTiles(summary: AdminSummary, view: AdminView): Enterpris
 function buildRecentActivity(summary: AdminSummary) {
   const resumeItems = summary.recentResumeRecords.slice(0, 4).map((record) => ({
     label: `${record.currentTitle || "Candidate"} ran a readiness review`,
-    detail: `${record.readiness?.level || `${record.score}% historical`} for ${record.targetRole || "target opportunity"}`,
+    detail: `${record.readiness?.level || (record.score === null ? "Not assessed" : `${record.score}% historical`)} for ${record.targetRole || "target opportunity"}`,
     time: formatDate(record.capturedAt),
     sortAt: record.capturedAt
   }));
@@ -1751,8 +1738,8 @@ function buildReportingShortcuts(summary: AdminSummary) {
   return [
     {
       label: "Readiness report",
-      value: `${summary.totals.averageReadinessScore}%`,
-      detail: `${summary.totals.readinessDelta} pts from strong-match threshold`
+      value: summary.totals.averageReadinessScore === null ? "No historical scores" : `${summary.totals.averageReadinessScore}%`,
+      detail: summary.totals.readinessDelta === null ? "Evidence reviews are reported separately" : `${summary.totals.readinessDelta} pts from strong-match threshold`
     },
     {
       label: "Pipeline report",

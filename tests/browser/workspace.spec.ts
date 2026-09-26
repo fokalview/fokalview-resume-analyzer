@@ -35,8 +35,10 @@ test('analysis remains visible and downloadable when saving fails',async({page})
  await page.getByLabel('Job description',{exact:true}).fill('Build and maintain reliable data infrastructure with SQL and Python.');
  await page.getByLabel('Resume text').fill('I built reliable data services using SQL and Python and worked with product teams to improve reporting. '.repeat(4));
  await page.getByRole('button',{name:'Analyze career readiness'}).click();
+ await expect(page.getByRole('alert')).toContainText('saving did not finish');
+ await page.getByRole('button',{name:'View unsaved report',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Historical review: 72% alignment with Platform Engineer'})).toBeVisible();
- await expect(page.getByRole('alert')).toContainText('saving did not finish');await expect(page.getByRole('button',{name:'Download report',exact:true})).toBeEnabled();
+ await expect(page.getByRole('alert')).toContainText('not fully saved');await expect(page.getByRole('button',{name:'Download report',exact:true})).toBeEnabled();
 });
 test('review history failures are visible while opportunities remain usable',async({page})=>{
  await fixture(page);await page.route('**/api/resume-records',route=>route.fulfill({status:503,json:{error:'Unavailable'}}));
@@ -99,4 +101,19 @@ test('tracker counts final interviews and starts with compact details',async({pa
  await expect(page.locator('.application-stats article').filter({hasText:'Interviewing'}).locator('strong')).toHaveText('1');
  await expect(page.locator('.opportunity-details')).not.toHaveAttribute('open');
  await page.getByText('Review details and history',{exact:true}).click();await expect(page.locator('.opportunity-details')).toHaveAttribute('open','');
+});
+
+test('retry completed save does not repeat analysis or successful opportunity save',async({page})=>{
+ await fixture(page);let analyses=0,appSaves=0,reportSaves=0;
+ await page.route('**/api/analyze',route=>{analyses++;return route.fulfill({json:data.records[1].analysis});});
+ await page.route('**/api/applications',route=>{if(route.request().method()==='POST'){appSaves++;return route.fulfill({json:{ok:true,id:'saved-job'}});}return route.fulfill({json:{applications:[]}});});
+ await page.route('**/api/resume-records',route=>{if(route.request().method()==='POST'){reportSaves++;return route.fulfill(reportSaves===1?{status:503,json:{error:'Temporary save failure'}}:{json:{ok:true,id:'saved-review'}});}return route.fulfill({json:{records:[]}});});
+ await page.goto('/?view=upload');await page.getByLabel('Target opportunity',{exact:true}).fill('Platform Engineer');
+ await page.getByLabel('Job description',{exact:true}).fill('Build and maintain reliable data infrastructure with SQL and Python.');
+ await page.getByLabel('Resume text').fill('I built reliable data services using SQL and Python. '.repeat(8));
+ await page.getByRole('button',{name:'Analyze career readiness'}).click();
+ await expect(page.getByRole('button',{name:'Retry save',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Retry save',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Download report',exact:true})).toBeVisible();
+ expect(analyses).toBe(1);expect(appSaves).toBe(1);expect(reportSaves).toBe(2);
 });

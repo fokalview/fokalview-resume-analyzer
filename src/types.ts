@@ -89,6 +89,7 @@ export type Readiness = {
 export type ResumeAnalysis = {
   score: number | null;
   readiness?: Readiness;
+  provenance?: {version:number;token:string};
   scoringVersion?: string;
   sourceEvidence?: Array<{claim:string;resumeQuote:string;jobQuote:string}>;
   summary: string;

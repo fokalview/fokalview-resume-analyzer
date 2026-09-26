@@ -9,7 +9,7 @@ export async function onRequestGet({ env }) {
     dailyAnalysisLimit: readDailyAnalysisLimit(env),
     hasArtificialIntelligenceApiKey: Boolean(config.apiKey),
     betaAccessEnabled: Boolean(env.BETA_ACCESS_CODE),
-    adminAccessEnabled: Boolean(env.ADMIN_ACCESS_CODE || env.OWNER_ACCESS_CODE),
+    adminAccessEnabled: Boolean((env.ADMIN_USER_IDS || env.OWNER_USER_IDS) && env.WORKOS_API_KEY && env.WORKOS_CLIENT_ID && env.WORKOS_COOKIE_PASSWORD),
     applicationStorageEnabled: Boolean(env.DB),
     resumeStorageEnabled: Boolean(env.DB)
   });

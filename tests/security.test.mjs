@@ -16,6 +16,9 @@ const resumes = await import('../functions/api/resume-records.js');
 const me = await import('../functions/api/me.js');
 const analyze = await import('../functions/api/analyze.js');
 const session = await import('../functions/api/auth/session.js');
+const admin=await import('../functions/api/admin/summary.js');
+const {normalizeReadiness}=await import('../functions/lib/readiness.js');
+const {issueAnalysisReceipt}=await import('../functions/lib/analysis-receipt.js');
 const { readIdentity } = await import('../functions/api/identity.js');
 
 function setup() {
@@ -25,11 +28,15 @@ function setup() {
   if (f.startsWith('0003_') || f.startsWith('0004_')) continue;
   sql.exec(readFileSync(new URL('../migrations/'+f,import.meta.url),'utf8'));
  }
- const DB={prepare(query){return {bind(...args){return {async run(){return sql.prepare(query).run(...args)},async first(){return sql.prepare(query).get(...args)},async all(){return {results:sql.prepare(query).all(...args)}}}},async all(){return {results:sql.prepare(query).all()}}}}};
- return {sql,env:{DB,BETA_ACCESS_CODE:'beta',APPLICATION_SYNC_SALT:'test-only',WORKOS_API_KEY:'test',WORKOS_CLIENT_ID:'test',WORKOS_COOKIE_PASSWORD:'test'}};
+ const DB={async batch(statements){sql.exec('BEGIN');try{const values=[];for(const statement of statements)values.push(await statement.run());sql.exec('COMMIT');return values;}catch(error){sql.exec('ROLLBACK');throw error;}},prepare(query){return {bind(...args){return {async run(){return sql.prepare(query).run(...args)},async first(){return sql.prepare(query).get(...args)},async all(){return {results:sql.prepare(query).all(...args)}}}},async all(){return {results:sql.prepare(query).all()}}}}};
+ return {sql,env:{DB,BETA_ACCESS_CODE:'beta',APPLICATION_SYNC_SALT:'test-only',WORKOS_API_KEY:'test',WORKOS_CLIENT_ID:'test',WORKOS_COOKIE_PASSWORD:'test-secret-at-least-thirty-two-characters'}};
 }
 function request(method='GET', user='', body, extra={}) {
  return new Request('https://example.test/api/applications',{method,headers:{'Content-Type':'application/json',...(user?{Cookie:`wos-session=${user}`} : {}),...extra},...(body?{body:JSON.stringify(body)}:{})});
+}
+async function signed(env,analysis,resumeText='',jobContext='',targetRole='',user='alice') {
+ const identity=await readIdentity(request('GET',user),env);const result=structuredClone(analysis);
+ result.provenance=await issueAnalysisReceipt(result,{userId:identity.userId,resumeText,jobContext,targetRole},env);return result;
 }
 const job=(id='same-job',title='Engineer')=>({consent:true,consentVersion:'ferpa-minimum-necessary-v1',application:{id,title,company:'Example',notes:'private'}});
 
@@ -96,7 +103,7 @@ const analysisFixture = {
 test('verified resume CRUD preserves consent and separates owners',async()=>{
  const {env,sql}=setup();
  try {
-  const body={consent:true,consentVersion:'workforce-resume-profile-v1',analysis:analysisFixture,
+  const body={consent:true,consentVersion:'workforce-resume-profile-v1',analysis:await signed(env,analysisFixture,'Private synthetic resume','','Engineer'),
    resumeText:'Private synthetic resume',retainRawResumeText:false,targetRole:'Engineer'};
   const denied=await resumes.onRequestPost({request:request('POST','alice',{...body,consent:false}),env});
   assert.equal(denied.status,400);
@@ -117,7 +124,7 @@ test('verified resume CRUD preserves consent and separates owners',async()=>{
 test('opportunity analysis survives save, update and read with canonical id',async()=>{
  const {env,sql}=setup();
  try {
-  const body=job();Object.assign(body.application,{latestAnalysis:analysisFixture,
+  const body=job();Object.assign(body.application,{latestAnalysis:await signed(env,analysisFixture),
    jobQualifications:analysisFixture.jobQualifications,url:'https://example.test/job#section'});
   const saved=await apps.onRequestPost({request:request('POST','alice',body),env});
   assert.equal(saved.status,200);const {id}=await saved.json();
@@ -146,7 +153,7 @@ test('staged analysis validates provider contracts and enforces quota per review
  });
  Object.assign(env,{ARTIFICIAL_INTELLIGENCE_API_KEY:'synthetic',DAILY_ANALYSIS_LIMIT:'1'});
  try {
-  const body={resumeText:'Built Go services and C# applications. '.repeat(12),targetRole:'Engineer',jobContext:'Go engineer'};
+  const body={resumeText:'Built Go services and C# applications. '.repeat(12),targetRole:'Engineer',jobContext:'Go engineer who builds and maintains production services'};
   const short=await analyze.onRequestPost({request:request('POST','alice',{resumeText:'short'}),env});assert.equal(short.status,400);assert.equal(calls,0);
   const success=await analyze.onRequestPost({request:request('POST','alice',body),env});
   assert.equal(success.status,200,await success.clone().text());const output=await success.json();
@@ -163,7 +170,7 @@ test('Workers AI staged review keeps assessment when the writer fails',async()=>
  const prompt=input.messages[1].content;const schema=JSON.parse(prompt.slice(prompt.lastIndexOf('JSON schema: ')+13));
  const value=outputForSchema(schema);if(calls===1)value.jobQualifications.requiredSkills=['Go'];return {response:value};}};
  try {
-  const r=await analyze.onRequestPost({request:request('POST','alice',{resumeText:'Built Go services. '.repeat(20),jobContext:'Go engineer'}),env});
+  const r=await analyze.onRequestPost({request:request('POST','alice',{resumeText:'Built Go services. '.repeat(20),jobContext:'Go engineer who builds and maintains production services'}),env});
   assert.equal(r.status,200,await r.clone().text());const output=await r.json();assert.equal(output.score,null);assert.equal(output.readiness.level,'More information needed');
   assert.ok(output.orchestration.stages.includes('report-writing-fallback'));
  }finally{sql.close()}
@@ -188,9 +195,9 @@ test('session links existing email-owned records without changing candidate iden
 test('evidence assessment round trips through resume and opportunity storage without a numeric score',async()=>{
  const {env,sql}=setup();
  const readiness={version:'sagittaiq-evidence-v2',extractionIncomplete:false,requirements:[{id:'a',requirement:'Teach lessons',jobQuote:'Teach lessons',importance:'core',category:'responsibility',status:'demonstrated',resumeQuote:'Taught lessons',reason:'Direct example',nextAction:'Retain example'}]};
- const analysis={...analysisFixture,score:null,scoringVersion:readiness.version,readiness,sections:[]};
+ const analysis=await signed(env,{...analysisFixture,score:null,scoringVersion:readiness.version,readiness:normalizeReadiness(readiness),sections:[]},'Taught lessons','Teach lessons','Teacher');
  try {
-  const body=job();body.application.latestAnalysis=analysis;
+  const body=job();body.application.latestAnalysis=analysis;body.application.jobDescription='Teach lessons';
   const app=await apps.onRequestPost({request:request('POST','alice',body),env});assert.equal(app.status,200,await app.clone().text());
   const saved=await resumes.onRequestPost({request:request('POST','alice',{consent:true,consentVersion:'workforce-resume-profile-v1',analysis,resumeText:'Taught lessons',jobContext:'Teach lessons',retainRawResumeText:false,targetRole:'Teacher'}),env});assert.equal(saved.status,200,await saved.clone().text());
   const {applications}=await (await apps.onRequestGet({request:request('GET','alice'),env})).json();
@@ -198,4 +205,52 @@ test('evidence assessment round trips through resume and opportunity storage wit
   for(const value of [applications[0].latestAnalysis,records[0].analysis]) {assert.equal(value.score,null);assert.equal(value.readiness.level,'Strong alignment');assert.equal(value.readiness.requirements[0].resumeQuote,'Taught lessons');}
   assert.equal(applications[0].latestReadinessScore,null);
  } finally {sql.close();}
+});
+
+test('signed review retries preserve one opportunity history entry and one report',async()=>{
+ const {env,sql}=setup();try{
+ const analysis=await signed(env,analysisFixture,'Resume','Job','Engineer');
+ const body=job();Object.assign(body.application,{latestAnalysis:analysis,jobDescription:'Job'});
+ for(let i=0;i<3;i++)assert.equal((await apps.onRequestPost({request:request('POST','alice',body),env})).status,200);
+ const app=sql.prepare('SELECT id,analysis_count,analysis_history_json FROM application_captures').get();assert.equal(app.analysis_count,1);assert.equal(JSON.parse(app.analysis_history_json).length,1);
+ const resume={consent:true,consentVersion:'workforce-resume-profile-v1',analysis,resumeText:'Resume',jobContext:'Job',targetRole:'Engineer',opportunityId:app.id};
+ const ids=[];for(let i=0;i<3;i++){const response=await resumes.onRequestPost({request:request('POST','alice',resume),env});assert.equal(response.status,200,await response.clone().text());ids.push((await response.json()).id);}
+ assert.equal(new Set(ids).size,1);assert.equal(sql.prepare('SELECT COUNT(*) n FROM resume_records').get().n,1);
+ }finally{sql.close();}
+});
+test('tampered, unsigned, cross-account and mismatched source analyses cannot be saved',async()=>{
+ const {env,sql}=setup();try{
+ const analysis=await signed(env,analysisFixture,'Resume','Job','Engineer');
+ for(const [user,value] of [['alice',analysisFixture],['alice',{...analysis,score:100}],['bob',analysis]]) {
+  const body=job();Object.assign(body.application,{latestAnalysis:value,jobDescription:'Job'});
+  assert.equal((await apps.onRequestPost({request:request('POST',user,body),env})).status,400);
+ }
+ const response=await resumes.onRequestPost({request:request('POST','alice',{consent:true,consentVersion:'workforce-resume-profile-v1',analysis,resumeText:'Changed',jobContext:'Job',targetRole:'Engineer'}),env});assert.equal(response.status,400);
+ assert.equal(sql.prepare('SELECT COUNT(*) n FROM resume_records').get().n,0);assert.equal(sql.prepare('SELECT COUNT(*) n FROM application_captures').get().n,0);
+ }finally{sql.close();}
+});
+test('followup matching uses stable namespaced IDs and never shared domains',()=>{
+ const leads=[{leadId:'a',emailDomain:'gmail.com',interviewInterest:true},{leadId:'b',emailDomain:'gmail.com',interviewInterest:true},{contactId:'a',emailDomain:'gmail.com',interviewInterest:true}];
+ const result=admin.buildFollowUpQueues(leads,[{leadId:'a',emailDomain:'gmail.com'}]);assert.equal(result.pendingCount,2);
+});
+test('admin uses named verified accounts and does not return raw resume text',async()=>{
+ const {env,sql}=setup();try{
+ for(const user of ['', 'bob','unverified'])assert.ok([401,403].includes((await admin.onRequestGet({request:request('GET',user,undefined,{'X-Admin-Access-Code':'legacy'}),env:{...env,ADMIN_ACCESS_CODE:'legacy',ADMIN_USER_IDS:'alice'}})).status));
+ const analysis=await signed(env,analysisFixture,'PRIVATE RESUME SENTINEL','','Engineer');
+ assert.equal((await resumes.onRequestPost({request:request('POST','alice',{consent:true,consentVersion:'workforce-resume-profile-v1',analysis,resumeText:'PRIVATE RESUME SENTINEL',targetRole:'Engineer',retainRawResumeText:true}),env})).status,200);
+ const response=await admin.onRequestGet({request:request('GET','alice'),env:{...env,ADMIN_USER_IDS:'alice'}});assert.equal(response.status,200,await response.clone().text());const text=await response.text();assert.ok(!text.toLowerCase().includes('private resume sentinel'));assert.ok(!text.includes('searchableText'));assert.equal(sql.prepare('SELECT actor_id FROM admin_access_events').get().actor_id,'alice');
+ }finally{sql.close();}
+});
+
+test('failed history transaction rolls back receipt and retry applies once',async()=>{
+ const {env,sql}=setup();try{
+ const analysis=await signed(env,analysisFixture);const body=job();body.application.latestAnalysis=analysis;
+ sql.exec("CREATE TRIGGER fail_receipt BEFORE UPDATE ON review_save_receipts BEGIN SELECT RAISE(ABORT,'simulated write failure'); END;");
+ assert.equal((await apps.onRequestPost({request:request('POST','alice',body),env})).status,400);
+ assert.equal(sql.prepare('SELECT COUNT(*) n FROM review_save_receipts').get().n,0);
+ assert.equal(sql.prepare('SELECT analysis_count FROM application_captures').get().analysis_count,0);
+ sql.exec('DROP TRIGGER fail_receipt');
+ assert.equal((await apps.onRequestPost({request:request('POST','alice',body),env})).status,200);
+ assert.equal(sql.prepare('SELECT analysis_count FROM application_captures').get().analysis_count,1);
+ }finally{sql.close();}
 });

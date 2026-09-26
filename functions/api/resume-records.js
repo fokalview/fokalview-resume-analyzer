@@ -1,3 +1,4 @@
+import { verifyAnalysisReceipt } from '../lib/analysis-receipt.js';
 import { normalizeReadiness } from '../lib/readiness.js';
 import { ensureUser } from "./identity.js";
 import { nextPlatformId, tableColumns } from "./ids.js";
@@ -60,7 +61,13 @@ export async function onRequestPost({ request, env }) {
       return json({ error: "Resume storage requires explicit current consent." }, 400);
     }
 
+    const receipt = await verifyAnalysisReceipt(body.analysis,{userId:identity.userId,resumeText:String(body.resumeText || '').trim(),jobContext:String(body.jobContext || '').trim(),targetRole:String(body.targetRole || '').trim()},env);
     const record = normalizeResumeRecord(body);
+    record.id = `review_${receipt.reviewId}`;
+    record.analysis = body.analysis;
+    record.profile = normalizeProfile(body.analysis.profile);
+    if (record.opportunityId && !await env.DB.prepare('SELECT id FROM application_captures WHERE id = ? AND user_id = ?').bind(record.opportunityId, identity.userId).first()) throw new Error('Opportunity does not belong to this account.');
+    if (record.opportunityId && !await env.DB.prepare('SELECT review_id FROM review_save_receipts WHERE review_id=? AND user_id=? AND application_id=? AND applied=1').bind(receipt.reviewId,identity.userId,record.opportunityId).first()) throw new Error('Save this review to the selected opportunity before linking the report.');
     const now = new Date().toISOString();
     const columns = await tableColumns(env.DB, "resume_records");
     const canStoreReportId = columns.has("report_id");
@@ -104,12 +111,14 @@ export async function onRequestPost({ request, env }) {
 
     await env.DB.prepare(
       `INSERT INTO resume_records (${insertColumns.join(", ")})
-       VALUES (${insertColumns.map(() => "?").join(", ")})`
+       VALUES (${insertColumns.map(() => "?").join(", ")}) ON CONFLICT(id) DO NOTHING`
     )
       .bind(...insertValues)
       .run();
 
-    return json({ ok: true, id: recordId, reportId, opportunityId: record.opportunityId, savedAt: now });
+    const saved = await env.DB.prepare(`SELECT id, ${canStoreReportId ? 'report_id' : "''"} AS reportId, captured_at AS savedAt FROM resume_records WHERE id = ? AND user_id = ?`).bind(recordId,identity.userId).first();
+    if (!saved) throw new Error('Could not confirm saved review.');
+    return json({ ok: true, ...saved, opportunityId: record.opportunityId });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Could not save resume record." }, 400);
   }

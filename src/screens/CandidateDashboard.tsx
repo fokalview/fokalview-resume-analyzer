@@ -136,7 +136,7 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
           {resumeRecords.length ? (
             <ol className="score-history-readable">{resumeRecords.slice(0,5).map(record=><li key={record.id}><span>{formatDate(record.updatedAt)}<small>{record.targetRole || "Resume review"}</small></span><strong>{record.analysis.readiness?.level || `Historical: ${record.analysis.score}%`}</strong></li>)}</ol>
           ) : (
-            <EmptyState icon={FileText} title="No score history yet" detail="Analyze a resume to start tracking progress." />
+            <EmptyState icon={FileText} title="No review history yet" detail="Analyze a resume to start tracking progress." />
           )}
         </article>
 
@@ -160,7 +160,7 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
               {(currentAnalysis?.strengths || ["Analyze a resume to surface alignment strengths."]).slice(0, 3).map((item) => <span key={item}>{item}</span>)}
             </div>
             <div>
-              <h4>Gaps</h4>
+              <h4>To clarify or strengthen</h4>
               {(currentAnalysis?.readiness?.requirements.filter(item => item.status !== "demonstrated").map(item => item.requirement) || currentAnalysis?.keywordAnalysis.missing || ["Add a target role and resume to detect gaps."]).slice(0, 3).map((item) => <span key={item}>{item}</span>)}
             </div>
           </div>

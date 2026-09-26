@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { BriefcaseBusiness, FileText, Gauge, LogOut, Moon, Sparkles, Sun } from "lucide-react";
+import type { PendingReview } from "./screens/UploadScreen";
 const UploadScreen = lazy(() => import("./screens/UploadScreen"));
 const ResultsScreen = lazy(() => import("./screens/ResultsScreen"));
 import WelcomeScreen from "./screens/WelcomeScreen";
@@ -50,10 +51,24 @@ function publicPageForPath(pathname: string) {
 }
 
 function ResumeApp() {
+  const [pendingReview, setPendingReview] = useState<PendingReview | null>(null);
+  useEffect(() => {
+    if (!pendingReview) return;
+    const warn = (event: BeforeUnloadEvent) => {event.preventDefault();event.returnValue = "";};
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [pendingReview]);
   const [handoff,setHandoff] = useState(readJobHandoff);
   const [theme, setTheme] = useState<"light" | "dark">(() => getStoredTheme());
   const [hasBetaAccess, setHasBetaAccess] = useState(false);
   const [verifiedSession, setVerifiedSession] = useState<VerifiedAuthSession | null>(null);
+  const pendingOwnerId = useRef("");
+  useEffect(() => {
+    const userId = verifiedSession?.userId;
+    if (!userId) return;
+    if (pendingOwnerId.current && pendingOwnerId.current !== userId) setPendingReview(null);
+    pendingOwnerId.current = userId;
+  }, [verifiedSession?.userId]);
   const [authChecked, setAuthChecked] = useState(false);
   const [userIdentity, setUserIdentity] = useState<{ userId: string; candidateId?: string; identifierType: string } | null>(null);
   const routeScreen = (): Screen => {
@@ -282,6 +297,8 @@ function ResumeApp() {
           onSaved={opportunity=>{clearPendingJob();setHandoff({...handoff,capturedJob:undefined});setReviewOpportunity(opportunity);setTargetRole(opportunity.title);setJobContext(opportunity.jobDescription);setScreen("upload");}}/>}
         {screen === "upload" && (
           <UploadScreen
+            pendingReview={pendingReview}
+            onPendingReviewChange={setPendingReview}
             resumeText={resumeText}
             targetRole={targetRole}
             jobContext={jobContext}
