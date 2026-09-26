@@ -32,6 +32,7 @@ function reportHtml({ analysis, job, applications, title }: ReportData) {
   const improvements = currentAnalysis?.improvements || [];
   const strengths = currentAnalysis?.strengths || [];
   const sections = currentAnalysis?.sections || [];
+  const evidenceSection = currentAnalysis?.readiness ? `<section class="report-section"><h2>Requirements and evidence</h2><p>${escapeHtml(currentAnalysis.readiness.explanation)}</p><p>${currentAnalysis.readiness.assessed} of ${currentAnalysis.readiness.total} requirements have sufficient evidence; ${currentAnalysis.readiness.criticalUnresolved} critical checks unresolved.</p>${currentAnalysis.readiness.requirements.map(item => `<article class="card"><h3>${escapeHtml(item.requirement)}</h3><p>${escapeHtml(item.importance)} · ${escapeHtml(item.status)}</p><p>${escapeHtml(item.reason)}</p><p><strong>Job:</strong> ${escapeHtml(item.jobQuote)}</p><p><strong>Resume:</strong> ${escapeHtml(item.resumeQuote || 'Not evidenced')}</p><p><strong>Next action:</strong> ${escapeHtml(item.nextAction)}</p></article>`).join('')}</section>` : '';
   const reportSections = currentAnalysis ? `
     <section class="report-section">
       <div class="section-kicker">Section 1</div>
@@ -43,14 +44,14 @@ function reportHtml({ analysis, job, applications, title }: ReportData) {
           <ul>${strengths.map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No strengths recorded.</li>"}</ul>
         </article>
         <article class="card">
-          <h3>Readiness by Category</h3>
+          <h3>${currentAnalysis.readiness ? "Assessment basis" : "Historical category scores"}</h3>
           <div class="category-list">
             ${sections.map((item) => `
               <div class="category">
                 <div><strong>${escapeHtml(item.name)}</strong><span>${escapeHtml(item.score)}%</span></div>
                 <p>${escapeHtml(item.note)}</p>
               </div>
-            `).join("") || "<p>No category scores recorded.</p>"}
+            `).join("") || "<p>Core responsibilities, explicit qualifications, and expected scope. No percentage is assigned.</p>"}
           </div>
         </article>
       </div>
@@ -77,10 +78,10 @@ function reportHtml({ analysis, job, applications, title }: ReportData) {
     <section class="report-section page-break">
       <div class="section-kicker">Section 3</div>
       <h2>Opportunity Alignment</h2>
-      <p class="section-intro">Terms demonstrated in the career materials and gaps the candidate should evaluate honestly against the target opportunity.</p>
+      <p class="section-intro">Keyword diagnostics are supplementary and do not determine readiness.</p>
       <div class="grid">
         <article class="card aligned">
-          <h3>Demonstrated Alignment</h3>
+          <h3>Terms found</h3>
           <ul>${matched.map((item) => `<li>${escapeHtml(item)}</li>`).join("") || "<li>No matched terms recorded.</li>"}</ul>
         </article>
         <article class="card gaps">
@@ -143,8 +144,8 @@ function reportHtml({ analysis, job, applications, title }: ReportData) {
     <button onclick="window.print()">Print or save as PDF</button>
     <h1>${escapeHtml(title)}</h1>
     <p class="summary">${escapeHtml(jobSummary(job))}</p>
-    ${currentAnalysis ? `<div class="score">${currentAnalysis.score}% career readiness</div><p>${escapeHtml(currentAnalysis.summary)}</p><p class="method">Scoring method: ${escapeHtml(currentAnalysis.scoringVersion || "SagittaIQ fixed readiness rubric")}. Identical resume and job inputs receive the same score.</p>${currentAnalysis.scoreAudit ? `<p class="method"><strong>Independent score audit:</strong> ${escapeHtml(currentAnalysis.scoreAudit.verdict)}. ${escapeHtml(currentAnalysis.scoreAudit.explanation)} Expected range: ${currentAnalysis.scoreAudit.expectedMin}-${currentAnalysis.scoreAudit.expectedMax}.</p>` : ""}` : ""}
-    ${reportSections}
+    ${currentAnalysis ? `<div class="score">${currentAnalysis.readiness ? escapeHtml(currentAnalysis.readiness.level) : `${currentAnalysis.score}% historical readiness`}</div><p>${escapeHtml(currentAnalysis.summary)}</p><p class="method">Scoring method: ${escapeHtml(currentAnalysis.scoringVersion || "SagittaIQ fixed readiness rubric")}. Evidence assessments use extracted job requirements and cited resume evidence. Historical percentage scores use the previous method. They do not predict hiring decisions.</p>${currentAnalysis.scoreAudit ? `<p class="method"><strong>Independent score audit:</strong> ${escapeHtml(currentAnalysis.scoreAudit.verdict)}. ${escapeHtml(currentAnalysis.scoreAudit.explanation)} Expected range: ${currentAnalysis.scoreAudit.expectedMin}-${currentAnalysis.scoreAudit.expectedMax}.</p>` : ""}` : ""}
+    ${evidenceSection}${reportSections}
     ${applications.length ? `
       <section class="tracker-section page-break">
         <div class="section-kicker">Opportunity tracker</div>

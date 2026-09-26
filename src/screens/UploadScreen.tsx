@@ -4,7 +4,15 @@ import { analyzeResume, getApplications, saveApplicationRecord, saveResumeRecord
 import type { JobHandoff, ResumeAnalysis } from "../types";
 import { InlineNotice, PageHeader } from "../components/ExperienceUI";
 
+export type PendingReview = {
+  analysis: ResumeAnalysis; resumeText: string; targetRole: string; jobContext: string;
+  jobHandoff: JobHandoff; resumeLabel: string; opportunity?: ApplicationRecord | null;
+  application?: ApplicationRecord | null; applicationSaved: boolean;
+};
+
 type Props = {
+  pendingReview: PendingReview | null;
+  onPendingReviewChange: (value: PendingReview | null) => void;
   resumeText: string;
   targetRole: string;
   jobContext: string;
@@ -18,6 +26,8 @@ type Props = {
 };
 
 export default function UploadScreen({
+  pendingReview,
+  onPendingReviewChange,
   resumeText,
   targetRole,
   jobContext,
@@ -110,25 +120,11 @@ export default function UploadScreen({
           analyzedAt
         }))
       });
-      setStage("Saving your review…");
-      try {
-      const application = await saveApplicationFromHandoff(jobHandoff, targetRole, jobContext, analysis, opportunity);
-      const saved = await saveResumeRecord({
-        resumeText,
-        targetRole,
-        jobContext,
-        analysis,
-        retainRawResumeText: true,
-        opportunityId: application?.id,
-        resumeLabel: resumeLabel || defaultResumeLabel(targetRole)
-      });
-      setSaveStatus(application
-        ? `Updated readiness history for ${application.title}.`
-        : `Saved workforce profile ${saved.id.slice(0, 8)}.`);
-      onAnalysisComplete(analysis, undefined, saved.id, application);
-      } catch {
-        onAnalysisComplete(analysis, "Your review is ready, but saving did not finish. Download this report now to keep a copy; it may not appear in your saved history.");
-      }
+      const pending: PendingReview = {analysis, resumeText, targetRole, jobContext,
+        jobHandoff: {...jobHandoff}, resumeLabel: resumeLabel || defaultResumeLabel(targetRole),
+        opportunity: existingOpportunity, applicationSaved: false};
+      onPendingReviewChange(pending);
+      await persistReview(pending);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Something went wrong.");
     } finally {
@@ -136,19 +132,49 @@ export default function UploadScreen({
     }
   }
 
-  const canSubmit = resumeText.trim().length >= 200 && jobContext.trim().length >= 40 && !isLoading;
+  async function persistReview(pending: PendingReview) {
+    setIsLoading(true);
+    setStage("Saving your completed review…");
+    setError("");
+    let captured = pending;
+    try {
+      if (!captured.applicationSaved) {
+        const application = await saveApplicationFromHandoff(captured.jobHandoff, captured.targetRole, captured.jobContext, captured.analysis, captured.opportunity);
+        captured = {...captured, application, applicationSaved: true};
+        onPendingReviewChange(captured);
+      }
+      const saved = await saveResumeRecord({resumeText: captured.resumeText, targetRole: captured.targetRole,
+        jobContext: captured.jobContext, analysis: captured.analysis, retainRawResumeText: true,
+        opportunityId: captured.application?.id, resumeLabel: captured.resumeLabel});
+      onPendingReviewChange(null);
+      onAnalysisComplete(captured.analysis, undefined, saved.id, captured.application);
+    } catch (saveError) {
+      setError((saveError instanceof Error ? saveError.message + " " : "") + "Your review is complete, but saving did not finish. Retry saving without running another AI review. Keep this tab open until your review is saved.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const canSubmit = resumeText.trim().length >= 200 && jobContext.trim().length >= 40 && !isLoading && !pendingReview;
 
   return (
     <div className="screen upload-screen">
       <PageHeader
         eyebrow={opportunity ? "Rerun saved opportunity" : "New readiness review"}
-        title={opportunity ? `Upload a revised resume for ${opportunity.title}.` : "Compare your career materials with one opportunity."}
+        title={opportunity ? `Upload a revised resume for ${opportunity.title}.` : "Compare your resume with a job."}
         description={opportunity
           ? "The saved job description and qualification rubric will be reused. Upload the revised resume to create a separate dated review run."
           : "Add your resume and the job description. SagittaIQ will identify demonstrated strengths, important gaps, and the next improvements worth making."}
         meta={<span>PDF, DOCX, ODT, RTF, TXT, MD, and CSV supported</span>}
       />
 
+      {pendingReview && <section aria-label="Completed review awaiting save" className="readiness-summary">
+        <h2>Your completed review is ready to save</h2>
+        <p>Retry uses the completed review for {pendingReview.targetRole || "this job"}. It does not use another AI review credit. The pending result remains available while this app is open.</p>
+        <button className="primary-button" disabled={isLoading} onClick={() => void persistReview(pendingReview)}>Retry save</button>
+        <button className="secondary-action" disabled={isLoading} onClick={() => onAnalysisComplete(pendingReview.analysis, "This review is not fully saved. Return to Resume review to retry saving. Download a copy before closing this tab.")}>View unsaved report</button>
+        <button className="secondary-action" disabled={isLoading} onClick={() => {onPendingReviewChange(null);setError("");}}>Discard pending review</button>
+      </section>}
       {opportunityError && <div><p role="alert">{opportunityError}</p><button className="secondary-action" onClick={()=>setOpportunityRetry(value=>value+1)}>Retry saved opportunities</button></div>}
       {opportunitiesLoading && <p role="status">Loading saved opportunities…</p>}
       <section className="saved-opportunity-search">
@@ -216,7 +242,7 @@ export default function UploadScreen({
                     </small>
                   </span>
                   <span className="opportunity-search-metric">
-                    {typeof item.latestReadinessScore === "number" ? `${item.latestReadinessScore}%` : "Not scored"}
+                    {item.latestAnalysis?.readiness?.level || (typeof item.latestReadinessScore === "number" ? `${item.latestReadinessScore}% historical` : "Not reviewed")}
                   </span>
                 </button>
               ))}
@@ -232,26 +258,8 @@ export default function UploadScreen({
         <li className={resumeText.trim().length >= 200 && jobContext.trim() ? "active" : ""}><span>3</span><strong>Run readiness review</strong></li>
       </ol>
 
-      <div className="upload-grid">
-        <label className="field">
-          <span>Target opportunity</span>
-          <input
-            value={targetRole}
-            onChange={(event) => onTargetRoleChange(event.target.value)}
-            placeholder="Frontend Engineer, Product Manager, Data Analyst..."
-          />
-        </label>
-
-        <label className="field">
-          <span>Job description</span>
-          <textarea
-            className="job-context"
-            value={jobContext}
-            onChange={(event) => onJobContextChange(event.target.value)}
-            placeholder="Paste the job description here or send one from the SagittaIQ Chrome extension..."
-          />
-        </label>
-
+      <div className="upload-grid review-input-panels">
+        <section className="review-input-panel" aria-labelledby="resume-input-title"><h2 id="resume-input-title">1. Your resume</h2><p>Upload a file or paste your resume below.</p>
         <div
           className="dropzone"
           onClick={() => fileInputRef.current?.click()}
@@ -295,7 +303,7 @@ export default function UploadScreen({
         <label className="field textarea-field">
           <span>
             <ClipboardPaste size={16} />
-            Career material text
+            Resume text
           </span>
           <textarea
             value={resumeText}
@@ -304,10 +312,32 @@ export default function UploadScreen({
           />
         </label>
 
-        <InlineNotice title="Your progress is saved">
-          Career material text, job context, structured profile, and analysis results are retained under the beta Terms and Privacy Notice so you can return later.
-        </InlineNotice>
+        </section>
+        <section className="review-input-panel" aria-labelledby="job-input-title"><h2 id="job-input-title">2. Target job</h2><p>Add the role and posting you want to compare.</p>
+        <label className="field">
+          <span>Target opportunity</span>
+          <input
+            value={targetRole}
+            onChange={(event) => onTargetRoleChange(event.target.value)}
+            placeholder="Frontend Engineer, Product Manager, Data Analyst..."
+          />
+        </label>
+
+        <label className="field">
+          <span>Job description</span>
+          <textarea
+            className="job-context"
+            value={jobContext}
+            onChange={(event) => onJobContextChange(event.target.value)}
+            placeholder="Paste the job description here or send one from the SagittaIQ Chrome extension..."
+          />
+        </label>
+
+        </section>
       </div>
+        <InlineNotice title="How your review is stored">
+          Your resume text, job details, and review are saved under the beta Terms and Privacy Notice.
+        </InlineNotice>
 
       {error && <p role="alert" className="error-message">{error}</p>}
       {saveStatus && <p className="success-message">{saveStatus}</p>}

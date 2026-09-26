@@ -1,11 +1,13 @@
+import { requireAdminAccess } from "../../lib/admin-access.js";
 import { tableColumns } from "../ids.js";
 
 export async function onRequestGet({ request, env }) {
-  const auth = requireAdminAccess(request, env);
-  if (auth) return auth;
+  const auth = await requireAdminAccess(request, env);
+  if (auth.response) return auth.response;
 
   if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
 
+  await env.DB.prepare('INSERT INTO admin_access_events (id,actor_id,role,action,created_at) VALUES (?,?,?,?,?)').bind(crypto.randomUUID(),auth.userId,auth.role,'summary_read',new Date().toISOString()).run();
   const query = new URL(request.url).searchParams.get("q") || "";
   const [userColumns, resumeColumns, applicationColumns, waitlistColumns, followupColumns, eventColumns] = await Promise.all([
     tableColumns(env.DB, "users"),
@@ -95,7 +97,7 @@ export async function onRequestGet({ request, env }) {
   const [resumeRows, applicationRows, waitlistRows, followupRows, eventRows] = await Promise.all([
     env.DB.prepare(
       `SELECT ${reportIdSelect} r.user_id AS userId, r.client_hash AS clientHash, r.target_role AS targetRole, r.profile_json AS profileJson,
-        r.analysis_json AS analysisJson, r.raw_resume_retained AS rawResumeRetained, r.raw_resume_text AS rawResumeText,
+        r.analysis_json AS analysisJson, r.raw_resume_retained AS rawResumeRetained,
         r.captured_at AS capturedAt, ${userSelect}
        FROM resume_records r
        ${userJoin}
@@ -146,7 +148,8 @@ export async function onRequestGet({ request, env }) {
   const events = filterEvents(eventRows.results || [], query);
   const sessionMetrics = buildSessionMetrics(events);
   const readinessThreshold = Number(env.READINESS_THRESHOLD || 85);
-  const averageReadinessScore = average(resumes.map((item) => item.analysis.score));
+  const historicalResumes = resumes.filter(item => !item.analysis.readiness && typeof item.analysis.score === "number");
+  const averageReadinessScore = historicalResumes.length ? average(historicalResumes.map((item) => item.analysis.score)) : null;
   const followUpTotals = buildFollowUpTotals(followups);
   const salaryStats = buildSalaryStats(followups);
   const followUpQueues = buildFollowUpQueues(waitlist, followups);
@@ -169,6 +172,8 @@ export async function onRequestGet({ request, env }) {
   return json({
     meta: {
       readinessThreshold,
+      role: auth.role,
+      sampleLimits: { resumes: 1000, applications: 1000, waitlist: 1000, followups: 1000, events: 3000 },
       lastLoadedAt: new Date().toISOString(),
       query: query.trim()
     },
@@ -195,8 +200,10 @@ export async function onRequestGet({ request, env }) {
       totalSessionMinutes: sessionMetrics.totalSessionMinutes,
       uniqueUsers,
       rawResumeRecords: resumes.filter((item) => item.rawResumeRetained).length,
+      historicalReadinessCount: historicalResumes.length,
+      evidenceReadinessCount: resumes.filter(item => item.analysis.readiness).length,
       averageReadinessScore,
-      readinessDelta: averageReadinessScore - readinessThreshold
+      readinessDelta: averageReadinessScore === null ? null : averageReadinessScore - readinessThreshold
     },
     systemInfo: {
       rawResumeRecords: resumes.filter((item) => item.rawResumeRetained).length,
@@ -259,10 +266,10 @@ export async function onRequestGet({ request, env }) {
     emailDomainTypes: countBy(resumes.map((item) => item.emailDomainType).filter(Boolean)),
     countries: topCounts(resumes.map((item) => item.country).filter(Boolean), 12),
     readinessBands: {
-      "0-49": resumes.filter((item) => item.analysis.score < 50).length,
-      "50-69": resumes.filter((item) => item.analysis.score >= 50 && item.analysis.score < 70).length,
-      "70-84": resumes.filter((item) => item.analysis.score >= 70 && item.analysis.score < 85).length,
-      "85-100": resumes.filter((item) => item.analysis.score >= 85).length
+      "0-49": historicalResumes.filter((item) => item.analysis.score < 50).length,
+      "50-69": historicalResumes.filter((item) => item.analysis.score >= 50 && item.analysis.score < 70).length,
+      "70-84": historicalResumes.filter((item) => item.analysis.score >= 70 && item.analysis.score < 85).length,
+      "85-100": historicalResumes.filter((item) => item.analysis.score >= 85).length
     },
     recentResumeRecords: resumes.slice(0, 20).map((item) => ({
       id: item.reportId || "",
@@ -274,7 +281,7 @@ export async function onRequestGet({ request, env }) {
       currentTitle: item.profile.currentTitle,
       careerLevel: item.profile.careerLevel,
       score: item.analysis.score,
-      searchableText: item.searchableText,
+      readiness: item.analysis.readiness ? { level: item.analysis.readiness.level } : undefined,
       emailDomain: item.emailDomain,
       emailDomainType: item.emailDomainType,
       country: item.country,
@@ -406,27 +413,10 @@ export async function onRequestOptions() {
   return new Response(null, {
     status: 204,
     headers: {
-      "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET,OPTIONS",
-      "Access-Control-Allow-Headers": "X-Admin-Access-Code"
+      "Cache-Control": "no-store"
     }
   });
-}
-
-function requireAdminAccess(request, env) {
-  const adminCode = env.ADMIN_ACCESS_CODE || "";
-  const ownerCode = env.OWNER_ACCESS_CODE || "";
-  const suppliedCode = request.headers.get("X-Admin-Access-Code") || "";
-
-  if (!adminCode && !ownerCode) {
-    return json({ error: "Admin access is not configured." }, 503);
-  }
-
-  if (suppliedCode && (suppliedCode === adminCode || suppliedCode === ownerCode)) {
-    return null;
-  }
-
-  return json({ error: "Invalid admin access code." }, 401);
 }
 
 function parseResumeRow(row) {
@@ -440,7 +430,6 @@ function parseResumeRow(row) {
       profile: JSON.parse(row.profileJson),
       analysis: JSON.parse(row.analysisJson),
       rawResumeRetained: Boolean(row.rawResumeRetained),
-      rawResumeText: row.rawResumeText || "",
       emailDomain: row.emailDomain || "",
       emailDomainType: row.emailDomainType || "",
       country: row.country || "",
@@ -592,44 +581,13 @@ function filterEvents(events, query) {
 }
 
 function searchableResumeText(item) {
-  const profile = item.profile || {};
-  const analysis = item.analysis || {};
-  return [
-    item.userId,
-    item.candidateId,
-    item.reportId,
-    item.clientHash,
-    item.targetRole,
-    item.emailDomain,
-    item.emailDomainType,
-    item.country,
-    profile.currentTitle,
-    profile.careerLevel,
-    ...(profile.industries || []),
-    ...(profile.skills?.technical || []),
-    ...(profile.skills?.tools || []),
-    ...(profile.skills?.soft || []),
-    ...(profile.workHistory || []).flatMap((entry) => [
-      entry.title,
-      entry.company,
-      ...(entry.highlights || [])
-    ]),
-    ...(profile.education || []).flatMap((entry) => [entry.institution, entry.credential, entry.field]),
-    ...(profile.certifications || []),
-    ...(profile.projects || []),
-    ...(profile.languages || []),
-    ...(profile.locationSignals || []),
-    analysis.score,
-    analysis.summary,
-    ...(analysis.strengths || []),
-    ...(analysis.improvements || []).flatMap((entry) => [entry.title, entry.detail, entry.priority]),
-    ...(analysis.keywordAnalysis?.matched || []),
-    ...(analysis.keywordAnalysis?.missing || []),
-    ...(analysis.sections || []).flatMap((entry) => [entry.name, entry.score, entry.note]),
-    item.rawResumeText
-  ]
-    .join(" ")
-    .toLowerCase();
+  return [item.userId, item.candidateId, item.reportId, item.targetRole,
+    item.profile?.currentTitle, item.profile?.careerLevel, item.country]
+    .filter(Boolean).join(" ").toLowerCase();
+}
+
+export function identityKeys(item) {
+  return ['leadId', 'candidateId', 'contactId'].filter(key => item[key]).map(key => `${key}:${item[key]}`);
 }
 
 function buildUsageByDay(resumes, applications) {
@@ -754,16 +712,16 @@ function buildFollowUpTotals(followups) {
   );
 }
 
-function buildFollowUpQueues(waitlist, followups) {
+export function buildFollowUpQueues(waitlist, followups) {
   const completed = followups.slice(0, 250);
   const completedKeys = new Set(
     followups
-      .flatMap((item) => [item.leadId, item.candidateId, item.contactId, item.emailDomain])
+      .flatMap(identityKeys)
       .filter(Boolean)
   );
   const allPending = waitlist
     .filter((item) => Boolean(item.interviewInterest))
-    .filter((item) => ![item.leadId, item.candidateId, item.contactId, item.emailDomain].some((value) => value && completedKeys.has(value)))
+    .filter((item) => !identityKeys(item).some((value) => value && completedKeys.has(value)))
     .sort((left, right) => Number(right.leadScore || 0) - Number(left.leadScore || 0) || String(right.createdAt || "").localeCompare(String(left.createdAt || "")));
 
   return {
@@ -814,23 +772,23 @@ function buildLeadScoreBands(waitlist) {
   };
 }
 
-function buildWaitlistFunnel(waitlist, followups) {
+export function buildWaitlistFunnel(waitlist, followups) {
   const total = waitlist.length;
   const followupKeys = new Set(
     followups
-      .flatMap((item) => [item.leadId, item.candidateId, item.contactId, item.emailDomain])
+      .flatMap(identityKeys)
       .filter(Boolean)
   );
   const matchedFollowups = waitlist.filter((item) =>
-    [item.leadId, item.candidateId, item.contactId, item.emailDomain].some((value) => value && followupKeys.has(value))
+    identityKeys(item).some((value) => value && followupKeys.has(value))
   ).length;
 
   return [
-    { label: "Waitlist signups", count: total, rate: 100 },
+    { label: "Waitlist signups", count: total, rate: total ? 100 : 0 },
     { label: "Interview volunteers", count: waitlist.filter((item) => item.interviewInterest).length, rate: percentNumber(waitlist.filter((item) => item.interviewInterest).length, total) },
     { label: "Pilot prospects", count: waitlist.filter((item) => item.pilotInterest).length, rate: percentNumber(waitlist.filter((item) => item.pilotInterest).length, total) },
     { label: "Budget qualified", count: waitlist.filter((item) => item.budgetInterest).length, rate: percentNumber(waitlist.filter((item) => item.budgetInterest).length, total) },
-    { label: "Submitted follow-up", count: matchedFollowups || followups.length, rate: percentNumber(matchedFollowups || followups.length, total) }
+    { label: "Submitted follow-up", count: matchedFollowups, rate: percentNumber(matchedFollowups, total) }
   ];
 }
 
@@ -896,7 +854,7 @@ function buildDecisionSignals({
   readinessThreshold,
   sessionMetrics
 }) {
-  const belowThreshold = resumes.filter((item) => Number(item.analysis?.score || 0) < readinessThreshold).length;
+  const belowThreshold = resumes.filter((item) => !item.analysis?.readiness && typeof item.analysis?.score === "number" && item.analysis.score < readinessThreshold).length;
   const interviewConversion = percentNumber(followUpTotals.interviews, followUpTotals.applications);
   const offerConversion = percentNumber(followUpTotals.offers, followUpTotals.interviews);
   const followUpCoverage = percentNumber(followups.length, waitlist.length);
@@ -914,7 +872,7 @@ function buildDecisionSignals({
       value: belowThreshold,
       unit: "records",
       severity: belowThreshold ? "attention" : "positive",
-      detail: `${belowThreshold} of ${resumes.length} resume records are below the ${readinessThreshold}% strong-match threshold.`,
+      detail: `${belowThreshold} of ${resumes.filter(item => !item.analysis?.readiness && typeof item.analysis?.score === "number").length} historical resume records are below the ${readinessThreshold}% strong-match threshold.`,
       action: belowThreshold ? "Prioritize skill-gap and resume-targeting support." : "Maintain the current readiness workflow."
     },
     {
@@ -1009,6 +967,6 @@ async function hasUserMetadataColumns(db) {
 function json(payload, status = 200) {
   return Response.json(payload, {
     status,
-    headers: { "Access-Control-Allow-Origin": "*" }
+    headers: { "Cache-Control": "no-store", Vary: "Cookie" }
   });
 }

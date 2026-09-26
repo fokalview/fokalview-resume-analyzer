@@ -14,7 +14,7 @@ export function scoreExplanation(score: number, threshold = 85) {
     ? `${distance} points above the strong-match threshold`
     : `${Math.abs(distance)} points below the strong-match threshold`;
 
-  return `${band.label}. ${thresholdText}. The score uses SagittaIQ's fixed readiness rubric, so identical resume and job inputs receive the same score. It does not predict hiring decisions.`;
+  return `${band.label}. ${thresholdText}. This score summarizes resume evidence against the extracted job requirements. It is guidance, not a hiring prediction.`;
 }
 
 export function ScoreContext({
