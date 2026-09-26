@@ -1,5 +1,4 @@
 import { runReviewPipeline, validateStage } from "../lib/review-pipeline.js";
-import { applyDeterministicScoring } from "./scoring.js";
 import { hasVerifiedAccess } from "../lib/workos.js";
 
 const responseSchema = {
@@ -129,7 +128,7 @@ const responseSchema = {
           priority: { type: "string", enum: ["High", "Medium", "Low"] }
         }
       },
-      minItems: 3,
+      minItems: 0,
       maxItems: 6
     },
     keywordAnalysis: {
@@ -217,7 +216,6 @@ export async function onRequestPost({ request, env }) {
       resumeText, targetRole, jobContext, lockedJobQualifications,
       schemas: { profile: responseSchema.properties.profile, job: jobExtractionSchema, analysis: responseSchema },
       run: (name, prompt, schema) => runStage(name, prompt, schema, config),
-      score: applyDeterministicScoring
     });
     const stages = scoredAnalysis.orchestration.stages;
 

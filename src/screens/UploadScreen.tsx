@@ -216,7 +216,7 @@ export default function UploadScreen({
                     </small>
                   </span>
                   <span className="opportunity-search-metric">
-                    {typeof item.latestReadinessScore === "number" ? `${item.latestReadinessScore}%` : "Not scored"}
+                    {item.latestAnalysis?.readiness?.level || (typeof item.latestReadinessScore === "number" ? `${item.latestReadinessScore}% historical` : "Not reviewed")}
                   </span>
                 </button>
               ))}

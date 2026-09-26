@@ -180,3 +180,19 @@
  .screen .application-list article > div:first-child { grid-column:1/-1; }
  .report-next-actions ol { grid-template-columns:1fr; }
 }
+
+.readiness-summary { padding:clamp(1rem,2vw,1.75rem); border:1px solid var(--border); border-radius:12px; background:var(--surface); min-width:0; }
+.readiness-summary h2 { font-size:clamp(1.5rem,2vw,2rem); margin:.3rem 0 .8rem; }
+.readiness-summary p,.readiness-summary small { max-width:75ch; line-height:1.6; }
+.readiness-counts { display:flex; flex-wrap:wrap; gap:1rem 2rem; margin:1.2rem 0; }
+.readiness-counts strong { font-size:1.35rem; }
+.requirement-evidence { display:grid; gap:1.25rem; }
+.requirement-card { border:1px solid var(--border); border-radius:8px; margin:.6rem 0; overflow-wrap:anywhere; }
+.requirement-card summary { display:flex; justify-content:space-between; gap:1rem; padding:1rem; cursor:pointer; min-height:44px; }
+.requirement-card summary strong { text-transform:capitalize; }
+.requirement-card summary::before { content:'+'; }
+.requirement-card[open] summary::before { content:'-'; }
+.requirement-card > div { padding:0 1rem 1rem; max-width:85ch; }
+.requirement-card p { line-height:1.6; }
+.requirement-card summary:focus-visible { outline:3px solid #14b8a6; outline-offset:2px; }
+@media(max-width:600px) { .requirement-card summary { flex-wrap:wrap; } .readiness-counts { display:grid; } }

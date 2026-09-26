@@ -392,8 +392,8 @@ export default function ApplicationTracker({ onRerun, focusedOpportunityId, onOp
                 <span>{item.company} - {item.location || "Location not saved"}</span>
                 {item.applicationId && <small>{item.applicationId}</small>}
                 {item.salary && <span>Salary: {item.salary}</span>}
-                {typeof item.latestReadinessScore === "number" && <span className="score-pill">{item.latestReadinessScore}% latest alignment</span>}
-                <details className="opportunity-details"><summary>Review details and history</summary>
+                {item.latestAnalysis?.readiness ? <span className="score-pill">{item.latestAnalysis.readiness.level}</span> : typeof item.latestReadinessScore === "number" && <span className="score-pill">{item.latestReadinessScore}% historical alignment</span>}
+                <details className="opportunity-details"><summary>Review details and history</summary>{item.latestAnalysis?.readiness && <><p>{item.latestAnalysis.readiness.explanation}</p><p>{item.latestAnalysis.readiness.criticalUnresolved} critical checks unresolved</p></>}
                 {typeof item.latestReadinessScore === "number" && (
                   <div className="opportunity-readiness">
                     <div>
@@ -410,10 +410,10 @@ export default function ApplicationTracker({ onRerun, focusedOpportunityId, onOp
                     </div>
                     {item.analysisHistory && item.analysisHistory.length > 1 && (
                       <div className="opportunity-score-history" aria-label="Readiness score history">
-                        {item.analysisHistory.slice(0, 8).reverse().map((entry, index) => (
+                        {item.analysisHistory.filter(entry => typeof entry.score === "number").slice(0, 8).reverse().map((entry, index) => (
                           <span
                             key={`${entry.analyzedAt}-${index}`}
-                            style={{ height: `${Math.max(12, entry.score)}%` }}
+                            style={{ height: `${Math.max(12, entry.score ?? 0)}%` }}
                             title={`${entry.score}% - ${entry.scoringVersion || "legacy rubric"} - ${formatShortDate(entry.analyzedAt)}`}
                           />
                         ))}
@@ -541,7 +541,7 @@ function ReviewRuns({
         <ol className="review-run-list">
           {runs.map((run, index) => (
             <li key={run.id}>
-              <span className={`score-pill ${scoreTone(run.analysis.score)}`}>{run.analysis.score}%</span>
+              <span className={`score-pill ${scoreTone(run.analysis.score ?? 0)}`}>{run.analysis.readiness?.level || `${run.analysis.score}% historical`}</span>
               <div>
                 <strong>{run.resumeLabel || (index === 0 ? "Latest run" : `Run ${runs.length - index}`)}</strong>
                 <small>{formatShortDate(run.updatedAt)} · {run.analysis.scoringVersion || "legacy rubric"} · {run.reportId || run.id.slice(0, 8)}</small>

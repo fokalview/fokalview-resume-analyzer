@@ -1,3 +1,4 @@
+import { normalizeReadiness } from '../lib/readiness.js';
 import { ensureUser } from "./identity.js";
 import { nextPlatformId, tableColumns } from "./ids.js";
 import { hasVerifiedAccess } from "../lib/workos.js";
@@ -207,7 +208,8 @@ function normalizeProfile(profile) {
 
 function normalizeAnalysis(analysis) {
   return {
-    score: clampNumber(analysis.score, 0, 100),
+    score: analysis.readiness ? null : clampNumber(analysis.score, 0, 100),
+    readiness: normalizeReadiness(analysis.readiness),
     scoringVersion: clean(analysis.scoringVersion, 80),
     summary: clean(analysis.summary, 1200),
     jobDetails: normalizeJobDetails(analysis.jobDetails),

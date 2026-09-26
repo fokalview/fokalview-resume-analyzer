@@ -1,3 +1,4 @@
+import { ReadinessSummary } from '../components/ReadinessAssessment';
 import { opportunityStage } from "../services/opportunityMetrics";
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { ArrowRight, BarChart3, BriefcaseBusiness, CheckCircle2, Clock3, FileText, Target, type LucideIcon } from "lucide-react";
@@ -68,7 +69,7 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
           </p>
           <div className="dashboard-primary-actions"><button className="primary-button" onClick={()=>onNavigate("upload")}>Review a new job</button>{currentAnalysis && <button className="secondary-action" onClick={()=>onNavigate("results")}>Open latest report</button>}</div>
         </div>
-        <div className="dashboard-score-card">
+        {currentAnalysis?.readiness ? <ReadinessSummary value={currentAnalysis.readiness}/> : <div className="dashboard-score-card">
           <div className="score-ring compact" style={{ "--score": `${score}%` } as CSSProperties}>
             <strong>{currentAnalysis ? score : "--"}</strong>
             <span>readiness</span>
@@ -76,8 +77,8 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
           <small className={scoreDelta >= 0 ? "trend-up" : "trend-down"}>
             {previousScore === undefined ? "No comparable previous review" : `${scoreDelta >= 0 ? "+" : ""}${scoreDelta} pts from previous review of this job`}
           </small>
-          {currentAnalysis && <ScoreContext score={score} compact />}
-        </div>
+          {currentAnalysis && <><small>Historical percentage assessment</small><ScoreContext score={score} compact /></>}
+        </div>}
       </div>
 
       {error && <p className="error-message">{error}</p>}
@@ -130,10 +131,10 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
         <article className="dashboard-panel history-panel">
           <div className="panel-title">
             <BarChart3 size={18} />
-            <h3>Score History</h3>
+            <h3>Review history</h3>
           </div>
           {resumeRecords.length ? (
-            <ol className="score-history-readable">{resumeRecords.slice(0,5).map(record=><li key={record.id}><span>{formatDate(record.updatedAt)}<small>{record.targetRole || "Resume review"}</small></span><meter aria-label={`${record.targetRole || "Resume"} alignment on ${formatDate(record.updatedAt)}`} min="0" max="100" value={record.analysis.score}/><strong>{record.analysis.score}%</strong></li>)}</ol>
+            <ol className="score-history-readable">{resumeRecords.slice(0,5).map(record=><li key={record.id}><span>{formatDate(record.updatedAt)}<small>{record.targetRole || "Resume review"}</small></span><strong>{record.analysis.readiness?.level || `Historical: ${record.analysis.score}%`}</strong></li>)}</ol>
           ) : (
             <EmptyState icon={FileText} title="No score history yet" detail="Analyze a resume to start tracking progress." />
           )}
@@ -145,7 +146,7 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
             <h3>Readiness Drivers</h3>
           </div>
           <div className="driver-chart" aria-label="Readiness driver scores by resume section">
-            {readinessDrivers.map((driver) => (
+            {!currentAnalysis?.readiness && readinessDrivers.map((driver) => (
               <div key={driver.label}>
                 <span>{driver.label}</span>
                 <meter aria-label={`${driver.label} score`} min="0" max="100" value={driver.score} />
@@ -160,7 +161,7 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
             </div>
             <div>
               <h4>Gaps</h4>
-              {(currentAnalysis?.keywordAnalysis.missing || ["Add a target role and resume to detect gaps."]).slice(0, 3).map((item) => <span key={item}>{item}</span>)}
+              {(currentAnalysis?.readiness?.requirements.filter(item => item.status !== "demonstrated").map(item => item.requirement) || currentAnalysis?.keywordAnalysis.missing || ["Add a target role and resume to detect gaps."]).slice(0, 3).map((item) => <span key={item}>{item}</span>)}
             </div>
           </div>
         </article>
@@ -239,9 +240,9 @@ function readinessDriverScores(analysis: ResumeAnalysis | null) {
 
   return [
     { label: "Skills", score: sectionScore("skill", Math.min(100, analysis.keywordAnalysis.matched.length * 10)) },
-    { label: "Experience", score: sectionScore("experience", analysis.score) },
-    { label: "Education", score: sectionScore("education", analysis.score) },
-    { label: "ATS Match", score: sectionScore("ats", analysis.score) }
+    { label: "Experience", score: sectionScore("experience", (analysis.score ?? 0)) },
+    { label: "Education", score: sectionScore("education", (analysis.score ?? 0)) },
+    { label: "ATS Match", score: sectionScore("ats", (analysis.score ?? 0)) }
   ].map((item) => ({ ...item, score: Math.max(0, Math.min(100, Math.round(item.score))) }));
 }
 
@@ -275,7 +276,7 @@ function buildTimeline(
       date: "Active"
     },
     ...resumeRecords.slice(0, 3).map((record) => ({
-      label: `${record.analysis.score}% resume score saved`,
+      label: record.analysis.readiness ? `${record.analysis.readiness.level} review saved` : `${record.analysis.score}% historical resume score saved`,
       date: formatDate(record.updatedAt)
     })),
     ...applications.slice(0, 3).map((application) => ({

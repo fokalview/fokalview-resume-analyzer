@@ -129,6 +129,8 @@ type AdminSummary = {
     uniqueUsers: number;
     rawResumeRecords: number;
     averageReadinessScore: number;
+    historicalReadinessCount?: number;
+    evidenceReadinessCount?: number;
     readinessDelta: number;
   };
   systemInfo: { rawResumeRecords: number; rawResumeRetentionRate: number };
@@ -189,7 +191,8 @@ type AdminSummary = {
     targetRole: string;
     currentTitle: string;
     careerLevel: string;
-    score: number;
+    score: number | null;
+    readiness?: {level:string};
     searchableText?: string;
     emailDomain?: string;
     emailDomainType?: string;
@@ -522,7 +525,7 @@ export default function AdminDashboard() {
                     </div>
                   </div>
                   <span>{record.targetRole || "No target opportunity"}</span>
-                  <span className={`score-pill ${scoreClass(record.score)}`} title={scoreExplanation(record.score, summary.meta.readinessThreshold)}>{record.score}%</span>
+                  <span className={`score-pill ${scoreClass(record.score ?? 0)}`} title={scoreExplanation(record.score ?? 0, summary.meta.readinessThreshold)}>{record.readiness?.level || `${record.score}% historical`}</span>
                   <span>{formatDate(record.capturedAt)}</span>
                   <span className="status-pill applied">Active</span>
                   <span className="record-action-label">Saved</span>
@@ -1026,12 +1029,13 @@ function SectionHeader({ eyebrow, title, detail }: { eyebrow: string; title: str
 
 function ReadinessMetric({ summary }: { summary: AdminSummary }) {
   const score = summary.totals.averageReadinessScore;
+  if (summary.totals.historicalReadinessCount === 0) return <article className="readiness-metric"><strong>{summary.totals.evidenceReadinessCount || 0}</strong><span>Evidence-based reviews</span><small>No historical percentage scores available.</small></article>;
   const delta = summary.totals.readinessDelta;
   const threshold = summary.meta.readinessThreshold;
   return (
     <article className="readiness-metric">
       <strong className={scoreClass(score)}>{score}%</strong>
-      <span>Average career readiness</span>
+      <span>Historical average readiness</span>
       <small>{delta >= 0 ? "+" : ""}{delta} pts from strong match threshold</small>
       <div className="threshold-track" title="Readiness = weighted match across skills, tools, and role fit">
         <span style={{ width: `${Math.min(100, score)}%` }} />
@@ -1414,8 +1418,8 @@ function buildActionQueue(summary: AdminSummary): ActionQueueItem[] {
   }
 
   const lowReadiness = [...summary.recentResumeRecords]
-    .filter((record) => Number(record.score || 0) < 65)
-    .sort((left, right) => left.score - right.score)[0];
+    .filter((record) => !record.readiness && typeof record.score === "number" && record.score < 65)
+    .sort((left, right) => (left.score ?? 0) - (right.score ?? 0))[0];
 
   if (lowReadiness) {
     items.push({
@@ -1618,7 +1622,7 @@ function buildEnterpriseTiles(summary: AdminSummary, view: AdminView): Enterpris
         tone: "green",
         icon: <Activity size={44} />,
         value: `${summary.totals.averageReadinessScore}%`,
-        label: "Average readiness",
+        label: "Historical average readiness",
         primaryAction: "Open readiness bands",
         secondaryAction: `${summary.totals.readinessDelta} pts from threshold`
       },
@@ -1714,7 +1718,7 @@ function buildEnterpriseTiles(summary: AdminSummary, view: AdminView): Enterpris
 function buildRecentActivity(summary: AdminSummary) {
   const resumeItems = summary.recentResumeRecords.slice(0, 4).map((record) => ({
     label: `${record.currentTitle || "Candidate"} ran a readiness review`,
-    detail: `${record.score}% for ${record.targetRole || "target opportunity"}`,
+    detail: `${record.readiness?.level || `${record.score}% historical`} for ${record.targetRole || "target opportunity"}`,
     time: formatDate(record.capturedAt),
     sortAt: record.capturedAt
   }));

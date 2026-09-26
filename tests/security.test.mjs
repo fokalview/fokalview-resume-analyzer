@@ -150,21 +150,21 @@ test('staged analysis validates provider contracts and enforces quota per review
   const short=await analyze.onRequestPost({request:request('POST','alice',{resumeText:'short'}),env});assert.equal(short.status,400);assert.equal(calls,0);
   const success=await analyze.onRequestPost({request:request('POST','alice',body),env});
   assert.equal(success.status,200,await success.clone().text());const output=await success.json();
-  assert.equal(output.sections[0].score,100);assert.equal(output.orchestration.provider,'openai');
+  assert.equal(output.score,null);assert.equal(output.readiness.level,'More information needed');assert.equal(output.orchestration.provider,'openai');
   assert.deepEqual(names,['job_extraction','profile_extraction','opportunity_review','report_writing']);
   assert.equal(success.headers.get('X-RateLimit-Remaining'),'0');
   const limited=await analyze.onRequestPost({request:request('POST','alice',body),env});assert.equal(limited.status,429);assert.equal(calls,4);
  }finally{provider.mock.restore();sql.close()}
 });
 
-test('Workers AI staged review keeps score when the writer fails',async()=>{
+test('Workers AI staged review keeps assessment when the writer fails',async()=>{
  const {env,sql}=setup();let calls=0;
  env.AI={async run(_model,input){calls++;if(calls===4)throw new Error('Writer unavailable');
  const prompt=input.messages[1].content;const schema=JSON.parse(prompt.slice(prompt.lastIndexOf('JSON schema: ')+13));
  const value=outputForSchema(schema);if(calls===1)value.jobQualifications.requiredSkills=['Go'];return {response:value};}};
  try {
   const r=await analyze.onRequestPost({request:request('POST','alice',{resumeText:'Built Go services. '.repeat(20),jobContext:'Go engineer'}),env});
-  assert.equal(r.status,200,await r.clone().text());const output=await r.json();assert.equal(output.sections[0].score,100);
+  assert.equal(r.status,200,await r.clone().text());const output=await r.json();assert.equal(output.score,null);assert.equal(output.readiness.level,'More information needed');
   assert.ok(output.orchestration.stages.includes('report-writing-fallback'));
  }finally{sql.close()}
 });
@@ -183,4 +183,19 @@ test('session links existing email-owned records without changing candidate iden
   assert.equal((await session.onRequestGet({request:request('GET','unverified'),env})).status,401);
   assert.equal((await session.onRequestGet({request:request('GET','alice'),env:{...env,DB:undefined}})).status,503);
  }finally{sql.close()}
+});
+
+test('evidence assessment round trips through resume and opportunity storage without a numeric score',async()=>{
+ const {env,sql}=setup();
+ const readiness={version:'sagittaiq-evidence-v2',extractionIncomplete:false,requirements:[{id:'a',requirement:'Teach lessons',jobQuote:'Teach lessons',importance:'core',category:'responsibility',status:'demonstrated',resumeQuote:'Taught lessons',reason:'Direct example',nextAction:'Retain example'}]};
+ const analysis={...analysisFixture,score:null,scoringVersion:readiness.version,readiness,sections:[]};
+ try {
+  const body=job();body.application.latestAnalysis=analysis;
+  const app=await apps.onRequestPost({request:request('POST','alice',body),env});assert.equal(app.status,200,await app.clone().text());
+  const saved=await resumes.onRequestPost({request:request('POST','alice',{consent:true,consentVersion:'workforce-resume-profile-v1',analysis,resumeText:'Taught lessons',jobContext:'Teach lessons',retainRawResumeText:false,targetRole:'Teacher'}),env});assert.equal(saved.status,200,await saved.clone().text());
+  const {applications}=await (await apps.onRequestGet({request:request('GET','alice'),env})).json();
+  const {records}=await (await resumes.onRequestGet({request:request('GET','alice'),env})).json();
+  for(const value of [applications[0].latestAnalysis,records[0].analysis]) {assert.equal(value.score,null);assert.equal(value.readiness.level,'Strong alignment');assert.equal(value.readiness.requirements[0].resumeQuote,'Taught lessons');}
+  assert.equal(applications[0].latestReadinessScore,null);
+ } finally {sql.close();}
 });

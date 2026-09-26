@@ -1,3 +1,7 @@
+# Current assessment update
+
+New reviews now use the evidence-based v2 assessment described in [READINESS_V2.md](READINESS_V2.md). The v1.4 scoring discussion below is historical and is no longer used to produce new review scores.
+
 # Review pipeline and internal layout
 
 Four bounded model calls use the configured backend provider: job extraction, profile extraction, opportunity review, and report writing. Code calculates the score between comparison and writing. Each output is validated against its stage schema. The writer only receives narrative fields and the read-only score; unexpected output keys fail validation. Writing failures preserve the original review and are surfaced in the report. There are no autonomous tools or arbitrary web requests in these stages. The Chrome extension remains the user-triggered capture mechanism.

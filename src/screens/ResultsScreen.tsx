@@ -1,3 +1,4 @@
+import { ReadinessSummary, RequirementEvidence } from '../components/ReadinessAssessment';
 import { AlertCircle, BriefcaseBusiness, CheckCircle2, CircleCheck, Download, ListChecks, Target } from "lucide-react";
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { InlineNotice, PageHeader } from "../components/ExperienceUI";
@@ -26,9 +27,9 @@ export default function ResultsScreen({
     <section className="screen analysis-workspace">
       <PageHeader
         eyebrow="Career readiness report"
-        title={`${analysis.score}% alignment with ${target}`}
+        title={analysis.readiness ? `Your readiness for ${target}` : `Historical review: ${analysis.score}% alignment with ${target}`}
         description="Use this report to understand the strongest evidence in your career materials, close the most important gaps, and prepare your next application."
-        meta={<ScoreContext score={analysis.score} compact />}
+        meta={analysis.readiness ? undefined : <ScoreContext score={analysis.score ?? 0} compact />}
         actions={
           <>
             <button
@@ -46,7 +47,7 @@ export default function ResultsScreen({
         }
       />
 
-      <div className="analysis-summary-strip">
+      {analysis.readiness ? <ReadinessSummary value={analysis.readiness}/> : <div className="analysis-summary-strip">
         <div className="report-score-cell"><div className="score-ring compact" style={{ "--score": `${analysis.score}%` } as CSSProperties}>
           <strong>{analysis.score}</strong>
           <span>alignment</span>
@@ -68,6 +69,7 @@ export default function ResultsScreen({
         </div>
       </div>
 
+      }
       <nav className="report-tabs" aria-label="Career readiness report sections">
         <ReportTabButton active={tab === "overview"} onClick={() => setTab("overview")} icon={<Target size={17} />} label="Overview" />
         <ReportTabButton active={tab === "recommendations"} onClick={() => setTab("recommendations")} icon={<ListChecks size={17} />} label="Priority actions" />
@@ -98,7 +100,7 @@ export default function ResultsScreen({
               </ul>
             </div>
             <div>
-              <h3>Readiness by category</h3>
+              <h3>{analysis.readiness ? "Assessment method" : "Historical category scores"}</h3>{analysis.readiness && <p>Core work, stated qualifications, and expected scope determine the assessment. Preferred criteria remain separate. Resume length and keyword repetition earn no credit.</p>}
               <div className="section-list">
                 {analysis.sections.map((section) => (
                   <div className="section-row" key={section.name}>
@@ -132,7 +134,7 @@ export default function ResultsScreen({
         </div>
       )}
 
-      {tab === "alignment" && (
+      {tab === "alignment" && (analysis.readiness ? <RequirementEvidence value={analysis.readiness}/> : (
         <div className="report-view">
           <InlineNotice title="Use gaps as prompts, not instructions">
             Missing terms may indicate an important qualification, or they may be irrelevant to your real experience. Never claim skills you do not have.
@@ -156,7 +158,7 @@ export default function ResultsScreen({
             </section>
           </div>
         </div>
-      )}
+      ))}
     </section>
   );
 }

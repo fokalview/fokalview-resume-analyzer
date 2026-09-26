@@ -35,7 +35,7 @@ test('analysis remains visible and downloadable when saving fails',async({page})
  await page.getByLabel('Job description',{exact:true}).fill('Build and maintain reliable data infrastructure with SQL and Python.');
  await page.getByLabel('Resume text').fill('I built reliable data services using SQL and Python and worked with product teams to improve reporting. '.repeat(4));
  await page.getByRole('button',{name:'Analyze career readiness'}).click();
- await expect(page.getByRole('heading',{name:'72% alignment with Platform Engineer'})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Historical review: 72% alignment with Platform Engineer'})).toBeVisible();
  await expect(page.getByRole('alert')).toContainText('saving did not finish');await expect(page.getByRole('button',{name:'Download report',exact:true})).toBeEnabled();
 });
 test('review history failures are visible while opportunities remain usable',async({page})=>{
