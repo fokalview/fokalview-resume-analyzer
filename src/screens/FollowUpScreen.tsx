@@ -26,6 +26,7 @@ export default function FollowUpScreen() {
     candidateId: params.get("candidateId") || "",
     contactId: params.get("contactId") || "",
     email: "",
+    phone: "",
     currentStatus: "Actively applying",
     applicationCount: "0",
     interviewCount: "0",
@@ -102,7 +103,7 @@ export default function FollowUpScreen() {
           <h1>Update your career progress.</h1>
           <p>
             Share what happened after your resume review or waitlist signup. This helps improve future
-            recommendations and workforce reporting without storing your raw email address.
+            recommendations and workforce reporting. We retain the contact details you provide so our team can follow up.
           </p>
         </div>
 
@@ -111,7 +112,8 @@ export default function FollowUpScreen() {
           <TextField label="Lead ID" value={form.leadId} onChange={(value) => updateField("leadId", value)} placeholder="LD-000001" error={fieldErrors.leadId} />
           <TextField label="Candidate ID" value={form.candidateId} onChange={(value) => updateField("candidateId", value)} placeholder="SGQ-C-000001" />
           <TextField label="Contact ID" value={form.contactId} onChange={(value) => updateField("contactId", value)} placeholder="CT-000001" />
-          <TextField label="Email" value={form.email} onChange={(value) => updateField("email", value)} type="email" placeholder="Used only as hashed linkage" error={fieldErrors.email} />
+          <TextField label="Email" value={form.email} onChange={(value) => updateField("email", value)} type="email" placeholder="Email address for follow-up" error={fieldErrors.email} />
+          <TextField label="Phone number (optional, include country code)" value={form.phone} onChange={(value) => updateField("phone", value)} type="tel" />
 
           <div className="form-section-title"><span>Progress</span></div>
           <SelectField label="Current status" value={form.currentStatus} onChange={(value) => updateField("currentStatus", value)} options={CURRENT_STATUSES} />
@@ -147,6 +149,9 @@ export default function FollowUpScreen() {
             />
           </label>
 
+          <p className="wide-field contact-notice">
+            Your contact details and responses are available to authorized SagittaIQ administrators for follow-up and progress reporting.
+          </p>
           {error && <p className="error-message" role="alert">{error}</p>}
           {status && <p className="success-message" role="status" aria-live="polite">{status}</p>}
 

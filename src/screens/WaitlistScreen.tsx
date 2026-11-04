@@ -87,6 +87,7 @@ const INITIAL_FORM = {
   userType: "Individual Job Seeker",
   name: "",
   email: "",
+  phone: "",
   country: "",
   state: "",
   city: "",
@@ -193,7 +194,7 @@ export default function WaitlistScreen() {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not join waitlist.");
-      setStatus("Your waitlist request has been approved for early-access review.");
+      setStatus("Your waitlist request has been received for early-access review.");
       setShowApproval(true);
       setForm(INITIAL_FORM);
       setFieldErrors({});
@@ -331,12 +332,17 @@ export default function WaitlistScreen() {
               ))}
             </select>
           </label>
+          {form.preferredContactMethod === "Phone" && (
+            <TextField label="Phone number (include country code)" value={form.phone} onChange={(value) => setField("phone", value)} type="tel" required error={fieldErrors.phone} />
+          )}
           <TextField
             className="wide-field"
             label="LinkedIn profile"
             value={form.linkedinUrl}
             onChange={(value) => setField("linkedinUrl", value)}
             placeholder="https://linkedin.com/in/..."
+            required={form.preferredContactMethod === "LinkedIn"}
+            error={fieldErrors.linkedinUrl}
           />
           <TextArea
             className="wide-field"
@@ -413,6 +419,10 @@ export default function WaitlistScreen() {
             />
           </section>
 
+          <p className="wide-field contact-notice">
+            SagittaIQ stores your name, email address, contact details, and answers so our team can review your request
+            and follow up using your preferred contact method. Your responses are available to authorized administrators.
+          </p>
           {error && <p className="error-message" role="alert">{error}</p>}
           {status && <p className="success-message" role="status" aria-live="polite">{status}</p>}
 
@@ -433,7 +443,7 @@ export default function WaitlistScreen() {
             aria-describedby="waitlist-approval-description"
           >
             <p className="eyebrow">Early Access</p>
-            <h2 id="waitlist-approval-title">Your waitlist request has been approved.</h2>
+            <h2 id="waitlist-approval-title">Your waitlist request has been received.</h2>
             <p id="waitlist-approval-description">
               You are now in the SagittaIQ early-access review queue. We saved your signup details and will use them
               to route beta access, discovery invitations, and pilot conversations.
@@ -916,6 +926,15 @@ function validateWaitlist(form: WaitlistForm, isOrganization: boolean) {
     errors.email = "Enter a valid email address.";
   }
   if (!form.country.trim()) errors.country = "Enter your country.";
+  if (form.preferredContactMethod === "Phone" && !form.phone.trim()) errors.phone = "Enter a phone number so we can follow up by phone.";
+  if (form.preferredContactMethod === "LinkedIn") {
+    try {
+      const url = new URL(form.linkedinUrl.trim());
+      if (!/^https?:$/.test(url.protocol)) throw new Error("Invalid URL");
+    } catch {
+      errors.linkedinUrl = "Enter your full LinkedIn profile URL so we can contact you there.";
+    }
+  }
   if (!form.state.trim()) errors.state = "Enter your state or province.";
   if (isOrganization && !form.city.trim()) errors.city = "Enter the city for this organization.";
   if (isOrganization && !form.zipPostal.trim()) errors.zipPostal = "Enter a ZIP or postal code.";
