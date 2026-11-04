@@ -38,8 +38,10 @@ Real SQLite regressions cover all supported INSERT variants, old-row preservatio
 schema guards, contact validation, protected admin access, exact matching, missing
 versus zero values, full exports, and spreadsheet formula handling. The coverage
 gate, TypeScript/Vite build, Pages Functions compilation, local D1 migration and
-safe migration rerun passed. Browser verification and the final deployment commit
-are tracked with the release pull request.
+safe migration rerun passed. Two real local browser checks passed: signup through
+protected admin detail and CSV download, and the follow-up retention notice. The
+full GitHub quality workflow also passed, including its browser suite. The final
+deployment commit is tracked with the release pull request.
 
 ### Risks And Next Steps
 

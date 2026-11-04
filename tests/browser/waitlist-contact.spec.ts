@@ -12,6 +12,7 @@ test('waitlist contact details survive public signup, protected admin views and 
   test.skip(!adminCode, 'Requires an explicitly configured local synthetic admin credential.');
   expect(['127.0.0.1', 'localhost']).toContain(new URL(baseURL!).hostname);
   test.setTimeout(60000);
+  page.setDefaultTimeout(10000);
 
   const unique = Date.now().toString();
   const name = `Alex Morgan — Synthetic Test ${unique}`;
@@ -21,21 +22,21 @@ test('waitlist contact details survive public signup, protected admin views and 
 
   await page.goto('/waitlist');
   await expect(page.getByText(/SagittaIQ stores your name, email address, contact details, and answers/)).toBeVisible();
-  await expect(page.getByLabel('Phone number (include country code)')).toHaveCount(0);
-  await page.getByLabel('Full name', { exact: true }).fill(name);
-  await page.getByLabel('Email', { exact: true }).fill(email.toUpperCase());
-  await page.getByLabel('Country', { exact: true }).fill('United States');
-  await page.getByLabel('State / province', { exact: true }).fill('Massachusetts');
-  await page.getByLabel('City', { exact: true }).fill('Worcester');
-  await page.getByLabel('ZIP / postal code', { exact: true }).fill('01609');
-  await page.getByLabel('Preferred contact', { exact: true }).selectOption('Phone');
-  await expect(page.getByLabel('Phone number (include country code)')).toBeVisible();
-  await page.getByLabel('What are you trying to improve?', { exact: true }).fill(challenge);
+  await expect(page.getByRole('textbox', { name: 'Phone number (include country code)', exact: true })).toHaveCount(0);
+  await page.getByRole('textbox', { name: 'Full name', exact: true }).fill(name);
+  await page.getByRole('textbox', { name: 'Email', exact: true }).fill(email.toUpperCase());
+  await page.getByRole('textbox', { name: 'Country', exact: true }).fill('United States');
+  await page.getByRole('textbox', { name: 'State / province', exact: true }).fill('Massachusetts');
+  await page.getByRole('textbox', { name: 'City', exact: true }).fill('Worcester');
+  await page.getByRole('textbox', { name: 'ZIP / postal code', exact: true }).fill('01609');
+  await page.getByRole('combobox', { name: 'Preferred contact', exact: true }).selectOption('Phone');
+  await expect(page.getByRole('textbox', { name: 'Phone number (include country code)', exact: true })).toBeVisible();
+  await page.getByRole('textbox', { name: 'What are you trying to improve?', exact: true }).fill(challenge);
   await page.getByRole('button', { name: 'Request access', exact: true }).click();
   await expect(page.getByText('Enter a phone number so we can follow up by phone.', { exact: true })).toBeVisible();
-  await page.getByLabel('Phone number (include country code)').fill(phone);
-  await page.getByLabel('Target role', { exact: true }).fill('Data Analyst');
-  await page.getByLabel('Target salary', { exact: true }).fill('$75,000');
+  await page.getByRole('textbox', { name: /^Phone number \(include country code\)/ }).fill(phone);
+  await page.getByRole('textbox', { name: 'Target role', exact: true }).fill('Data Analyst');
+  await page.getByRole('textbox', { name: 'Target salary', exact: true }).fill('$75,000');
   await page.getByRole('checkbox', { name: /Product updates/i }).uncheck();
 
   const signupResponse = page.waitForResponse(response => response.url().endsWith('/api/waitlist') && response.request().method() === 'POST');
@@ -61,7 +62,7 @@ test('waitlist contact details survive public signup, protected admin views and 
   const dialog = page.getByRole('dialog', { name: 'Waitlist record detail', exact: true });
   await expect(dialog.getByRole('heading', { name, exact: true })).toBeVisible();
   await expect(dialog.getByRole('link', { name: email, exact: true })).toBeVisible();
-  await expect(dialog.getByText(challenge, { exact: true })).toBeVisible();
+  await expect(dialog.locator(':scope > dl').getByText(challenge, { exact: true })).toBeVisible();
   await dialog.getByText('Complete signup answers', { exact: true }).click();
   const answers = dialog.locator('details[open]');
   await expect(answers.getByText('$75,000', { exact: true })).toBeVisible();
