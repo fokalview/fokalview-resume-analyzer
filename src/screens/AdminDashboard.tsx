@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { csvForRecords, displayValue, flattenRecord } from "../lib/waitlistExport.js";
 import { OutreachEditor } from "../components/OutreachEditor";
+import { ResumeSourceLibrary } from "../components/ResumeSourceLibrary";
 import "../admin-clarity.css";
 
 type CountItem = { label: string; count: number; percentAffected?: number };
@@ -479,6 +480,7 @@ export default function AdminDashboard() {
               <WorkspaceReports summary={summary} onNavigate={navigate} outreach={outreach} outreachReady={outreachReady} outreachError={outreachError} fixedReport="outcomes" />
             </>}
             {view === "applications" && <>
+              <ResumeSourceLibrary key={accessCode} adminCode={accessCode} heading="Retained resumes" refreshKey={refreshVersion} />
               <WorkspaceReports summary={summary} onNavigate={navigate} outreach={outreach} outreachReady={outreachReady} outreachError={outreachError} fixedReport="activity" />
               <OpportunityRecords records={summary.applicationRecords || []} />
               <EngagementReports summary={summary} />

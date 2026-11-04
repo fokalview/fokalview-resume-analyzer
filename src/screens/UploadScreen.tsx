@@ -3,8 +3,19 @@ import { Check, ChevronDown, ClipboardPaste, Loader2, Search, Upload } from "luc
 import { analyzeResume, getApplications, saveApplicationRecord, saveResumeRecord, type ApplicationRecord } from "../services/api";
 import type { JobHandoff, ResumeAnalysis } from "../types";
 import { InlineNotice, PageHeader } from "../components/ExperienceUI";
+import { documentFromText, extractResumeDocument, RESUME_LIMITS, type ResumeDocument } from "../lib/resumeDocument";
+import { saveOriginalResume, saveResumeSnapshot, type ResumeSourceRecord, type ResumeSnapshotInput, type ResumePosition } from "../services/resumeSources";
+
+export type ResumeDraft = {
+  document: ResumeDocument | null;
+  originalSourceId: string;
+  label: string;
+  pendingFile: { file: File; requestId: string } | null;
+};
 
 type Props = {
+  draft: ResumeDraft;
+  onDraftChange: (update: (current: ResumeDraft) => ResumeDraft) => void;
   resumeText: string;
   targetRole: string;
   jobContext: string;
@@ -18,6 +29,7 @@ type Props = {
 };
 
 export default function UploadScreen({
+  draft, onDraftChange,
   resumeText,
   targetRole,
   jobContext,
@@ -38,10 +50,22 @@ export default function UploadScreen({
   const [error, setError] = useState("");
   const [fileStatus, setFileStatus] = useState("");
   const [saveStatus, setSaveStatus] = useState("");
-  const [resumeLabel, setResumeLabel] = useState("");
+  const resumeLabel = draft.label;
+  const setResumeLabel = (label: string) => onDraftChange(current => ({ ...current, label }));
   const [savedOpportunities, setSavedOpportunities] = useState<ApplicationRecord[]>([]);
   const [opportunitySearch, setOpportunitySearch] = useState("");
   const [opportunitySearchOpen, setOpportunitySearchOpen] = useState(false);
+  const sourceDocument = draft.document;
+  const originalSourceId = draft.originalSourceId;
+  const pendingFile = draft.pendingFile;
+  const setSourceDocument = (document: ResumeDocument | null) => onDraftChange(current => ({ ...current, document }));
+  const setOriginalSourceId = (id: string) => onDraftChange(current => ({ ...current, originalSourceId: id }));
+  const setPendingFile = (value: ResumeDraft["pendingFile"]) => onDraftChange(current => ({ ...current, pendingFile: value }));
+  const [sourceSaving, setSourceSaving] = useState(false);
+  const [savedSource, setSavedSource] = useState<ResumeSourceRecord | null>(null);
+  const snapshotAttempt = useRef<{ signature: string; input: ResumeSnapshotInput; record?: ResumeSourceRecord } | null>(null);
+  const operation = useRef(0);
+  useEffect(() => { operation.current++; return () => { operation.current++; }; }, [opportunity?.id]);
 
   useEffect(() => {
     let active = true;
@@ -54,9 +78,12 @@ export default function UploadScreen({
 
   useEffect(() => {
     setOpportunitySearch(opportunity ? opportunityLabel(opportunity) : "");
-    setResumeLabel("");
     setFileStatus("");
+    setSavedSource(null); setSaveStatus("");
+    snapshotAttempt.current = null;
   }, [opportunity?.id]);
+
+  useEffect(() => { setSaveStatus(""); }, [resumeText, targetRole, jobContext, resumeLabel]);
 
   const filteredOpportunities = useMemo(() => {
     const query = opportunity && opportunitySearch === opportunityLabel(opportunity)
@@ -68,75 +95,118 @@ export default function UploadScreen({
     );
   }, [opportunity, opportunitySearch, savedOpportunities]);
 
-  async function handleFile(file: File) {
-    setError("");
-    setFileStatus(`Reading ${file.name}...`);
-
-    try {
-      const extractedText = await extractTextFromFile(file);
-
-      if (extractedText.trim().length < 50) {
-        setError(
-          "The file opened, but I could not find enough readable text. If it is scanned or image-based, paste the resume text or export it as a text-based PDF/DOCX."
-        );
-        setFileStatus(`Could not read enough text from ${file.name}`);
-        return;
+  async function preserveSource(options: { text?: string; document?: ResumeDocument | null; originalId?: string; label?: string; application?: ApplicationRecord | null } = {}) {
+    const text = options.text ?? resumeText;
+    const originalId = options.originalId ?? originalSourceId;
+    const extracted = options.document === undefined ? sourceDocument : options.document;
+    const application = options.application === undefined ? opportunity : options.application;
+    const label = options.label ?? (resumeLabel || defaultResumeLabel(targetRole));
+    const position = snapshotPosition(jobHandoff, targetRole, jobContext, application);
+    const signature = JSON.stringify({ text, originalId, extracted, label, targetRole, jobContext, position, opportunityId: application?.id || "" });
+    if (snapshotAttempt.current?.signature !== signature) {
+      const document = extracted && extracted.text === text ? extracted : documentFromText(text);
+      if (originalId && document !== extracted) {
+        document.source.warnings = [...document.source.warnings, "The text was edited after extraction. This version retains the original file, but page positions are unavailable for the edited text."];
       }
-
-      onResumeTextChange(extractedText);
-      setResumeLabel(file.name);
-      setFileStatus(`Loaded ${file.name}`);
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "That file could not be read.");
-      setFileStatus(`Could not load ${file.name}`);
+      snapshotAttempt.current = { signature, input: {
+        requestId: crypto.randomUUID(), originalSourceId: originalId || undefined,
+        resumeDocument: document, resumeText: text, targetRole, jobContext,
+        position, opportunityId: application?.id, resumeLabel: label
+      } };
     }
+    const attempt = snapshotAttempt.current;
+    const record = attempt.record || await saveResumeSnapshot(attempt.input);
+    attempt.record = record;
+    setSavedSource(record);
+    setSaveStatus("Resume version saved. Its text, available layout and job context can be downloaded from Saved resumes.");
+    return record;
+  }
+
+  async function handleFile(file: File, requestId: string = crypto.randomUUID()) {
+    if (sourceSaving || isLoading) return;
+    const currentOperation = operation.current;
+    setError("");
+    setSaveStatus(""); setSourceSaving(true);
+    setPendingFile({ file, requestId });
+    setFileStatus(`Saving original ${file.name}…`);
+    try {
+      if (file.size > RESUME_LIMITS.maxFileBytes) throw new Error("Choose a resume file no larger than 10 MiB.");
+      const original = await saveOriginalResume(file, requestId);
+      if (operation.current !== currentOperation) return;
+      setOriginalSourceId(original.id); setPendingFile(null); setSavedSource(original);
+      setResumeLabel(file.name);
+      setFileStatus(`Original ${file.name} saved. Reading document structure…`);
+      setSourceDocument(null); onResumeTextChange(""); snapshotAttempt.current = null;
+      const document = await extractResumeDocument(file);
+      if (operation.current !== currentOperation) return;
+      setSourceDocument(document); onResumeTextChange(document.text);
+      await preserveSource({ text: document.text, document, originalId: original.id, label: file.name });
+      setFileStatus(document.source.status === "needs_text"
+        ? `Original ${file.name} saved. Add readable text to run an analysis.`
+        : `Original and structured copy of ${file.name} saved.`);
+    } catch (nextError) {
+      setError(nextError instanceof Error ? nextError.message : "The resume could not be saved. Please retry.");
+      setFileStatus(current => current.startsWith("Original ") ? `${current.split(". Reading")[0]}. Extraction or structured saving did not finish; the original remains in Saved resumes.` : `Original ${file.name} has not been confirmed saved.`);
+    } finally { setSourceSaving(false); }
+  }
+
+  async function saveSourceOnly() {
+    if (sourceSaving || isLoading || pendingFile) return;
+    setError(""); setSaveStatus(""); setSourceSaving(true);
+    try { await preserveSource(); }
+    catch (nextError) { setError(nextError instanceof Error ? nextError.message : "The resume could not be saved. Please retry."); }
+    finally { setSourceSaving(false); }
   }
 
   async function submit() {
-    setIsLoading(true);setStage("Preparing your review…");
-    setError("");
-    setSaveStatus("");
+    if (sourceSaving || pendingFile) return;
+    const currentOperation = operation.current;
+    setIsLoading(true);setStage("Saving your resume source…");
+    setError(""); setSaveStatus("");
+    let source: ResumeSourceRecord | undefined;
     try {
+      source = await preserveSource();
+      if (operation.current !== currentOperation) return;
       const existingOpportunity = opportunity || await findExistingOpportunity(jobHandoff, targetRole, jobContext);
-      setStage("Comparing your resume…");
+      if (operation.current !== currentOperation) return;
+      source = await preserveSource({ application: existingOpportunity });
+      if (operation.current !== currentOperation) return;
+      const application = existingOpportunity || await saveOpportunityBeforeAnalysis(jobHandoff, targetRole, jobContext).catch(() => null);
+      if (operation.current !== currentOperation) return;
+      source = await preserveSource({ application });
+      if (operation.current !== currentOperation) return;
+      setStage("Resume saved. Comparing your resume…");
       const analysis = await analyzeResume({
-        resumeText,
-        targetRole,
-        jobContext,
+        sourceId: source.id, resumeText, targetRole, jobContext,
         jobQualifications: existingOpportunity?.jobQualifications,
-        scoreHistory: existingOpportunity?.analysisHistory?.map(({ score, scoringVersion, analyzedAt }) => ({
-          score,
-          scoringVersion,
-          analyzedAt
-        }))
+        scoreHistory: existingOpportunity?.analysisHistory?.map(({ score, scoringVersion, analyzedAt }) => ({ score, scoringVersion, analyzedAt }))
       });
+      if (operation.current !== currentOperation) return;
       setStage("Saving your review…");
+      let updatedApplication: ApplicationRecord | null = application || null;
+      let applicationWarning = application ? "" : "Opportunity saving did not finish. Your resume version remains available in Saved resumes.";
+      if (application) {
+        try { updatedApplication = await saveApplicationFromHandoff(jobHandoff, targetRole, jobContext, analysis, application); }
+        catch { applicationWarning = "Opportunity saving did not finish. Your resume version remains available in Saved resumes."; }
+      }
+      if (operation.current !== currentOperation) return;
       try {
-      const application = await saveApplicationFromHandoff(jobHandoff, targetRole, jobContext, analysis, opportunity);
-      const saved = await saveResumeRecord({
-        resumeText,
-        targetRole,
-        jobContext,
-        analysis,
-        retainRawResumeText: true,
-        opportunityId: application?.id,
-        resumeLabel: resumeLabel || defaultResumeLabel(targetRole)
-      });
-      setSaveStatus(application
-        ? `Updated readiness history for ${application.title}.`
-        : `Saved workforce profile ${saved.id.slice(0, 8)}.`);
-      onAnalysisComplete(analysis, undefined, saved.id, application);
+        const saved = await saveResumeRecord({ sourceId: source.id, resumeText, targetRole, jobContext, analysis,
+          retainRawResumeText: true, opportunityId: application?.id, resumeLabel: resumeLabel || defaultResumeLabel(targetRole) });
+        if (operation.current === currentOperation) onAnalysisComplete(analysis, applicationWarning || undefined, saved.id, updatedApplication);
       } catch {
-        onAnalysisComplete(analysis, "Your review is ready, but saving did not finish. Download this report now to keep a copy; it may not appear in your saved history.");
+        if (operation.current === currentOperation) onAnalysisComplete(analysis, "Your resume source version is saved. Saving the analysis report did not finish; download this report to keep the feedback.", undefined, updatedApplication);
       }
     } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Something went wrong.");
+      const reason = nextError instanceof Error ? nextError.message : "Something went wrong.";
+      setError(source ? `Your resume source is saved and remains available in Saved resumes. ${reason}` : reason);
     } finally {
       setIsLoading(false);
     }
   }
 
-  const canSubmit = resumeText.trim().length >= 200 && jobContext.trim().length >= 40 && !isLoading;
+  const busy = isLoading || sourceSaving;
+  const canSubmit = resumeText.trim().length >= 200 && jobContext.trim().length >= 40 && !busy && !pendingFile;
 
   return (
     <div className="screen upload-screen">
@@ -149,6 +219,7 @@ export default function UploadScreen({
         meta={<span>PDF, DOCX, ODT, RTF, TXT, MD, and CSV supported</span>}
       />
 
+      <fieldset disabled={busy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }} aria-label="Resume and opportunity details">
       {opportunityError && <div><p role="alert">{opportunityError}</p><button className="secondary-action" onClick={()=>setOpportunityRetry(value=>value+1)}>Retry saved opportunities</button></div>}
       {opportunitiesLoading && <p role="status">Loading saved opportunities…</p>}
       <section className="saved-opportunity-search">
@@ -254,7 +325,7 @@ export default function UploadScreen({
 
         <div
           className="dropzone"
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => { if (!busy) fileInputRef.current?.click(); }}
           onDragOver={(event) => event.preventDefault()}
           onDrop={(event) => {
             event.preventDefault();
@@ -262,13 +333,14 @@ export default function UploadScreen({
             if (file) void handleFile(file);
           }}
           role="button"
+          aria-disabled={busy}
           aria-label="Upload career materials"
-          onKeyDown={event => {if(event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {event.preventDefault();fileInputRef.current?.click();}}}
-          tabIndex={0}
+          onKeyDown={event => {if(!busy && event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {event.preventDefault();fileInputRef.current?.click();}}}
+          tabIndex={busy ? -1 : 0}
         >
           <Upload size={24} />
           <strong>Upload career materials</strong>
-          <span>PDF, DOCX, ODT, RTF, TXT, MD, and CSV are supported.</span>
+          <span>PDF, DOCX, ODT, RTF, TXT, MD, and CSV. Maximum 10 MiB.</span>
           {fileStatus && <small role="status" className="file-status">{fileStatus}</small>}
           <input
             ref={fileInputRef}
@@ -304,17 +376,26 @@ export default function UploadScreen({
           />
         </label>
 
-        <InlineNotice title="Your progress is saved">
-          Career material text, job context, structured profile, and analysis results are retained under the beta Terms and Privacy Notice so you can return later.
+        <InlineNotice title="Keep a saved resume copy">
+          Uploading saves the original file. Save resume or Analyze career readiness saves a version of your text, available layout and job details before analysis starts. You and authorized admins can download saved copies. Editing this form does not save another version until you select Save resume or Analyze. Removing a review or opportunity does not remove its retained resume; you may request deletion under the Privacy Notice.
         </InlineNotice>
       </div>
+      </fieldset>
 
       {error && <p role="alert" className="error-message">{error}</p>}
-      {saveStatus && <p className="success-message">{saveStatus}</p>}
+      {saveStatus && <p role="status" className="success-message" data-source-id={savedSource?.id}>{saveStatus}</p>}
+      {pendingFile && !busy && <button className="secondary-action" onClick={() => void handleFile(pendingFile.file, pendingFile.requestId)}>Retry original upload</button>}
+      {pendingFile && !busy && <button className="secondary-action" onClick={() => {
+        setPendingFile(null); setOriginalSourceId(""); setSourceDocument(null); setSavedSource(null);
+        setFileStatus(""); setError(""); setSaveStatus(""); snapshotAttempt.current = null;
+      }}>Use pasted text instead</button>}
 
-      <p role="status">{isLoading ? stage : "To compare: add at least 200 characters of resume text and 40 characters of job description."}</p>
+      <p role="status">{isLoading ? stage : sourceSaving ? "Saving your resume copy…" : "To compare: add at least 200 characters of resume text and 40 characters of job description. You can save a resume without running an analysis."}</p>
       <div className="actions">
         <span>{resumeText.trim().length.toLocaleString()} characters ready</span>
+        <button className="secondary-action" disabled={busy || Boolean(pendingFile) || (!resumeText.trim() && !originalSourceId)} onClick={() => void saveSourceOnly()}>
+          Save resume
+        </button>
         <button className="primary-button" disabled={!canSubmit} onClick={submit}>
           {isLoading ? <Loader2 className="spin" size={18} /> : <Upload size={18} />}
           Analyze career readiness
@@ -338,12 +419,36 @@ function shortDate(value: string) {
 }
 
 async function findExistingOpportunity(jobHandoff: JobHandoff, targetRole: string, jobContext: string) {
-  const parsedJob = parseJobContext(jobContext);
-  const title = targetRole || parsedJob.title || jobHandoff.title;
-  const company = parsedJob.company || jobHandoff.company || "Not specified";
-  if (!title) return undefined;
-  const id = stableApplicationId({ ...jobHandoff, company }, title);
-  return (await getApplications().catch(() => [])).find((item) => item.id === id);
+  const position = snapshotPosition(jobHandoff, targetRole, jobContext);
+  const title = position.title || "Untitled opportunity";
+  const company = position.company || "Not specified";
+  const id = stableApplicationId({ ...jobHandoff, url: position.url || "", company }, title);
+  return (await getApplications()).find((item) => item.id === id);
+}
+
+function snapshotPosition(handoff: JobHandoff, targetRole: string, jobContext: string, application?: ApplicationRecord | null): ResumePosition {
+  const parsed = parseJobContext(jobContext);
+  return {
+    title: targetRole || parsed.title || (application?.title !== "Untitled opportunity" ? application?.title : "") || handoff.title || "",
+    company: parsed.company || (application?.company !== "Not specified" ? application?.company : "") || handoff.company || "",
+    location: parsed.location || application?.location || handoff.location || "",
+    salary: parsed.salary || application?.salary || handoff.salary || "",
+    url: parsed.url || application?.url || handoff.url || "",
+    source: parsed.source || application?.source || handoff.source || "",
+    targetRole, jobContext
+  };
+}
+
+async function saveOpportunityBeforeAnalysis(handoff: JobHandoff, targetRole: string, jobContext: string) {
+  const position = snapshotPosition(handoff, targetRole, jobContext);
+  const title = position.title || "Untitled opportunity";
+  const company = position.company || "Not specified";
+  return saveApplicationRecord({
+    id: stableApplicationId({ ...handoff, url: position.url || "", company }, title),
+    title, company, location: position.location || "", salary: position.salary || "",
+    status: "Interested", jobDescription: jobContext, notes: handoff.notes || "",
+    url: position.url || "", source: position.source || ""
+  });
 }
 
 async function saveApplicationFromHandoff(
@@ -355,8 +460,8 @@ async function saveApplicationFromHandoff(
 ) {
   const parsedJob = parseJobContext(jobContext);
   const jobDetails = analysis.jobDetails;
-  const title = selectedOpportunity?.title || targetRole || jobHandoff.title || parsedJob.title || jobDetails?.title;
-  const company = selectedOpportunity?.company || jobHandoff.company || parsedJob.company || jobDetails?.company || "Not specified";
+  const title = (selectedOpportunity?.title !== "Untitled opportunity" ? selectedOpportunity?.title : "") || targetRole || jobHandoff.title || parsedJob.title || jobDetails?.title;
+  const company = (selectedOpportunity?.company !== "Not specified" ? selectedOpportunity?.company : "") || jobHandoff.company || parsedJob.company || jobDetails?.company || "Not specified";
   const salary = selectedOpportunity?.salary || jobHandoff.salary || parsedJob.salary || jobDetails?.salary;
   if (!title) return null;
   const id = selectedOpportunity?.id || stableApplicationId({ ...jobHandoff, company }, title);
@@ -419,103 +524,4 @@ function stableApplicationId(jobHandoff: JobHandoff, title: string) {
     hash = (hash * 31 + seed.charCodeAt(index)) >>> 0;
   }
   return `job-${hash.toString(16)}`;
-}
-
-function isTextLike(file: File) {
-  return (
-    file.type.startsWith("text/") ||
-    [".txt", ".md", ".csv"].some((extension) => file.name.toLowerCase().endsWith(extension))
-  );
-}
-
-async function extractTextFromFile(file: File) {
-  const name = file.name.toLowerCase();
-
-  if (isTextLike(file)) return file.text();
-  if (isRtf(file)) return stripRtf(await file.text());
-  if (name.endsWith(".pdf") || file.type === "application/pdf") return extractPdfText(file);
-  if (name.endsWith(".docx")) return extractDocxText(file);
-  if (name.endsWith(".odt")) return extractOdtText(file);
-
-  if (name.endsWith(".doc")) {
-    throw new Error(
-      "Legacy .doc files are not browser-readable in this beta. Save the document as .docx, PDF, or RTF and upload again."
-    );
-  }
-
-  if (name.endsWith(".pages")) {
-    throw new Error(
-      "Apple Pages files need to be exported as PDF, DOCX, or RTF before upload."
-    );
-  }
-
-  throw new Error("Please upload a PDF, DOCX, ODT, RTF, TXT, MD, or CSV file.");
-}
-
-async function extractPdfText(file: File) {
-  const data = await file.arrayBuffer();
-  const pdfjsLib = await import("pdfjs-dist");
-  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL("pdfjs-dist/build/pdf.worker.mjs", import.meta.url).toString();
-  const pdf = await pdfjsLib.getDocument({ data }).promise;
-  const pages: string[] = [];
-
-  for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-    const page = await pdf.getPage(pageNumber);
-    const content = await page.getTextContent();
-    pages.push(
-      content.items
-        .map((item) => ("str" in item ? item.str : ""))
-        .join(" ")
-    );
-  }
-
-  return pages.join("\n\n").trim();
-}
-
-async function extractDocxText(file: File) {
-  const {default: JSZip} = await import("jszip");
-  const zip = await JSZip.loadAsync(await file.arrayBuffer());
-  const documentXml = await zip.file("word/document.xml")?.async("text");
-  if (!documentXml) throw new Error("This DOCX file did not contain readable document text.");
-  return textFromXml(documentXml, "w:t");
-}
-
-async function extractOdtText(file: File) {
-  const {default: JSZip} = await import("jszip");
-  const zip = await JSZip.loadAsync(await file.arrayBuffer());
-  const documentXml = await zip.file("content.xml")?.async("text");
-  if (!documentXml) throw new Error("This ODT file did not contain readable document text.");
-  return textFromXml(documentXml, "text:p");
-}
-
-function isRtf(file: File) {
-  return (
-    file.type === "application/rtf" ||
-    file.type === "text/rtf" ||
-    file.name.toLowerCase().endsWith(".rtf")
-  );
-}
-
-function stripRtf(value: string) {
-  return value
-    .replace(/\\'[0-9a-fA-F]{2}/g, " ")
-    .replace(/\\par[d]?/g, "\n")
-    .replace(/\\tab/g, " ")
-    .replace(/[{}]/g, "")
-    .replace(/\\[a-zA-Z]+-?\d* ?/g, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-}
-
-function textFromXml(xml: string, tagName: string) {
-  const parser = new DOMParser();
-  const document = parser.parseFromString(xml, "application/xml");
-  const nodes = Array.from(document.getElementsByTagName(tagName));
-  return nodes
-    .map((node) => node.textContent || "")
-    .join(tagName === "text:p" ? "\n" : " ")
-    .replace(/\s+\n/g, "\n")
-    .replace(/[ \t]{2,}/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
 }

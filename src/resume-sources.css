@@ -1,0 +1,42 @@
+.resume-source-library { min-width: 0; margin-block: 24px; padding: clamp(16px, 2vw, 24px); border: 1px solid var(--border); border-radius: 16px; color: var(--text); background: var(--surface); text-align: left; }
+.resume-source-library * { box-sizing: border-box; }
+.resume-source-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.resume-source-heading > div { min-width: 0; }
+.resume-source-heading h2 { margin: 0 0 8px; font-size: 20px; line-height: 1.3; }
+.resume-source-library p { margin: 0 0 10px; line-height: 1.6; }
+.resume-source-heading p, .resume-source-file, .resume-source-date, .resume-source-count, .resume-source-empty { color: var(--text-muted); font-size: 13px; }
+.resume-source-library button { min-height: 44px; padding: 10px 13px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); font: inherit; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; cursor: pointer; }
+.resume-source-library button:disabled { cursor: default; opacity: .6; }
+.resume-source-library :is(button, summary):focus-visible, .resume-source-disclosure > summary:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }
+.resume-source-library button svg { flex-shrink: 0; }
+.resume-source-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 310px), 1fr)); align-items: start; gap: 16px; }
+.resume-source-library .resume-source-card { display: block; min-width: 0; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface-soft); overflow-wrap: anywhere; }
+.resume-source-card-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.resume-source-card h3 { min-width: 0; margin: 0; font-size: 16px; line-height: 1.4; }
+.resume-source-kind { display: inline-block; border: 1px solid var(--border); border-radius: 6px; padding: 3px 6px; color: var(--text-muted); font-size: 11px; }
+.resume-source-role { font-size: 14px; font-weight: 600; }
+.resume-source-library .resume-source-downloads { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.resume-source-downloads button { color: var(--brand); }
+.resume-source-metadata { margin-top: 8px; border-top: 1px solid var(--border); }
+.resume-source-metadata > summary, .resume-source-disclosure > summary { min-height: 44px; padding-block: 12px; font-size: 13px; cursor: pointer; color: var(--text); }
+.resume-source-metadata dl { margin: 0; display: grid; gap: 9px; }
+.resume-source-metadata dl > div { display: grid; grid-template-columns: minmax(80px, 1fr) minmax(0, 2fr); gap: 10px; font-size: 12px; }
+.resume-source-metadata dt { color: var(--text-muted); }
+.resume-source-metadata dd { margin: 0; white-space: pre-wrap; }
+.resume-source-context { margin-top: 14px; font-size: 12px; }
+.resume-source-context p { margin-top: 8px; white-space: pre-wrap; }
+.resume-source-notice, .resume-source-warnings { font-size: 13px; line-height: 1.6; }
+.resume-source-warnings { padding-left: 20px; }
+.resume-source-error { padding: 12px; border: 1px solid var(--border); border-left: 3px solid #b54708; border-radius: 8px; margin-block: 12px; }
+.resume-source-more { margin-top: 16px; }
+.resume-source-download-status:empty { margin: 0; }
+.resume-source-download-status:not(:empty) { padding-top: 12px; font-size: 13px; }
+.resume-source-disclosure { min-width: 0; margin-block: 12px; border-top: 1px solid var(--border); }
+.resume-source-disclosure > summary svg { vertical-align: middle; margin-right: 8px; }
+.resume-source-disclosure .resume-source-library { margin: 0; padding: 12px; }
+@media (max-width: 600px) {
+  .resume-source-heading { flex-wrap: wrap; }
+  .resume-source-library { padding: 14px; }
+  .resume-source-library .resume-source-card { padding: 12px; }
+  .resume-source-metadata dl > div { grid-template-columns: 1fr; gap: 3px; }
+}

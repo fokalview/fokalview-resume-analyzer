@@ -84,7 +84,8 @@ function DataPrivacyPage() {
         SagittaIQ collects career and progress information to provide the service and produce useful workforce intelligence. It should not collect information merely because it can.
       </PageIntro>
       <PublicSections items={[
-        ["What may be processed", "Career material text, target-opportunity context, analysis results, structured career profiles, application progress, follow-up outcomes, and limited product-usage events."],
+        ["What may be processed", "Original uploaded resumes, career material text and available page layout, target-opportunity context, analysis results, structured career profiles, application progress, follow-up outcomes, and limited product-usage events."],
+        ["Saved resume copies", "Uploading saves the original file. Saving or analyzing keeps a version of the resume text, available layout and job details before analysis starts. You and authorized administrators can download these copies even when analysis fails. Removing an opportunity or review does not remove its retained resume. Contact SagittaIQ to request deletion of retained resumes and analysis records."],
         ["Why it is used", "To save progress, improve recommendations, support career-development workflows, understand product use, and produce aggregate program reporting."],
         ["What users should avoid", "Do not upload Social Security numbers, financial information, health information, government identifiers, passwords, or unrelated sensitive information."],
         ["Important limitations", "Readiness scores are informational estimates. They do not predict hiring decisions, guarantee outcomes, or replace professional career advice."],

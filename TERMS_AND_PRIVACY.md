@@ -1,6 +1,6 @@
 # Beta Terms and Privacy Notice
 
-Last updated: May 2026
+Last updated: November 2026
 
 ## Overview
 
@@ -16,6 +16,7 @@ To generate analysis, the tool may process:
 
 - Optional email address for cross-device application and progress tracking
 - Resume text submitted by the user
+- Original uploaded resume files and structured copies containing readable text, available page positions, reading order and extraction warnings
 - Target role
 - Job posting or job tracker context
 - Generated analysis, including scores, strengths, improvements, matched keywords, missing keywords, and section notes
@@ -51,6 +52,10 @@ Users should not submit Social Security numbers, financial information, governme
 The tool may send submitted resume and job context to a configured artificial intelligence provider to generate feedback. The configured provider may change over time. API keys are kept server-side and are not intentionally exposed in frontend or browser extension code.
 
 ## Security and Retention
+
+Uploading a supported resume saves its original file privately. Saving a resume or starting an analysis retains an immutable version of the text, available layout and target-job details before analysis starts, so an analysis failure does not remove the saved source. The signed-in owner and authorized administrators can download retained original, text and structured JSON copies. File copies and layout cannot be reconstructed for historical records where they were never stored.
+
+Deleting an opportunity or review does not delete its separate retained resume source. Users may request deletion of retained resume files, structured copies and analysis records by contacting FokalView Media. Retention is for the service purposes described above; it is not a promise to keep personal data indefinitely.
 
 FokalView aims to collect only what is needed for the beta, protect retained records, and delete records that are no longer needed. Users may request deletion of retained beta analysis records.
 

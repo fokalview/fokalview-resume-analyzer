@@ -2,7 +2,7 @@
 // CORS alone does not prevent a request from changing server state.
 export async function onRequest({request, next}) {
   const url = new URL(request.url);
-  const protectedPath = /^\/api\/(applications|resume-records|analyze|admin\/outreach)\/?$/.test(url.pathname);
+  const protectedPath = /^\/api\/(applications|resume-records|resume-sources|analyze|admin\/outreach)\/?$/.test(url.pathname);
   if (protectedPath && !['GET', 'HEAD', 'OPTIONS'].includes(request.method)) {
     const origin = request.headers.get('Origin');
     const site = request.headers.get('Sec-Fetch-Site');

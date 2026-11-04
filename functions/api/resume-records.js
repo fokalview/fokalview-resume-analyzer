@@ -1,6 +1,7 @@
 import { ensureUser } from "./identity.js";
 import { nextPlatformId, tableColumns } from "./ids.js";
 import { hasVerifiedAccess } from "../lib/workos.js";
+import { ResumeSourceError, readSourceJson, requireOwnedSource } from "../lib/resume-sources.js";
 
 const CONSENT_VERSION = "workforce-resume-profile-v1";
 const MAX_RAW_RESUME_LENGTH = 50000;
@@ -19,9 +20,10 @@ export async function onRequestGet({ request, env }) {
   const reportIdSelect = columns.has("report_id") ? "report_id AS reportId," : "'' AS reportId,";
   const opportunityIdSelect = columns.has("opportunity_id") ? "opportunity_id AS opportunityId," : "'' AS opportunityId,";
   const resumeLabelSelect = columns.has("resume_label") ? "resume_label AS resumeLabel," : "'' AS resumeLabel,";
+  const sourceSelect = columns.has('source_id') ? "source_id AS sourceId, COALESCE((SELECT position_json FROM resume_sources WHERE id=resume_records.source_id AND user_id=resume_records.user_id),'{}') AS positionJson," : "NULL AS sourceId, '{}' AS positionJson,";
   const rows = await env.DB.prepare(
-    `SELECT id, ${reportIdSelect} ${opportunityIdSelect} ${resumeLabelSelect} user_id AS userId, target_role AS targetRole, profile_json AS profileJson,
-      analysis_json AS analysisJson, raw_resume_retained AS rawResumeRetained,
+    `SELECT id, ${reportIdSelect} ${opportunityIdSelect} ${resumeLabelSelect} ${sourceSelect} user_id AS userId, target_role AS targetRole, job_context AS jobContext, profile_json AS profileJson,
+      analysis_json AS analysisJson, raw_resume_retained AS rawResumeRetained, raw_resume_text AS rawResumeText,
       data_category AS dataCategory, consent_version AS consentVersion,
       captured_at AS capturedAt, updated_at AS updatedAt
      FROM resume_records
@@ -39,6 +41,8 @@ export async function onRequestGet({ request, env }) {
       analysis: JSON.parse(row.analysisJson),
       profileJson: undefined,
       analysisJson: undefined,
+      position: JSON.parse(row.positionJson),
+      positionJson: undefined,
       rawResumeRetained: Boolean(row.rawResumeRetained)
     }))
   });
@@ -54,7 +58,7 @@ export async function onRequestPost({ request, env }) {
   if (!identity) return json({ error: "Sign in with a verified account." }, 401);
 
   try {
-    const body = await request.json();
+    const body = await readSourceJson(request);
     if (body.consent !== true || body.consentVersion !== CONSENT_VERSION) {
       return json({ error: "Resume storage requires explicit current consent." }, 400);
     }
@@ -65,11 +69,35 @@ export async function onRequestPost({ request, env }) {
     const canStoreReportId = columns.has("report_id");
     const canStoreOpportunityId = columns.has("opportunity_id");
     const canStoreResumeLabel = columns.has("resume_label");
+    const source = body.sourceId ? await requireOwnedSource(env,identity.userId,body.sourceId,{kind:'snapshot'}) : null;
+    if(source) {
+      if(!columns.has('source_id')) throw new ResumeSourceError('Resume source linking is not available yet. Your source copy remains saved.',503);
+      for(const [key,column] of [['resumeText','resume_text'],['targetRole','target_role'],['jobContext','job_context']]) {
+        if(body[key]!==undefined && body[key]!==source[column]) throw new ResumeSourceError('This review differs from the saved resume version. Save a new version first.',409);
+      }
+      record.targetRole=source.target_role;record.jobContext=source.job_context;record.rawResumeText=source.resume_text;
+      record.resumeLabel=source.resume_label;
+      if(source.opportunity_id && record.opportunityId && source.opportunity_id!==record.opportunityId) throw new ResumeSourceError('This review belongs to a different saved opportunity.',409);
+      record.opportunityId=source.opportunity_id||record.opportunityId;
+    }
+    if(record.opportunityId) {
+      const owned=await env.DB.prepare('SELECT id FROM application_captures WHERE id=? AND user_id=?').bind(record.opportunityId,identity.userId).first();
+      if(!owned)throw new ResumeSourceError('Saved opportunity not found.',404);
+    }
+    const priorSourceSave = async () => {
+      if(!source)return null;
+      const prior=await env.DB.prepare('SELECT id,report_id AS reportId,opportunity_id AS opportunityId,captured_at AS savedAt,analysis_json AS analysisJson,profile_json AS profileJson FROM resume_records WHERE user_id=? AND source_id=?').bind(identity.userId,source.id).first();
+      if(prior && (prior.analysisJson!==JSON.stringify(record.analysis)||prior.profileJson!==JSON.stringify(record.profile)))throw new ResumeSourceError('A review is already saved for this version. Save a new version for another analysis.',409);
+      if(!prior)return null;
+      return json({ok:true,id:prior.id,reportId:prior.reportId,opportunityId:prior.opportunityId,sourceId:source.id,savedAt:prior.savedAt,reused:true});
+    };
+    const previous=await priorSourceSave();if(previous)return previous;
     const reportId = canStoreReportId ? await nextPlatformId(env.DB, "report") : "";
     const recordId = record.id;
 
     const insertColumns = ["id"];
     const insertValues = [recordId];
+    if(source){insertColumns.push('source_id');insertValues.push(source.id);}
     if (canStoreReportId) {
       insertColumns.push("report_id");
       insertValues.push(reportId);
@@ -101,16 +129,16 @@ export async function onRequestPost({ request, env }) {
       now
     );
 
-    await env.DB.prepare(
+    try { await env.DB.prepare(
       `INSERT INTO resume_records (${insertColumns.join(", ")})
        VALUES (${insertColumns.map(() => "?").join(", ")})`
     )
       .bind(...insertValues)
-      .run();
+      .run(); } catch(error) {const previous=await priorSourceSave();if(previous)return previous;throw error;}
 
-    return json({ ok: true, id: recordId, reportId, opportunityId: record.opportunityId, savedAt: now });
+    return json({ ok: true, id: recordId, reportId, opportunityId: record.opportunityId, sourceId:source?.id||null, savedAt: now });
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Could not save resume record." }, 400);
+    return json({ error: error instanceof ResumeSourceError ? error.message : error instanceof Error && error.message.startsWith('Missing ') ? error.message : "Could not save the review. Any retained resume source remains available." }, error instanceof ResumeSourceError ? error.status : 400);
   }
 }
 

@@ -1,7 +1,9 @@
 import type { ResumeAnalysis } from "../types";
+import type { ResumePosition } from "./resumeSources";
 import { getStoredAccessCode, getStoredUserEmail } from "./access";
 
 export async function analyzeResume(input: {
+  sourceId?: string;
   resumeText: string;
   targetRole: string;
   jobContext: string;
@@ -28,6 +30,7 @@ export async function analyzeResume(input: {
 }
 
 export async function saveResumeRecord(input: {
+  sourceId?: string;
   resumeText: string;
   targetRole: string;
   jobContext: string;
@@ -48,6 +51,7 @@ export async function saveResumeRecord(input: {
     body: JSON.stringify({
       consent: true,
       consentVersion: "workforce-resume-profile-v1",
+      sourceId: input.sourceId,
       resumeText: input.resumeText,
       targetRole: input.targetRole,
       jobContext: input.jobContext,
@@ -92,6 +96,9 @@ export type ApplicationRecord = {
 };
 
 export type ResumeRecord = {
+  sourceId?: string;
+  position?: ResumePosition;
+  jobContext?: string;
   id: string;
   reportId?: string;
   userId: string;

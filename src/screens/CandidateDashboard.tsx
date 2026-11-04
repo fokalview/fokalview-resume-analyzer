@@ -8,6 +8,7 @@ import {
 } from "../services/api";
 import type { ResumeAnalysis, Screen } from "../types";
 import { ScoreContext } from "../components/ScoreContext";
+import { ResumeSourceLibrary } from "../components/ResumeSourceLibrary";
 
 type Props = {
   analysis: ResumeAnalysis | null;
@@ -54,8 +55,8 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
   const timeline = buildTimeline(resumeRecords, applications, userIdentity);
 
   if(loading) return <section className="screen" role="status">Loading your career dashboard…</section>;
-  if(error) return <section className="screen"><p role="alert">{error}</p><button className="primary-button" onClick={()=>setRetry(retry+1)}>Retry dashboard</button></section>;
-  if(!currentAnalysis && !applications.length) return <section className="screen first-review"><p className="eyebrow">Your next step</p><h1>Start with one resume and one job.</h1><p>Compare your experience with the role you want, then keep your applications and progress together.</p><button className="primary-button" onClick={()=>onNavigate("upload")}>Start your first review</button><button className="secondary-action" onClick={()=>onNavigate("applications")}>Add an opportunity</button></section>;
+  if(error) return <section className="screen"><p role="alert">{error}</p><button className="primary-button" onClick={()=>setRetry(retry+1)}>Retry dashboard</button><ResumeSourceLibrary key={userIdentity?.userId} /></section>;
+  if(!currentAnalysis && !applications.length) return <section className="screen dashboard-screen"><div className="first-review"><p className="eyebrow">Your next step</p><h1>Start with one resume and one job.</h1><p>Compare your experience with the role you want, then keep your applications and progress together.</p><button className="primary-button" onClick={()=>onNavigate("upload")}>Start your first review</button><button className="secondary-action" onClick={()=>onNavigate("applications")}>Add an opportunity</button></div><ResumeSourceLibrary key={userIdentity?.userId} /></section>;
   return (
     <section className="screen dashboard-screen">
       <div className="dashboard-hero">
@@ -221,6 +222,7 @@ export default function CandidateDashboard({ analysis, targetRole, userIdentity,
           </div>
         </article>
       </section>
+      <ResumeSourceLibrary key={userIdentity?.userId} />
     </section>
   );
 }

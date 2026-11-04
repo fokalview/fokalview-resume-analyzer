@@ -192,9 +192,9 @@ export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
 
               <h2>Data Use</h2>
               <p>
-                Career material text, opportunity context, generated workforce profiles, and analysis outputs are
+                Original uploaded resumes, career material text and available layout, opportunity context, generated workforce profiles, and analysis outputs are
                 processed and may be retained during the beta to provide the service, support future
-                review, track workforce-development progress, and improve the product.
+                review, track workforce-development progress, and improve the product. Uploading saves the original file; saving or analyzing retains a version with its job details, even if analysis fails. Saved copies can be downloaded by you and authorized administrators. Removing a review or opportunity does not remove its retained resume copy.
               </p>
 
               <h2>Sensitive Information</h2>
@@ -213,7 +213,7 @@ export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
 
               <h2>User Rights and Requests</h2>
               <p>
-                Beta users may request deletion of retained beta analysis records by contacting SagittaIQ.
+                Beta users may request deletion of retained resumes and beta analysis records by contacting SagittaIQ.
                 Access may be limited, suspended, or revoked during the beta.
               </p>
             </div>

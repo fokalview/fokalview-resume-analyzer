@@ -9,3 +9,8 @@ binding = "DB"
 database_name = "sagittaiq-local"
 database_id = "00000000-0000-0000-0000-000000000001"
 preview_database_id = "DB"
+
+# Local emulator only; no production bucket or network calls.
+[[r2_buckets]]
+binding = "RESUME_FILES"
+bucket_name = "sagittaiq-resume-files-local"
