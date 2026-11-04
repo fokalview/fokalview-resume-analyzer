@@ -4,7 +4,7 @@ Database: Cloudflare D1 `fokalview-resume-analyzer`
 
 The schema is currently built through SQL files in `migrations/`. The tables below
 describe the current intended production schema after migrations `0001` through
-`0017` have been applied.
+`0019` have been applied.
 
 ## Current Tables
 
@@ -82,6 +82,16 @@ Important data groups:
 - school, GPA, and certifications
 - lead score, priority, and recommended action
 
+Migration `0019_waitlist_contact_details.sql` adds readable `email` and `phone`
+fields plus `intake_details_json`, a selected, normalized copy of the intake
+answers. These contact details are available only through the protected admin
+API. The public signup response does not return them. Internal email hashes stay
+in place for compatibility; they are not contact information or authentication.
+
+For older rows, a NULL email means the address was not retained. Do not invent
+an address from the domain or replace historical hashes. Recovery requires a
+separate verified source or a new submission from that person.
+
 ### `waitlist_followups`
 
 Stores follow-up research and reported outcomes.
@@ -93,6 +103,15 @@ Important fields:
 - application, interview, and offer counts
 - employer, job title, salary, outcome date, location
 - verification status and data source
+
+Migration `0019` also adds `email`, `phone`, and `response_details_json` here.
+Follow-up matching uses exact contact identifiers or normalized email, never a
+shared email domain. The snapshot preserves selected response fields for admin
+review and export even when an older schema lacks their dedicated columns.
+
+Apply the additive migration before deploying the contact-retention handlers.
+They reject submissions with HTTP 503 if the new columns are missing, instead
+of acknowledging a signup whose usable contact details would be lost.
 
 ### `user_events`
 

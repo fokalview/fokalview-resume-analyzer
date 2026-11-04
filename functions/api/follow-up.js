@@ -21,10 +21,38 @@ export async function onRequestPost({ request, env }) {
   try {
     const body = await request.json();
     const email = normalizeEmail(body.email);
+    if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) throw new Error("Enter a valid email address.");
+    const phone = clean(body.phone, 80);
     const emailDomain = domainFromEmail(email);
     const emailDomainType = classifyEmailDomain(emailDomain);
     const now = new Date().toISOString();
     const columns = await tableColumns(env.DB, "waitlist_followups");
+    if (!["email", "phone", "response_details_json"].every((column) => columns.has(column))) {
+      return json({ error: "Contact storage is not ready. Apply migration 0019_waitlist_contact_details.sql before accepting follow-ups." }, 503);
+    }
+    const responseDetails = {
+      email,
+      phone,
+      currentStatus: clean(body.currentStatus, 160),
+      applicationCount: clampInteger(body.applicationCount, 0, 999),
+      interviewCount: clampInteger(body.interviewCount, 0, 999),
+      offerCount: clampInteger(body.offerCount, 0, 999),
+      placementStatus: clean(body.placementStatus, 120),
+      currentRole: clean(body.currentRole, 180),
+      currentIndustry: clean(body.currentIndustry, 120),
+      salaryRange: clean(body.salaryRange, 120),
+      employer: clean(body.employer, 180),
+      jobTitle: clean(body.jobTitle, 180),
+      salaryAmount: clampOptionalInteger(body.salaryAmount, 0, 10000000),
+      salaryPeriod: clean(body.salaryPeriod, 80) || "Annual",
+      outcomeDate: clean(body.outcomeDate, 40),
+      jobLocation: clean(body.jobLocation, 180),
+      dataSource: clean(body.dataSource, 120) || "Self-reported follow-up",
+      verificationStatus: clean(body.verificationStatus, 120) || "Self-reported",
+      supportNeeded: clean(body.supportNeeded, 1200),
+      notes: clean(body.notes, 1600),
+      source: clean(body.source, 120) || "public_follow_up"
+    };
 
     if (columns.has("salary_amount")) {
       await env.DB.prepare(
@@ -33,9 +61,9 @@ export async function onRequestPost({ request, env }) {
           current_status, application_count, interview_count, offer_count, placement_status,
           current_role, current_industry, salary_range, employer, job_title, salary_amount,
           salary_period, outcome_date, job_location, data_source, verification_status,
-          support_needed, notes, source, submitted_at
+          support_needed, notes, source, submitted_at, email, phone, response_details_json
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
         .bind(
           crypto.randomUUID(),
@@ -43,7 +71,7 @@ export async function onRequestPost({ request, env }) {
           clean(body.candidateId, 80),
           clean(body.contactId, 80),
           email ? await hashEmail(email, env) : "",
-          emailDomainType === "personal" ? "personal_email" : emailDomain,
+          emailDomain,
           emailDomainType,
           clean(body.currentStatus, 160),
           clampInteger(body.applicationCount, 0, 999),
@@ -64,7 +92,10 @@ export async function onRequestPost({ request, env }) {
           clean(body.supportNeeded, 1200),
           clean(body.notes, 1600),
           clean(body.source, 120) || "public_follow_up",
-          now
+          now,
+          email,
+          phone,
+          JSON.stringify(responseDetails)
         )
         .run();
 
@@ -75,9 +106,9 @@ export async function onRequestPost({ request, env }) {
       `INSERT INTO waitlist_followups (
         id, lead_id, candidate_id, contact_id, email_hash, email_domain, email_domain_type,
         current_status, application_count, interview_count, offer_count, placement_status,
-        current_role, current_industry, salary_range, support_needed, notes, source, submitted_at
+        current_role, current_industry, salary_range, support_needed, notes, source, submitted_at, email, phone, response_details_json
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
       .bind(
         crypto.randomUUID(),
@@ -85,7 +116,7 @@ export async function onRequestPost({ request, env }) {
         clean(body.candidateId, 80),
         clean(body.contactId, 80),
         email ? await hashEmail(email, env) : "",
-        emailDomainType === "personal" ? "personal_email" : emailDomain,
+        emailDomain,
         emailDomainType,
         clean(body.currentStatus, 160),
         clampInteger(body.applicationCount, 0, 999),
@@ -98,7 +129,10 @@ export async function onRequestPost({ request, env }) {
         clean(body.supportNeeded, 1200),
         clean(body.notes, 1600),
         clean(body.source, 120) || "public_follow_up",
-        now
+        now,
+        email,
+        phone,
+        JSON.stringify(responseDetails)
       )
       .run();
 
@@ -144,7 +178,9 @@ function classifyEmailDomain(domain) {
 }
 
 function clean(value, maxLength) {
-  return String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
+  const next = String(value ?? "").trim();
+  if (next.length > maxLength) throw new Error(`A response exceeds the ${maxLength}-character limit. Shorten it before submitting.`);
+  return next;
 }
 
 function clampInteger(value, min, max) {

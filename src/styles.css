@@ -2740,11 +2740,11 @@ button:disabled {
   display: grid;
   gap: 4px;
   padding-bottom: 10px;
-  border-bottom: 1px solid #e8edf1;
+  border-bottom: 1px solid var(--border);
 }
 
 .detail-list dt {
-  color: #647482;
+  color: var(--text-muted);
   font-size: 0.78rem;
   font-weight: 900;
   letter-spacing: 0.04em;
@@ -2753,7 +2753,55 @@ button:disabled {
 
 .detail-list dd {
   margin: 0;
-  color: #17212b;
+  color: var(--text);
+  font-weight: 750;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.contact-links {
+  display: grid;
+  gap: 6px;
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+}
+
+.contact-links a {
+  color: var(--brand);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.record-detail-button {
+  width: fit-content;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  color: var(--brand);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.record-scope-note,
+.contact-notice {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.record-answer-group {
+  margin: 18px 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.record-answer-group summary {
+  cursor: pointer;
+  color: var(--text);
   font-weight: 750;
 }
 

@@ -18,12 +18,21 @@ import {
 } from "lucide-react";
 import { ProductBrand } from "../components/BrandFamily";
 import { ScoreContext, scoreExplanation } from "../components/ScoreContext";
+import { csvForRecords, displayValue, flattenRecord } from "../lib/waitlistExport.js";
 
 type CountItem = { label: string; count: number; percentAffected?: number };
 type UsageDay = { date: string; resumes: number; applications: number; uniqueUsers: number };
 type FunnelItem = { label: string; count: number; rate: number };
 type ConversionMetric = { label: string; value: number; detail: string };
-type FollowUpRecord = {
+type ContactDetails = {
+  email?: string;
+  emailStatus?: string;
+  phone?: string;
+  linkedinUrl?: string;
+  preferredContactMethod?: string;
+};
+type FollowUpRecord = ContactDetails & {
+  id?: string;
   leadId?: string;
   candidateId?: string;
   contactId?: string;
@@ -39,13 +48,16 @@ type FollowUpRecord = {
   salaryRange?: string;
   employer?: string;
   jobTitle?: string;
-  salaryAmount?: number;
+  salaryAmount?: number | null;
   salaryPeriod?: string;
   outcomeDate?: string;
   jobLocation?: string;
   dataSource?: string;
   verificationStatus?: string;
   supportNeeded?: string;
+  notes?: string;
+  source?: string;
+  responseDetails?: Record<string, unknown>;
   submittedAt?: string;
 };
 type ActionQueueItem = {
@@ -104,7 +116,7 @@ const ADMIN_VIEW_ITEMS: Array<{ id: AdminView; label: string; count: (summary: A
 ];
 
 type AdminSummary = {
-  meta: { readinessThreshold: number; lastLoadedAt: string; query?: string };
+  meta: { readinessThreshold: number; lastLoadedAt: string; query?: string; recordLimit?: number; waitlistRecordsReturned?: number; followupRecordsReturned?: number };
   totals: {
     resumeRecords: number;
     applicationCaptures: number;
@@ -197,7 +209,7 @@ type AdminSummary = {
     capturedAt: string;
     rawResumeRetained: boolean;
   }>;
-  recentWaitlistSignups: Array<{
+  recentWaitlistSignups: Array<ContactDetails & {
     id: string;
     leadId?: string;
     contactId?: string;
@@ -209,6 +221,17 @@ type AdminSummary = {
     organizationType: string;
     role: string;
     country: string;
+    city?: string;
+    state?: string;
+    zipPostal?: string;
+    county?: string;
+    metroArea?: string;
+    biggestChallenge?: string;
+    currentTools?: string;
+    desiredFeatures?: string;
+    experienceLevel?: string;
+    source?: string;
+    intakeDetails?: Record<string, unknown>;
     emailDomain: string;
     emailDomainType: string;
     interviewInterest: boolean;
@@ -243,7 +266,7 @@ type AdminSummary = {
     status: string;
     createdAt: string;
   }>;
-  pendingIntakeFollowUps?: Array<{
+  pendingIntakeFollowUps?: Array<ContactDetails & {
     id?: string;
     leadId?: string;
     candidateId?: string;
@@ -278,6 +301,7 @@ export default function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedWaitlist, setSelectedWaitlist] = useState<AdminSummary["recentWaitlistSignups"][number] | null>(null);
+  const [selectedFollowUp, setSelectedFollowUp] = useState<FollowUpRecord | null>(null);
 
   useEffect(() => {
     if (!summary) return;
@@ -290,6 +314,28 @@ export default function AdminDashboard() {
   useEffect(() => {
     localStorage.setItem("sagittaiq_admin_theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (!selectedWaitlist && !selectedFollowUp) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = document.querySelector<HTMLElement>(".detail-drawer");
+    const focusable = () => Array.from(dialog?.querySelectorAll<HTMLElement>('a[href], button, summary, [tabindex="0"]') || []);
+    focusable()[0]?.focus();
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setSelectedWaitlist(null);
+        setSelectedFollowUp(null);
+      } else if (event.key === "Tab") {
+        const items = focusable();
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => { document.removeEventListener("keydown", onKeyDown); previousFocus?.focus(); };
+  }, [selectedWaitlist, selectedFollowUp]);
 
   const briefing = useMemo(() => (summary ? buildAdminBriefing(summary) : []), [summary]);
   const actionQueue = useMemo(() => (summary ? buildActionQueue(summary) : []), [summary]);
@@ -348,7 +394,7 @@ export default function AdminDashboard() {
           </button>
           <button className="secondary-action" type="button" disabled={!summary} onClick={() => summary && exportResearchBundle(summary)}>
             <Download size={16} />
-            Export all
+            Export loaded data
           </button>
           <button className="secondary-action" type="button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
             {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
@@ -583,7 +629,11 @@ export default function AdminDashboard() {
                 <Download size={15} />
                 Export JSON
               </button>
+              <button className="download-chart-button" type="button" onClick={() => exportCsv("waitlist-contacts", summary.recentWaitlistSignups)}>
+                <Download size={15} /> Export CSV
+              </button>
             </div>
+            <p className="record-scope-note">Showing {summary.recentWaitlistSignups.length} latest signup records. Views and exports include up to 1,000 latest records. Missing legacy email addresses were not retained and cannot be recovered from their hashes.</p>
             <div className="admin-table waitlist-table">
               {summary.recentWaitlistSignups?.length ? (
                 summary.recentWaitlistSignups.map((signup) => (
@@ -594,12 +644,15 @@ export default function AdminDashboard() {
                         <strong>{signup.name}</strong>
                         {signup.leadId && <span>{signup.leadId}</span>}
                         <span>{[signup.organization, signup.organizationType].filter(Boolean).join(" - ") || "No organization"}</span>
-                        <small>{[signup.userType, signup.emailDomain, signup.country].filter(Boolean).join(" - ")}</small>
+                        <small>{[signup.userType, signup.country].filter(Boolean).join(" - ")}</small>
+                        <ContactLinks contact={signup} />
+                        <small>Preferred contact: {signup.preferredContactMethod || "Not provided"}</small>
+                        <button type="button" className="record-detail-button" onClick={(event) => { event.stopPropagation(); setSelectedWaitlist(signup); }}>View full signup</button>
                       </div>
                     </div>
                     <span>{signup.targetRole || signup.role || "Role not saved"}</span>
                     <span>
-                      {signup.leadScore ? `${signup.leadScore} - ${signup.leadPriority || "Scored"}` : interestLabels(signup).join(", ") || "No interest flags"}
+                      {signup.leadScore !== undefined ? `${signup.leadScore} - ${signup.leadPriority || "Scored"}` : interestLabels(signup).join(", ") || "No interest flags"}
                     </span>
                     <span>{formatDate(signup.createdAt)}</span>
                     <span className="status-pill applied">{signup.branchStatus || signup.status || "New"}</span>
@@ -621,14 +674,17 @@ export default function AdminDashboard() {
                 <Download size={15} />
                 Export JSON
               </button>
+              <button className="download-chart-button" type="button" onClick={() => exportCsv("follow-up-contacts", summary.recentFollowUps || [])}><Download size={15} /> Export CSV</button>
             </div>
+            <p className="record-scope-note">Showing {(summary.recentFollowUps || []).length} latest follow-up records, up to 1,000. Open a response for all answers and notes.</p>
             <div className="admin-table followup-table">
               {summary.recentFollowUps?.length ? (
                 summary.recentFollowUps.map((item, index) => (
                   <article key={`${item.leadId || item.candidateId || index}-${item.submittedAt}`}>
                     <div>
                       <strong>{item.candidateId || item.leadId || "Unlinked follow-up"}</strong>
-                      <span>{[item.emailDomain, item.emailDomainType].filter(Boolean).join(" - ")}</span>
+                      <ContactLinks contact={item} />
+                      <button type="button" className="record-detail-button" onClick={() => setSelectedFollowUp(item)}>View full response</button>
                     </div>
                     <span>{item.currentStatus || "Status not saved"}</span>
                     <span>{item.placementStatus || "No outcome"}</span>
@@ -669,7 +725,9 @@ export default function AdminDashboard() {
                     <Download size={15} />
                     Export pending
                   </button>
+                  <button className="download-chart-button" type="button" onClick={() => exportCsv("pending-intake-contacts", summary.pendingIntakeFollowUps || [])}><Download size={15} /> Export CSV</button>
                 </div>
+                <p className="record-scope-note">Intake queue based on up to 1,000 latest signup and follow-up records.</p>
                 <div className="admin-table waitlist-table">
                   {summary.pendingIntakeFollowUps?.length ? (
                     summary.pendingIntakeFollowUps.map((item, index) => (
@@ -679,7 +737,11 @@ export default function AdminDashboard() {
                           <div>
                             <strong>{item.name || item.leadId || "Unnamed lead"}</strong>
                             <span>{[item.leadId, item.candidateId, item.contactId].filter(Boolean).join(" - ")}</span>
-                            <small>{[item.emailDomain, item.emailDomainType].filter(Boolean).join(" - ")}</small>
+                            <ContactLinks contact={item} />
+                            <small>Preferred contact: {item.preferredContactMethod || "Not provided"}</small>
+                            {summary.recentWaitlistSignups.some((signup) => signup.id === item.id) && (
+                              <button type="button" className="record-detail-button" onClick={() => setSelectedWaitlist(summary.recentWaitlistSignups.find((signup) => signup.id === item.id) || null)}>View full signup</button>
+                            )}
                           </div>
                         </div>
                         <span>{item.targetRole || item.role || "Role not saved"}</span>
@@ -704,7 +766,9 @@ export default function AdminDashboard() {
                     <Download size={15} />
                     Export completed
                   </button>
+                  <button className="download-chart-button" type="button" onClick={() => exportCsv("completed-follow-up-contacts", summary.completedFollowUps || [])}><Download size={15} /> Export CSV</button>
                 </div>
+                <p className="record-scope-note">Completed responses from up to 1,000 latest follow-up records.</p>
                 <div className="admin-table followup-table">
                   {summary.completedFollowUps?.length ? (
                     summary.completedFollowUps.map((item, index) => (
@@ -712,6 +776,8 @@ export default function AdminDashboard() {
                         <div>
                           <strong>{item.candidateId || item.leadId || item.contactId || "Unlinked follow-up"}</strong>
                           <span>{[item.employer, item.jobTitle || item.currentRole].filter(Boolean).join(" - ") || "No employer/title saved"}</span>
+                          <ContactLinks contact={item} />
+                          <button type="button" className="record-detail-button" onClick={() => setSelectedFollowUp(item)}>View full response</button>
                         </div>
                         <span>{item.currentStatus || "Status not saved"}</span>
                         <span>{item.placementStatus || "No outcome"}</span>
@@ -756,38 +822,23 @@ export default function AdminDashboard() {
                   </div>
                   <button className="panel-menu" onClick={() => setSelectedWaitlist(null)} aria-label="Close detail">x</button>
                 </div>
-                <dl className="detail-list">
-                  <Detail label="Lead ID" value={selectedWaitlist.leadId} />
-                  <Detail label="Candidate ID" value={selectedWaitlist.candidateId} />
-                  <Detail label="Contact ID" value={selectedWaitlist.contactId} />
-                  <Detail label="Organization ID" value={selectedWaitlist.organizationId} />
-                  <Detail label="User type" value={selectedWaitlist.userType} />
-                  <Detail label="Organization" value={selectedWaitlist.organization} />
-                  <Detail label="Role / target" value={selectedWaitlist.targetRole || selectedWaitlist.role} />
-                  <Detail label="Lead score" value={selectedWaitlist.leadScore ? `${selectedWaitlist.leadScore} - ${selectedWaitlist.leadPriority || "Scored"}` : ""} />
-                  <Detail label="Recommended action" value={selectedWaitlist.recommendedAction} />
-                  <Detail label="Branch status" value={selectedWaitlist.branchStatus} />
-                  <Detail label="Target industry" value={selectedWaitlist.targetIndustry} />
-                  <Detail label="Program" value={selectedWaitlist.programName} />
-                  <Detail label="Major / field" value={selectedWaitlist.majorField} />
-                  <Detail label="School" value={selectedWaitlist.schoolName} />
-                  <Detail label="GPA" value={selectedWaitlist.gpa || undefined} />
-                  <Detail label="Certifications" value={selectedWaitlist.certifications} />
-                  <Detail label="Degree level" value={selectedWaitlist.degreeLevel} />
-                  <Detail label="Class year" value={selectedWaitlist.classYear} />
-                  <Detail label="Student status" value={selectedWaitlist.studentStatus} />
-                  <Detail label="Seeking status" value={selectedWaitlist.seekingStatus} />
-                  <Detail label="Domestic / international" value={selectedWaitlist.domesticInternational} />
-                  <Detail label="Workforce region" value={selectedWaitlist.workforceRegion} />
-                  <Detail label="Current process" value={selectedWaitlist.currentProcess} />
-                  <Detail label="Population served" value={selectedWaitlist.populationServed} />
-                  <Detail label="Reporting wish" value={selectedWaitlist.reportingWish} />
-                </dl>
+                <ContactLinks contact={selectedWaitlist} />
+                <p>Preferred contact: {selectedWaitlist.preferredContactMethod || "Not provided"}</p>
+                <p className="record-scope-note">These are the saved signup answers. “Not provided” means no value was saved; it does not mean “No.”</p>
+                <RecordDetails record={selectedWaitlist} />
                 <ScoreBreakdown breakdown={selectedWaitlist.scoreBreakdown} />
-                <div className="detail-json">
-                  <strong>Branch profile</strong>
-                  <pre>{JSON.stringify(selectedWaitlist.branchProfile || {}, null, 2)}</pre>
+              </aside>
+            </div>
+          )}
+          {selectedFollowUp && (
+            <div className="detail-backdrop" role="presentation" onClick={() => setSelectedFollowUp(null)}>
+              <aside className="detail-drawer" role="dialog" aria-modal="true" aria-label="Follow-up response detail" onClick={(event) => event.stopPropagation()}>
+                <div className="panel-heading">
+                  <div><p className="eyebrow">Follow-up detail</p><h2>{selectedFollowUp.email || selectedFollowUp.leadId || "Career progress update"}</h2></div>
+                  <button className="panel-menu" type="button" onClick={() => setSelectedFollowUp(null)} aria-label="Close follow-up detail">x</button>
                 </div>
+                <ContactLinks contact={selectedFollowUp} />
+                <RecordDetails record={selectedFollowUp} />
               </aside>
             </div>
           )}
@@ -799,11 +850,43 @@ export default function AdminDashboard() {
 }
 
 function Detail({ label, value }: { label: string; value?: string | number }) {
-  if (!value) return null;
   return (
     <div>
       <dt>{label}</dt>
-      <dd>{value}</dd>
+      <dd>{displayValue(value)}</dd>
+    </div>
+  );
+}
+
+function RecordDetails({ record }: { record: Record<string, unknown> }) {
+  const { scoreBreakdown: _scoreBreakdown, branchProfile, intakeDetails, responseDetails, ...details } = record;
+  const fields = (value: Record<string, unknown>) => <dl className="detail-list">{Object.entries(flattenRecord(value)).map(([label, entry]) => <Detail key={label} label={label} value={entry} />)}</dl>;
+  return <>
+    {fields(details)}
+    {branchProfile && typeof branchProfile === "object" && (
+      <details className="record-answer-group" open={!intakeDetails}><summary>Profile and interest answers</summary>{fields(branchProfile as Record<string, unknown>)}</details>
+    )}
+    {intakeDetails && typeof intakeDetails === "object" && (
+      <details className="record-answer-group"><summary>Complete signup answers</summary>{fields(intakeDetails as Record<string, unknown>)}</details>
+    )}
+    {responseDetails && typeof responseDetails === "object" && (
+      <details className="record-answer-group"><summary>Complete follow-up answers</summary>{fields(responseDetails as Record<string, unknown>)}</details>
+    )}
+  </>;
+}
+
+function ContactLinks({ contact }: { contact: ContactDetails }) {
+  let linkedIn = "";
+  try {
+    const parsed = new URL(contact.linkedinUrl || "");
+    if (parsed.protocol === "https:" || parsed.protocol === "http:") linkedIn = parsed.href;
+  } catch { /* Missing or invalid legacy profile URL is displayed as text in details. */ }
+  const phoneTarget = contact.phone?.replace(/[^\d+]/g, "") || "";
+  return (
+    <div className="contact-links" onClick={(event) => event.stopPropagation()}>
+      {contact.email ? <a href={`mailto:${encodeURIComponent(contact.email)}`}>{contact.email}</a> : <span>{contact.emailStatus || "Email address not available"}</span>}
+      {contact.phone && (phoneTarget ? <a href={`tel:${phoneTarget}`}>{contact.phone}</a> : <span>{contact.phone}</span>)}
+      {linkedIn && <a href={linkedIn} target="_blank" rel="noreferrer">Open LinkedIn profile</a>}
     </div>
   );
 }
@@ -1328,30 +1411,10 @@ function toCountItems(record: Record<string, number>) {
 function exportResearchBundle(summary: AdminSummary) {
   const payload = {
     exportedAt: new Date().toISOString(),
+    meta: summary.meta,
     totals: summary.totals,
-    waitlist: summary.recentWaitlistSignups.map((item) => ({
-      leadId: item.leadId,
-      candidateId: item.candidateId,
-      contactId: item.contactId,
-      organizationId: item.organizationId,
-      userType: item.userType,
-      organizationType: item.organizationType,
-      country: item.country,
-      emailDomain: item.emailDomain,
-      emailDomainType: item.emailDomainType,
-      referralSource: item.referralSource,
-      branchStatus: item.branchStatus,
-      targetRole: item.targetRole,
-      targetIndustry: item.targetIndustry,
-      workforceRegion: item.workforceRegion,
-      currentProcess: item.currentProcess,
-      populationServed: item.populationServed,
-      leadScore: item.leadScore,
-      leadPriority: item.leadPriority,
-      scoreBreakdown: item.scoreBreakdown,
-      branchProfile: item.branchProfile,
-      createdAt: item.createdAt
-    })),
+    recordScope: "Up to 1,000 latest signup and follow-up records; counts and aggregates use the loaded dataset.",
+    waitlist: summary.recentWaitlistSignups,
     followUps: summary.recentFollowUps || [],
     pendingIntakeFollowUps: summary.pendingIntakeFollowUps || [],
     completedFollowUps: summary.completedFollowUps || [],
@@ -1388,6 +1451,16 @@ function exportDataset(name: string, rows: unknown[]) {
   const link = document.createElement("a");
   link.href = url;
   link.download = `sagittaiq-${name}-${new Date().toISOString().slice(0, 10)}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportCsv(name: string, rows: Record<string, unknown>[]) {
+  const blob = new Blob(["\uFEFF", csvForRecords(rows)], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `sagittaiq-${name}-${new Date().toISOString().slice(0, 10)}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }

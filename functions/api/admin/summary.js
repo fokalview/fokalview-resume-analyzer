@@ -27,8 +27,12 @@ export async function onRequestGet({ request, env }) {
   const applicationIdSelect = applicationColumns.has("application_id")
     ? "a.application_id AS applicationId,"
     : "'' AS applicationId,";
+  const waitlistContactSelect = `${contactSelect(waitlistColumns)},
+    ${waitlistColumns.has("intake_details_json") ? "intake_details_json" : "NULL"} AS intakeDetailsJson,
+    linkedin_url AS linkedinUrl, biggest_challenge AS biggestChallenge,
+    current_tools AS currentTools, desired_features AS desiredFeatures, updated_at AS updatedAt,`;
   const waitlistSelect = waitlistColumns.has("lead_id")
-    ? `id, lead_id AS leadId, contact_id AS contactId, organization_id AS organizationId,
+    ? `${waitlistContactSelect} id, lead_id AS leadId, contact_id AS contactId, organization_id AS organizationId,
        candidate_id AS candidateId, user_type AS userType, name, email_domain AS emailDomain,
        email_domain_type AS emailDomainType, organization, organization_type AS organizationType,
        role, city, state, country, interview_interest AS interviewInterest,
@@ -59,7 +63,7 @@ export async function onRequestGet({ request, env }) {
        ${waitlistColumns.has("population_served") ? "population_served" : "''"} AS populationServed,
        ${waitlistColumns.has("reporting_wish") ? "reporting_wish" : "''"} AS reportingWish,
        ${waitlistColumns.has("branch_profile_json") ? "branch_profile_json" : "''"} AS branchProfileJson`
-    : `id, '' AS leadId, '' AS contactId, '' AS organizationId, '' AS candidateId,
+    : `${waitlistContactSelect} id, '' AS leadId, '' AS contactId, '' AS organizationId, '' AS candidateId,
        '' AS userType, name, email_domain AS emailDomain, email_domain_type AS emailDomainType,
        organization, organization_type AS organizationType, role, city, state, country,
        interview_interest AS interviewInterest, beta_interest AS betaInterest, pilot_interest AS pilotInterest,
@@ -68,7 +72,9 @@ export async function onRequestGet({ request, env }) {
        '' AS scoreBreakdownJson, status, created_at AS createdAt`;
 
   const followupSelect = followupColumns.has("id")
-    ? `lead_id AS leadId, candidate_id AS candidateId, contact_id AS contactId,
+    ? `id, ${contactSelect(followupColumns)},
+       ${followupColumns.has("response_details_json") ? "response_details_json" : "NULL"} AS responseDetailsJson,
+       notes, source, lead_id AS leadId, candidate_id AS candidateId, contact_id AS contactId,
        email_domain AS emailDomain, email_domain_type AS emailDomainType,
        current_status AS currentStatus, application_count AS applicationCount,
        interview_count AS interviewCount, offer_count AS offerCount,
@@ -140,16 +146,17 @@ export async function onRequestGet({ request, env }) {
   const allApplications = applicationRows.results || [];
   const resumes = filterResumes(allResumes, query);
   const applications = filterApplications(allApplications, query);
-  const allWaitlist = waitlistRows.results || [];
+  const allWaitlist = (waitlistRows.results || []).map((row) => hydrateDetails(row, "intakeDetailsJson"));
   const waitlist = filterWaitlist(allWaitlist, query);
-  const followups = filterFollowups(followupRows.results || [], query);
+  const allFollowups = (followupRows.results || []).map((row) => hydrateDetails(row, "responseDetailsJson"));
+  const followups = filterFollowups(allFollowups, query);
   const events = filterEvents(eventRows.results || [], query);
   const sessionMetrics = buildSessionMetrics(events);
   const readinessThreshold = Number(env.READINESS_THRESHOLD || 85);
   const averageReadinessScore = average(resumes.map((item) => item.analysis.score));
   const followUpTotals = buildFollowUpTotals(followups);
   const salaryStats = buildSalaryStats(followups);
-  const followUpQueues = buildFollowUpQueues(waitlist, followups);
+  const followUpQueues = buildFollowUpQueues(waitlist, followups, allFollowups);
   const uniqueUsers = new Set([
     ...resumes.map((item) => item.userId || item.clientHash),
     ...applications.map((item) => item.userId || item.clientHash)
@@ -170,7 +177,10 @@ export async function onRequestGet({ request, env }) {
     meta: {
       readinessThreshold,
       lastLoadedAt: new Date().toISOString(),
-      query: query.trim()
+      query: query.trim(),
+      recordLimit: 1000,
+      waitlistRecordsReturned: waitlist.length,
+      followupRecordsReturned: followups.length
     },
     totals: {
       resumeRecords: resumes.length,
@@ -245,7 +255,7 @@ export async function onRequestGet({ request, env }) {
     waitlistSeekingStatuses: topCounts(waitlist.map((item) => item.seekingStatus).filter(Boolean), 12),
     waitlistDomesticInternational: topCounts(waitlist.map((item) => item.domesticInternational).filter(Boolean), 12),
     waitlistLeadScoreBands: buildLeadScoreBands(waitlist),
-    waitlistFunnel: buildWaitlistFunnel(waitlist, followups),
+    waitlistFunnel: buildWaitlistFunnel(waitlist, allFollowups),
     followUpFunnel: buildFollowUpFunnel(waitlist, followups, followUpTotals),
     conversionMetrics: buildConversionMetrics(waitlist, followups, followUpTotals),
     decisionSignals,
@@ -281,8 +291,23 @@ export async function onRequestGet({ request, env }) {
       capturedAt: item.capturedAt,
       rawResumeRetained: item.rawResumeRetained
     })),
-    recentWaitlistSignups: waitlist.slice(0, 20).map((item) => ({
+    recentWaitlistSignups: waitlist.map((item) => ({
       id: item.id,
+      ...contactDetails(item),
+      linkedinUrl: item.linkedinUrl,
+      preferredContactMethod: item.preferredContactMethod,
+      city: item.city,
+      state: item.state,
+      zipPostal: item.zipPostal,
+      county: item.county,
+      metroArea: item.metroArea,
+      biggestChallenge: item.biggestChallenge,
+      currentTools: item.currentTools,
+      desiredFeatures: item.desiredFeatures,
+      experienceLevel: item.experienceLevel,
+      source: item.source,
+      updatedAt: item.updatedAt,
+      intakeDetails: parseJsonObject(item.intakeDetailsJson),
       leadId: item.leadId,
       contactId: item.contactId,
       organizationId: item.organizationId,
@@ -308,7 +333,7 @@ export async function onRequestGet({ request, env }) {
       programName: item.programName,
       majorField: item.majorField,
       schoolName: item.schoolName,
-      gpa: Number(item.gpa || 0),
+      gpa: item.gpa === null || item.gpa === undefined || item.gpa === "" ? null : Number(item.gpa),
       certifications: item.certifications,
       degreeLevel: item.degreeLevel,
       classYear: item.classYear,
@@ -329,6 +354,9 @@ export async function onRequestGet({ request, env }) {
     })),
     pendingIntakeFollowUps: followUpQueues.pending.map((item) => ({
       id: item.id,
+      ...contactDetails(item),
+      linkedinUrl: item.linkedinUrl,
+      intakeDetails: parseJsonObject(item.intakeDetailsJson),
       leadId: item.leadId,
       candidateId: item.candidateId,
       contactId: item.contactId,
@@ -350,6 +378,11 @@ export async function onRequestGet({ request, env }) {
       createdAt: item.createdAt
     })),
     completedFollowUps: followUpQueues.completed.map((item) => ({
+      id: item.id,
+      ...contactDetails(item),
+      notes: item.notes,
+      source: item.source,
+      responseDetails: parseJsonObject(item.responseDetailsJson),
       leadId: item.leadId,
       candidateId: item.candidateId,
       contactId: item.contactId,
@@ -365,7 +398,7 @@ export async function onRequestGet({ request, env }) {
       salaryRange: item.salaryRange,
       employer: item.employer,
       jobTitle: item.jobTitle,
-      salaryAmount: Number(item.salaryAmount || 0),
+      salaryAmount: item.salaryAmount === null || item.salaryAmount === undefined || item.salaryAmount === "" ? null : Number(item.salaryAmount),
       salaryPeriod: item.salaryPeriod,
       outcomeDate: item.outcomeDate,
       jobLocation: item.jobLocation,
@@ -374,7 +407,12 @@ export async function onRequestGet({ request, env }) {
       supportNeeded: item.supportNeeded,
       submittedAt: item.submittedAt
     })),
-    recentFollowUps: followups.slice(0, 20).map((item) => ({
+    recentFollowUps: followups.map((item) => ({
+      id: item.id,
+      ...contactDetails(item),
+      notes: item.notes,
+      source: item.source,
+      responseDetails: parseJsonObject(item.responseDetailsJson),
       leadId: item.leadId,
       candidateId: item.candidateId,
       contactId: item.contactId,
@@ -390,7 +428,7 @@ export async function onRequestGet({ request, env }) {
       salaryRange: item.salaryRange,
       employer: item.employer,
       jobTitle: item.jobTitle,
-      salaryAmount: Number(item.salaryAmount || 0),
+      salaryAmount: item.salaryAmount === null || item.salaryAmount === undefined || item.salaryAmount === "" ? null : Number(item.salaryAmount),
       salaryPeriod: item.salaryPeriod,
       outcomeDate: item.outcomeDate,
       jobLocation: item.jobLocation,
@@ -427,6 +465,28 @@ function requireAdminAccess(request, env) {
   }
 
   return json({ error: "Invalid admin access code." }, 401);
+}
+
+function contactSelect(columns) {
+  return `${columns.has("email") ? "email" : "NULL"} AS email, ${columns.has("phone") ? "phone" : "NULL"} AS phone`;
+}
+
+function contactDetails(item) {
+  return {
+    email: item.email || "",
+    phone: item.phone || "",
+    emailStatus: item.email ? "Available" : item.email == null ? "Not retained for this legacy record" : "Not provided"
+  };
+}
+
+function hydrateDetails(row, key) {
+  const details = parseJsonObject(row[key]);
+  const result = { ...details };
+  for (const [name, value] of Object.entries(row)) {
+    if ((value !== null && value !== undefined && value !== "") || !(name in result)) result[name] = value;
+  }
+  if (!result.branchProfileJson && details.branchProfile) result.branchProfileJson = JSON.stringify(details.branchProfile);
+  return result;
 }
 
 function parseResumeRow(row) {
@@ -500,6 +560,8 @@ function filterWaitlist(signups, query) {
       item.organizationId,
       item.candidateId,
       item.name,
+      item.email,
+      item.phone,
       item.emailDomain,
       item.emailDomainType,
       item.organization,
@@ -529,6 +591,10 @@ function filterWaitlist(signups, query) {
       item.currentProcess,
       item.populationServed,
       item.reportingWish,
+      item.biggestChallenge,
+      item.currentTools,
+      item.desiredFeatures,
+      item.linkedinUrl,
       item.leadScore,
       item.leadPriority,
       item.recommendedAction,
@@ -549,6 +615,8 @@ function filterFollowups(followups, query) {
       item.leadId,
       item.candidateId,
       item.contactId,
+      item.email,
+      item.phone,
       item.emailDomain,
       item.emailDomainType,
       item.currentStatus,
@@ -564,7 +632,8 @@ function filterFollowups(followups, query) {
       item.jobLocation,
       item.dataSource,
       item.verificationStatus,
-      item.supportNeeded
+      item.supportNeeded,
+      item.notes
     ]
       .join(" ")
       .toLowerCase()
@@ -754,24 +823,33 @@ function buildFollowUpTotals(followups) {
   );
 }
 
-function buildFollowUpQueues(waitlist, followups) {
-  const completed = followups.slice(0, 250);
+function buildFollowUpQueues(waitlist, followups, allFollowups) {
+  const completed = followups;
   const completedKeys = new Set(
-    followups
-      .flatMap((item) => [item.leadId, item.candidateId, item.contactId, item.emailDomain])
+    allFollowups
+      .flatMap(recordMatchKeys)
       .filter(Boolean)
   );
   const allPending = waitlist
     .filter((item) => Boolean(item.interviewInterest))
-    .filter((item) => ![item.leadId, item.candidateId, item.contactId, item.emailDomain].some((value) => value && completedKeys.has(value)))
+    .filter((item) => !recordMatchKeys(item).some((value) => completedKeys.has(value)))
     .sort((left, right) => Number(right.leadScore || 0) - Number(left.leadScore || 0) || String(right.createdAt || "").localeCompare(String(left.createdAt || "")));
 
   return {
-    pending: allPending.slice(0, 250),
+    pending: allPending,
     completed,
     pendingCount: allPending.length,
     completedCount: followups.length
   };
+}
+
+function recordMatchKeys(item) {
+  return [
+    item.leadId && `lead:${item.leadId}`,
+    item.candidateId && `candidate:${item.candidateId}`,
+    item.contactId && `contact:${item.contactId}`,
+    item.email && `email:${String(item.email).trim().toLowerCase()}`
+  ].filter(Boolean);
 }
 
 function buildSalaryStats(followups) {
@@ -818,11 +896,11 @@ function buildWaitlistFunnel(waitlist, followups) {
   const total = waitlist.length;
   const followupKeys = new Set(
     followups
-      .flatMap((item) => [item.leadId, item.candidateId, item.contactId, item.emailDomain])
+      .flatMap(recordMatchKeys)
       .filter(Boolean)
   );
   const matchedFollowups = waitlist.filter((item) =>
-    [item.leadId, item.candidateId, item.contactId, item.emailDomain].some((value) => value && followupKeys.has(value))
+    recordMatchKeys(item).some((value) => followupKeys.has(value))
   ).length;
 
   return [
@@ -830,7 +908,7 @@ function buildWaitlistFunnel(waitlist, followups) {
     { label: "Interview volunteers", count: waitlist.filter((item) => item.interviewInterest).length, rate: percentNumber(waitlist.filter((item) => item.interviewInterest).length, total) },
     { label: "Pilot prospects", count: waitlist.filter((item) => item.pilotInterest).length, rate: percentNumber(waitlist.filter((item) => item.pilotInterest).length, total) },
     { label: "Budget qualified", count: waitlist.filter((item) => item.budgetInterest).length, rate: percentNumber(waitlist.filter((item) => item.budgetInterest).length, total) },
-    { label: "Submitted follow-up", count: matchedFollowups || followups.length, rate: percentNumber(matchedFollowups || followups.length, total) }
+    { label: "Submitted follow-up", count: matchedFollowups, rate: percentNumber(matchedFollowups, total) }
   ];
 }
 
@@ -1009,6 +1087,6 @@ async function hasUserMetadataColumns(db) {
 function json(payload, status = 200) {
   return Response.json(payload, {
     status,
-    headers: { "Access-Control-Allow-Origin": "*" }
+    headers: { "Access-Control-Allow-Origin": "*", "Cache-Control": "no-store" }
   });
 }

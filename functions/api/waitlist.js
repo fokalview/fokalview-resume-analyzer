@@ -20,9 +20,14 @@ export async function onRequestPost({ request, env }) {
 
   try {
     const body = await request.json();
-    const record = await normalizeSignup(body, request, env);
-    const now = new Date().toISOString();
     const columns = await tableColumns(env.DB, "waitlist_signups");
+    if (!["email", "phone", "intake_details_json"].every((column) => columns.has(column))) {
+      return json({ error: "Contact storage is not ready. Apply migration 0019_waitlist_contact_details.sql before accepting signups." }, 503);
+    }
+    const record = await normalizeSignup(body, request, env);
+    const { id, leadId, contactId, organizationId, candidateId, emailHash, ...intakeDetails } = record;
+    record.intakeDetails = intakeDetails;
+    const now = new Date().toISOString();
 
     if (columns.has("school_name") && columns.has("program_name")) {
       await insertAcademicSignup(env.DB, record, now);
@@ -57,7 +62,12 @@ export async function onRequestOptions() {
 
 async function normalizeSignup(body, request, env) {
   const email = normalizeEmail(body.email);
-  if (!email || !isValidEmail(email)) throw new Error("Enter a valid email address.");
+  if (!email || email.length > 254 || !isValidEmail(email)) throw new Error("Enter a valid email address.");
+  const phone = clean(body.phone, 80);
+  const preferredContactMethod = clean(body.preferredContactMethod, 80);
+  const linkedinUrl = cleanUrl(body.linkedinUrl);
+  if (preferredContactMethod === "Phone" && !phone) throw new Error("Enter a phone number for your preferred contact method.");
+  if (preferredContactMethod === "LinkedIn" && !linkedinUrl) throw new Error("Enter a valid LinkedIn URL for your preferred contact method.");
 
   const emailDomain = domainFromEmail(email);
   const emailDomainType = classifyEmailDomain(emailDomain);
@@ -71,8 +81,10 @@ async function normalizeSignup(body, request, env) {
     id: crypto.randomUUID(),
     ...ids,
     name: clean(body.name, 120, true),
+    email,
+    phone,
     emailHash: await hashEmail(email, env),
-    emailDomain: emailDomainType === "personal" ? "personal_email" : emailDomain,
+    emailDomain,
     emailDomainType,
     organization: clean(body.organization, 180),
     organizationType: clean(body.organizationType, 80),
@@ -80,12 +92,12 @@ async function normalizeSignup(body, request, env) {
     city: clean(body.city, 120),
     state: location.state,
     country: location.country,
-    linkedinUrl: cleanUrl(body.linkedinUrl),
+    linkedinUrl,
     zipPostal: location.zipPostal,
     county: location.county,
     metroArea: location.metroArea,
     workforceRegion: location.workforceRegion,
-    preferredContactMethod: clean(body.preferredContactMethod, 80),
+    preferredContactMethod,
     biggestChallenge: clean(body.biggestChallenge, 1200),
     currentTools: clean(body.currentTools, 800),
     desiredFeatures: clean(body.desiredFeatures, 1200),
@@ -139,9 +151,9 @@ async function insertBasicSignup(db, record, now) {
       id, name, email_hash, email_domain, email_domain_type, organization, organization_type,
       role, city, state, country, linkedin_url, biggest_challenge, current_tools,
       desired_features, interview_interest, beta_interest, pilot_interest, budget_interest,
-      source, status, created_at, updated_at
+      source, status, created_at, updated_at, email, phone, intake_details_json
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', ?, ?)`
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', ?, ?, ?, ?, ?)`
   )
     .bind(
       record.id,
@@ -165,7 +177,10 @@ async function insertBasicSignup(db, record, now) {
       record.budgetInterest ? 1 : 0,
       record.source,
       now,
-      now
+      now,
+      record.email,
+      record.phone,
+      JSON.stringify(record.intakeDetails)
     )
     .run();
 }
@@ -178,9 +193,9 @@ async function insertExtendedSignup(db, record, now) {
       city, state, country, linkedin_url, biggest_challenge, current_tools, desired_features,
       interview_interest, beta_interest, pilot_interest, budget_interest, source, referral_source,
       buying_authority, timeline, lead_score, lead_priority, recommended_action, score_breakdown_json,
-      status, created_at, updated_at
+      status, created_at, updated_at, email, phone, intake_details_json
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', ?, ?)`
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', ?, ?, ?, ?, ?)`
   )
     .bind(
       record.id,
@@ -216,7 +231,10 @@ async function insertExtendedSignup(db, record, now) {
       record.recommendedAction,
       JSON.stringify(record.scoreBreakdown),
       now,
-      now
+      now,
+      record.email,
+      record.phone,
+      JSON.stringify(record.intakeDetails)
     )
     .run();
 }
@@ -232,9 +250,9 @@ async function insertBranchedSignup(db, record, now) {
       buying_authority, timeline, lead_score, lead_priority, recommended_action,
       score_breakdown_json, branch_status, target_role, target_industry, experience_level,
       current_process, population_served, reporting_wish, branch_profile_json,
-      status, created_at, updated_at
+      status, created_at, updated_at, email, phone, intake_details_json
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', ?, ?)`
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', ?, ?, ?, ?, ?)`
   )
     .bind(
       record.id,
@@ -280,7 +298,10 @@ async function insertBranchedSignup(db, record, now) {
       record.reportingWish,
       JSON.stringify(record.branchProfile),
       now,
-      now
+      now,
+      record.email,
+      record.phone,
+      JSON.stringify(record.intakeDetails)
     )
     .run();
 }
@@ -296,9 +317,9 @@ async function insertResearchSignup(db, record, now) {
       source, referral_source, buying_authority, timeline, lead_score, lead_priority,
       recommended_action, score_breakdown_json, branch_status, target_role, target_industry,
       experience_level, current_process, population_served, reporting_wish, branch_profile_json,
-      status, created_at, updated_at
+      status, created_at, updated_at, email, phone, intake_details_json
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', ?, ?)`
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', ?, ?, ?, ?, ?)`
   )
     .bind(
       record.id,
@@ -347,7 +368,10 @@ async function insertResearchSignup(db, record, now) {
       record.reportingWish,
       JSON.stringify(record.branchProfile),
       now,
-      now
+      now,
+      record.email,
+      record.phone,
+      JSON.stringify(record.intakeDetails)
     )
     .run();
 }
@@ -364,9 +388,9 @@ async function insertInstitutionalSignup(db, record, now) {
       recommended_action, score_breakdown_json, branch_status, target_role, target_industry,
       experience_level, program_name, major_field, degree_level, class_year, student_status,
       seeking_status, domestic_international, current_process, population_served, reporting_wish,
-      branch_profile_json, status, created_at, updated_at
+      branch_profile_json, status, created_at, updated_at, email, phone, intake_details_json
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', ?, ?)`
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', ?, ?, ?, ?, ?)`
   )
     .bind(
       record.id,
@@ -422,7 +446,10 @@ async function insertInstitutionalSignup(db, record, now) {
       record.reportingWish,
       JSON.stringify(record.branchProfile),
       now,
-      now
+      now,
+      record.email,
+      record.phone,
+      JSON.stringify(record.intakeDetails)
     )
     .run();
 }
@@ -439,9 +466,9 @@ async function insertAcademicSignup(db, record, now) {
       recommended_action, score_breakdown_json, branch_status, target_role, target_industry,
       experience_level, program_name, major_field, school_name, gpa, certifications, degree_level,
       class_year, student_status, seeking_status, domestic_international, current_process,
-      population_served, reporting_wish, branch_profile_json, status, created_at, updated_at
+      population_served, reporting_wish, branch_profile_json, status, created_at, updated_at, email, phone, intake_details_json
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', ?, ?)`
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'New', ?, ?, ?, ?, ?)`
   )
     .bind(
       record.id,
@@ -500,7 +527,10 @@ async function insertAcademicSignup(db, record, now) {
       record.reportingWish,
       JSON.stringify(record.branchProfile),
       now,
-      now
+      now,
+      record.email,
+      record.phone,
+      JSON.stringify(record.intakeDetails)
     )
     .run();
 }
@@ -647,15 +677,16 @@ function compactObject(value) {
   return Object.fromEntries(
     Object.entries(value).filter(([, entry]) => {
       if (Array.isArray(entry)) return entry.length > 0;
-      if (typeof entry === "boolean") return entry === true;
+      if (typeof entry === "boolean" || typeof entry === "number") return true;
       return Boolean(entry);
     })
   );
 }
 
 function cleanList(value, maxItems, maxLength) {
+  if (Array.isArray(value) && value.length > maxItems) throw new Error(`Choose no more than ${maxItems} items per response.`);
   return Array.isArray(value)
-    ? value.map((item) => clean(item, maxLength)).filter(Boolean).slice(0, maxItems)
+    ? value.map((item) => clean(item, maxLength)).filter(Boolean)
     : [];
 }
 
@@ -704,13 +735,14 @@ function classifyEmailDomain(domain) {
 }
 
 function clean(value, maxLength, required = false) {
-  const next = String(value || "").replace(/\s+/g, " ").trim().slice(0, maxLength);
+  const next = String(value ?? "").trim();
+  if (next.length > maxLength) throw new Error(`A response exceeds the ${maxLength}-character limit. Shorten it before submitting.`);
   if (required && !next) throw new Error("Name is required.");
   return next;
 }
 
 function cleanGpa(value) {
-  const raw = String(value || "").trim();
+  const raw = String(value ?? "").trim();
   if (!raw) return null;
   const parsed = Number.parseFloat(raw);
   if (!Number.isFinite(parsed) || parsed < 0 || parsed > 4.5) return null;

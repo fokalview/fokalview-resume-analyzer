@@ -6,6 +6,56 @@ what was learned, and what still needs attention.
 
 <!-- NEW_ENTRIES_BELOW -->
 
+## 2026-11-04 07:47 ET - Make waitlist contacts usable for follow-up
+
+### Objective
+
+Make saved waitlist information explicit and usable for contacting people. The
+old intake discarded email addresses after hashing, and administrative views
+omitted useful answers and displayed some missing numeric values as zero.
+
+### Completed
+
+- Added nullable readable email, phone, and selected answer snapshots to both
+  waitlist tables in migration `0019_waitlist_contact_details.sql`.
+- New submissions retain normalized email and supplied phone, preserve full
+  supported answers, and reject writes if contact storage has not been migrated.
+- Protected admin views show contact links, contact preference, complete labeled
+  answers, notes, and explicit missing-value labels. JSON and formula-safe CSV
+  exports include all returned records, with the latest-1,000-record limit shown.
+- Follow-up matching uses exact contact IDs or email, never shared domains, and
+  remains correct when a search hides the matching follow-up response.
+- Public forms explain contact retention, collect a number when Phone is chosen,
+  and acknowledge requests as received rather than already approved.
+- Applied only the six additive 0019 statements to the inspected production D1
+  schema after recording a Time Travel bookmark. Verified three new columns per
+  table and unchanged counts: two signups and two follow-up records. No migration
+  ledger existed, so no historical migration entries were fabricated.
+
+### Verification
+
+Real SQLite regressions cover all supported INSERT variants, old-row preservation,
+schema guards, contact validation, protected admin access, exact matching, missing
+versus zero values, full exports, and spreadsheet formula handling. The coverage
+gate, TypeScript/Vite build, Pages Functions compilation, local D1 migration and
+safe migration rerun passed. Browser verification and the final deployment commit
+are tracked with the release pull request.
+
+### Risks And Next Steps
+
+Existing hashes do not reveal the original address. Historical records retain
+their other data and show an explicit missing-email label; recovery needs a
+separate verified source or resubmission. Internal hashes and identity salts are
+unchanged. Contact information remains behind the existing admin access control.
+Deploy the matching code after the schema update and verify the production commit.
+
+### References
+
+- [Contact handling and deployment](WAITLIST_CONTACTS.md)
+- [Database reference](DATABASE.md)
+- Migration: `0019_waitlist_contact_details.sql`
+- Regression tests: `tests/waitlist-contact.test.mjs`
+
 ## 2026-09-24 - Add Chrome job capture and reviewed website import
 
 Added a separate Manifest V3 Chrome extension with on-demand extraction from
