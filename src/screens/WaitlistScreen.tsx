@@ -168,7 +168,7 @@ export default function WaitlistScreen() {
 
   function setField<K extends keyof WaitlistForm>(key: K, value: WaitlistForm[K]) {
     setForm((current) => ({ ...current, [key]: value }));
-    setFieldErrors((current) => ({ ...current, [key]: "" }));
+    setFieldErrors((current) => key === "userType" ? {} : { ...current, [key]: "" });
   }
 
   async function submit(event: FormEvent) {
@@ -190,7 +190,13 @@ export default function WaitlistScreen() {
       const response = await fetch("/api/waitlist", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, source: "public_waitlist" })
+        body: JSON.stringify({
+          ...form,
+          linkedinUrl: normalizeLinkedInUrl(form.linkedinUrl),
+          // Keep the student draft locally, but do not submit an inactive GPA.
+          gpa: form.userType === "Student" ? form.gpa.trim() : "",
+          source: "public_waitlist"
+        })
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Could not join waitlist.");
@@ -355,11 +361,11 @@ export default function WaitlistScreen() {
           />
 
           {form.userType === "Individual Job Seeker" && <IndividualBranch form={form} setField={setField} />}
-          {form.userType === "Student" && <StudentBranch form={form} setField={setField} />}
-          {form.userType === "Career Counselor / Advisor" && <AdvisorBranch form={form} setField={setField} />}
-          {form.userType === "Institution / Program Leader" && <InstitutionBranch form={form} setField={setField} />}
-          {form.userType === "Workforce / Gov / Nonprofit" && <WorkforceBranch form={form} setField={setField} />}
-          {form.userType === "Employer / Hiring Partner" && <EmployerBranch form={form} setField={setField} />}
+          {form.userType === "Student" && <StudentBranch form={form} setField={setField} errors={fieldErrors} />}
+          {form.userType === "Career Counselor / Advisor" && <AdvisorBranch form={form} setField={setField} errors={fieldErrors} />}
+          {form.userType === "Institution / Program Leader" && <InstitutionBranch form={form} setField={setField} errors={fieldErrors} />}
+          {form.userType === "Workforce / Gov / Nonprofit" && <WorkforceBranch form={form} setField={setField} errors={fieldErrors} />}
+          {form.userType === "Employer / Hiring Partner" && <EmployerBranch form={form} setField={setField} errors={fieldErrors} />}
 
           <div className="form-section-title">
             <span>Engagement interest</span>
@@ -526,7 +532,7 @@ function IndividualBranch({ form, setField }: BranchProps) {
   );
 }
 
-function StudentBranch({ form, setField }: BranchProps) {
+function StudentBranch({ form, setField, errors = {} }: BranchProps) {
   return (
     <>
       <div className="form-section-title"><span>Student profile</span></div>
@@ -549,7 +555,7 @@ function StudentBranch({ form, setField }: BranchProps) {
       />
       <TextField label="Degree / program" value={form.degreeProgram} onChange={(value) => setField("degreeProgram", value)} />
       <TextField label="Major / field" value={form.majorField} onChange={(value) => setField("majorField", value)} />
-      <TextField label="GPA optional" value={form.gpa} onChange={(value) => setField("gpa", value)} placeholder="3.7" />
+      <TextField label="GPA (0–4 scale, optional)" value={form.gpa} onChange={(value) => setField("gpa", value)} placeholder="3.7" error={errors.gpa} />
       <TextArea
         label="Certifications"
         value={form.certifications}
@@ -612,10 +618,10 @@ function StudentBranch({ form, setField }: BranchProps) {
   );
 }
 
-function AdvisorBranch({ form, setField }: BranchProps) {
+function AdvisorBranch({ form, setField, errors }: BranchProps) {
   return (
     <>
-      <OrganizationFields form={form} setField={setField} title="Advisor profile" />
+      <OrganizationFields form={form} setField={setField} errors={errors} title="Advisor profile" />
       <CheckboxGroup label="Primary population served" values={form.primaryPopulation} onChange={(value) => setField("primaryPopulation", value)} options={populationOptions()} />
       <CheckboxGroup label="Operational challenges" values={form.operationalChallenges} onChange={(value) => setField("operationalChallenges", value)} options={operationalChallengeOptions()} />
       <TextArea className="wide-field" label="Reporting wish" value={form.reportingWish} onChange={(value) => setField("reportingWish", value)} placeholder="What report do you wish you could generate today but cannot?" />
@@ -624,10 +630,10 @@ function AdvisorBranch({ form, setField }: BranchProps) {
   );
 }
 
-function InstitutionBranch({ form, setField }: BranchProps) {
+function InstitutionBranch({ form, setField, errors }: BranchProps) {
   return (
     <>
-      <OrganizationFields form={form} setField={setField} title="Institution profile" />
+      <OrganizationFields form={form} setField={setField} errors={errors} title="Institution profile" />
       <SelectField label="Geographic reach" value={form.geographicReach} onChange={(value) => setField("geographicReach", value)} options={["Local", "Regional", "Statewide", "National", "International"]} />
       <SelectField label="Career / advising staff" value={form.advisingStaffCount} onChange={(value) => setField("advisingStaffCount", value)} options={["1", "2-5", "6-10", "11-25", "25+"]} />
       <CheckboxGroup label="Primary pain points" values={form.operationalChallenges} onChange={(value) => setField("operationalChallenges", value)} options={operationalChallengeOptions()} />
@@ -637,10 +643,10 @@ function InstitutionBranch({ form, setField }: BranchProps) {
   );
 }
 
-function WorkforceBranch({ form, setField }: BranchProps) {
+function WorkforceBranch({ form, setField, errors }: BranchProps) {
   return (
     <>
-      <OrganizationFields form={form} setField={setField} title="Workforce profile" />
+      <OrganizationFields form={form} setField={setField} errors={errors} title="Workforce profile" />
       <SelectField label="Program type" value={form.programType} onChange={(value) => setField("programType", value)} options={[
         "Workforce development",
         "Disability employment",
@@ -671,11 +677,11 @@ function WorkforceBranch({ form, setField }: BranchProps) {
   );
 }
 
-function EmployerBranch({ form, setField }: BranchProps) {
+function EmployerBranch({ form, setField, errors = {} }: BranchProps) {
   return (
     <>
       <div className="form-section-title"><span>Employer profile</span></div>
-      <TextField label="Company name" value={form.organization} onChange={(value) => setField("organization", value)} required />
+      <TextField label="Company name" value={form.organization} onChange={(value) => setField("organization", value)} required error={errors.organization} />
       <TextField label="Role / title" value={form.role} onChange={(value) => setField("role", value)} />
       <SelectField label="Company size" value={form.companySize} onChange={(value) => setField("companySize", value)} options={["1-10", "11-50", "51-250", "251-1,000", "1,000+"]} />
       <SelectField label="Hiring volume / year" value={form.hiringVolume} onChange={(value) => setField("hiringVolume", value)} options={["1-10", "11-50", "51-250", "250+"]} />
@@ -705,11 +711,11 @@ function EmployerBranch({ form, setField }: BranchProps) {
   );
 }
 
-function OrganizationFields({ form, setField, title }: BranchProps & { title: string }) {
+function OrganizationFields({ form, setField, errors = {}, title }: BranchProps & { title: string }) {
   return (
     <>
       <div className="form-section-title"><span>{title}</span></div>
-      <TextField label="Organization name" value={form.organization} onChange={(value) => setField("organization", value)} required />
+      <TextField label="Organization name" value={form.organization} onChange={(value) => setField("organization", value)} required error={errors.organization} />
       <SelectField label="Organization type" value={form.organizationType} onChange={(value) => setField("organizationType", value)} options={[
         "University",
         "Community College",
@@ -746,7 +752,7 @@ function SalesFields({ form, setField, showPilotLevel = false }: BranchProps & {
 }
 
 type SetField = <K extends keyof WaitlistForm>(key: K, value: WaitlistForm[K]) => void;
-type BranchProps = { form: WaitlistForm; setField: SetField };
+type BranchProps = { form: WaitlistForm; setField: SetField; errors?: WaitlistErrors };
 
 function TextField({
   label,
@@ -917,6 +923,19 @@ function branchHeading(userType: string) {
   return "Employer pipeline intelligence";
 }
 
+function normalizeLinkedInUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  const candidate = /^(?:www\.)?linkedin\.com(?=\/|[?#]|$)/i.test(trimmed) ? `https://${trimmed}` : trimmed;
+  const url = new URL(candidate);
+  if (
+    !/^https?:$/.test(url.protocol) ||
+    !(url.hostname === "linkedin.com" || url.hostname.endsWith(".linkedin.com")) ||
+    url.username || url.password
+  ) throw new Error("Invalid LinkedIn URL");
+  return url.href;
+}
+
 function validateWaitlist(form: WaitlistForm, isOrganization: boolean) {
   const errors: WaitlistErrors = {};
   if (!form.name.trim()) errors.name = "Enter your full name.";
@@ -927,13 +946,21 @@ function validateWaitlist(form: WaitlistForm, isOrganization: boolean) {
   }
   if (!form.country.trim()) errors.country = "Enter your country.";
   if (form.preferredContactMethod === "Phone" && !form.phone.trim()) errors.phone = "Enter a phone number so we can follow up by phone.";
-  if (form.preferredContactMethod === "LinkedIn") {
+  if (form.linkedinUrl.trim()) {
     try {
-      const url = new URL(form.linkedinUrl.trim());
-      if (!/^https?:$/.test(url.protocol)) throw new Error("Invalid URL");
+      normalizeLinkedInUrl(form.linkedinUrl);
     } catch {
-      errors.linkedinUrl = "Enter your full LinkedIn profile URL so we can contact you there.";
+      errors.linkedinUrl = "Enter a valid LinkedIn profile URL, or leave it blank.";
     }
+  } else if (form.preferredContactMethod === "LinkedIn") {
+    errors.linkedinUrl = "Enter your LinkedIn profile URL so we can contact you there.";
+  }
+  if (isOrganization && !form.organization.trim()) {
+    errors.organization = form.userType === "Employer / Hiring Partner" ? "Enter your company name." : "Enter your organization name.";
+  }
+  const gpa = form.gpa.trim();
+  if (form.userType === "Student" && gpa && (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(gpa) || !Number.isFinite(Number(gpa)) || Number(gpa) < 0 || Number(gpa) > 4)) {
+    errors.gpa = "Enter a GPA from 0 to 4, or leave it blank.";
   }
   if (!form.state.trim()) errors.state = "Enter your state or province.";
   if (isOrganization && !form.city.trim()) errors.city = "Enter the city for this organization.";

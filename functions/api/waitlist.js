@@ -15,6 +15,13 @@ const PERSONAL_DOMAINS = new Set([
   "protonmail.com"
 ]);
 
+const ORGANIZATION_USER_TYPES = new Set([
+  "Career Counselor / Advisor",
+  "Institution / Program Leader",
+  "Workforce / Gov / Nonprofit",
+  "Employer / Hiring Partner"
+]);
+
 export async function onRequestPost({ request, env }) {
   if (!env.DB) return json({ error: "Missing D1 binding DB." }, 500);
 
@@ -61,13 +68,19 @@ export async function onRequestOptions() {
 }
 
 async function normalizeSignup(body, request, env) {
+  const userType = clean(body.userType, 80) || "Institution / Program Leader";
+  const organization = clean(body.organization, 180);
+  if (ORGANIZATION_USER_TYPES.has(userType) && !organization) {
+    throw new Error(userType === "Employer / Hiring Partner" ? "Enter your company name." : "Enter your organization name.");
+  }
+  const gpa = cleanGpa(body.gpa);
   const email = normalizeEmail(body.email);
   if (!email || email.length > 254 || !isValidEmail(email)) throw new Error("Enter a valid email address.");
   const phone = clean(body.phone, 80);
   const preferredContactMethod = clean(body.preferredContactMethod, 80);
-  const linkedinUrl = cleanUrl(body.linkedinUrl);
+  const linkedinUrl = cleanLinkedInUrl(body.linkedinUrl);
   if (preferredContactMethod === "Phone" && !phone) throw new Error("Enter a phone number for your preferred contact method.");
-  if (preferredContactMethod === "LinkedIn" && !linkedinUrl) throw new Error("Enter a valid LinkedIn URL for your preferred contact method.");
+  if (preferredContactMethod === "LinkedIn" && !linkedinUrl) throw new Error("Enter your LinkedIn profile URL so we can contact you there.");
 
   const emailDomain = domainFromEmail(email);
   const emailDomainType = classifyEmailDomain(emailDomain);
@@ -86,7 +99,7 @@ async function normalizeSignup(body, request, env) {
     emailHash: await hashEmail(email, env),
     emailDomain,
     emailDomainType,
-    organization: clean(body.organization, 180),
+    organization,
     organizationType: clean(body.organizationType, 80),
     role: clean(body.role, 120),
     city: clean(body.city, 120),
@@ -105,7 +118,7 @@ async function normalizeSignup(body, request, env) {
     betaInterest: body.betaInterest === true,
     pilotInterest: body.pilotInterest === true,
     budgetInterest: body.budgetInterest === true,
-    userType: clean(body.userType, 80) || "Institution / Program Leader",
+    userType,
     referralSource: clean(body.referralSource, 80) || "Direct",
     buyingAuthority: clean(body.buyingAuthority, 80),
     timeline: clean(body.timeline, 80),
@@ -116,7 +129,7 @@ async function normalizeSignup(body, request, env) {
     programName: clean(body.degreeProgram || body.programName || body.programType, 180),
     majorField: clean(body.majorField, 180),
     schoolName: clean(body.schoolName || body.organization, 180),
-    gpa: cleanGpa(body.gpa),
+    gpa,
     certifications: clean(body.certifications, 1200),
     degreeLevel: clean(body.degreeLevel || body.studentType, 120),
     classYear: clean(body.expectedGraduationYear || body.classYear, 40),
@@ -744,21 +757,28 @@ function clean(value, maxLength, required = false) {
 function cleanGpa(value) {
   const raw = String(value ?? "").trim();
   if (!raw) return null;
-  const parsed = Number.parseFloat(raw);
-  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 4.5) return null;
-  return Math.round(parsed * 100) / 100;
+  const parsed = Number(raw);
+  if (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(raw) || !Number.isFinite(parsed) || parsed < 0 || parsed > 4) {
+    throw new Error("Enter a GPA from 0 to 4, or leave it blank.");
+  }
+  return parsed;
 }
 
-function cleanUrl(value) {
+function cleanLinkedInUrl(value) {
   const url = clean(value, 1000);
   if (!url) return "";
+  const normalized = /^(?:www\.)?linkedin\.com(?=\/|[?#]|$)/i.test(url) ? `https://${url}` : url;
   try {
-    const parsed = new URL(url);
-    if (!["http:", "https:"].includes(parsed.protocol)) return "";
-    parsed.hash = "";
+    const parsed = new URL(normalized);
+    const hostname = parsed.hostname.toLowerCase();
+    if (!["http:", "https:"].includes(parsed.protocol) ||
+      !(hostname === "linkedin.com" || hostname.endsWith(".linkedin.com")) ||
+      parsed.username || parsed.password) {
+      throw new Error("Invalid LinkedIn URL");
+    }
     return parsed.toString();
   } catch {
-    return "";
+    throw new Error("Enter a valid LinkedIn profile URL, or leave it blank.");
   }
 }
 

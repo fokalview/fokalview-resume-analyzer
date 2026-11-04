@@ -150,6 +150,109 @@ test('signup validates the selected contact method and email without retaining u
   } finally { sql.close(); }
 });
 
+for (const userType of ['Career Counselor / Advisor', 'Institution / Program Leader', 'Workforce / Gov / Nonprofit', 'Employer / Hiring Partner']) {
+  test(`${userType} requires an organization or company name before saving`, async () => {
+    const { sql, env } = setup();
+    try {
+      for (const organization of ['', '   ']) {
+        const response = await signup({ request: post('waitlist', exampleSignup({ userType, organization })), env });
+        assert.equal(response.status, 400);
+        assert.equal((await response.json()).error, userType === 'Employer / Hiring Partner' ? 'Enter your company name.' : 'Enter your organization name.');
+      }
+      assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM waitlist_signups').get().n, 0);
+      const { id } = await submit(signup, 'waitlist', exampleSignup({ userType, organization: '  Synthetic Organization  ' }), env);
+      const row = sql.prepare('SELECT * FROM waitlist_signups WHERE id = ?').get(id);
+      assert.equal(row.organization, 'Synthetic Organization');
+      assert.equal(JSON.parse(row.intake_details_json).organization, 'Synthetic Organization');
+    } finally { sql.close(); }
+  });
+}
+
+for (const userType of ['Individual Job Seeker', 'Student']) {
+  test(`${userType} can join without an organization`, async () => {
+    const { sql, env } = setup();
+    try {
+      const { id } = await submit(signup, 'waitlist', exampleSignup({ userType, organization: '' }), env);
+      assert.equal(sql.prepare('SELECT organization FROM waitlist_signups WHERE id = ?').get(id).organization, '');
+    } finally { sql.close(); }
+  });
+}
+
+test('signup rejects malformed or out-of-range GPA instead of changing or discarding the answer', async () => {
+  const { sql, env } = setup();
+  try {
+    for (const gpa of ['3.7garbage', '5.0', '4.01', '-0.1', 'NaN', 'Infinity', '3e0', '0x3', '3,7']) {
+      const response = await signup({ request: post('waitlist', exampleSignup({ userType: 'Student', gpa })), env });
+      assert.equal(response.status, 400, `GPA ${gpa}`);
+      assert.equal((await response.json()).error, 'Enter a GPA from 0 to 4, or leave it blank.');
+    }
+    assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM waitlist_signups').get().n, 0);
+  } finally { sql.close(); }
+});
+
+test('signup preserves GPA endpoints and precision while leaving omitted GPA absent', async () => {
+  const { sql, env } = setup();
+  try {
+    for (const [gpa, expected] of [[0, 0], ['0', 0], ['4', 4], [3.75, 3.75], ['.5', 0.5], ['3.625', 3.625], ['', null], ['   ', null], [null, null], [undefined, null]]) {
+      const { id } = await submit(signup, 'waitlist', exampleSignup({ userType: 'Student', gpa }), env);
+      const row = sql.prepare('SELECT * FROM waitlist_signups WHERE id = ?').get(id);
+      const details = JSON.parse(row.intake_details_json);
+      assert.equal(row.gpa, expected);
+      assert.equal(details.gpa, expected);
+      assert.equal(details.branchProfile.gpa, expected === null ? undefined : expected);
+    }
+  } finally { sql.close(); }
+});
+
+test('signup validates every provided LinkedIn URL even when email is the preferred contact', async () => {
+  const { sql, env } = setup();
+  try {
+    for (const linkedinUrl of [
+      'not a URL', 'https://example.test/in/person', 'https://linkedin.com.example.test/in/person',
+      'https://notlinkedin.com/in/person', 'https://www.linkedin.com@example.test/in/person',
+      'https://person:password@linkedin.com/in/person', 'ftp://linkedin.com/in/person', 'javascript:alert(1)'
+    ]) {
+      const response = await signup({ request: post('waitlist', exampleSignup({ preferredContactMethod: 'Email', linkedinUrl })), env });
+      assert.equal(response.status, 400, linkedinUrl);
+      assert.equal((await response.json()).error, 'Enter a valid LinkedIn profile URL, or leave it blank.');
+    }
+    assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM waitlist_signups').get().n, 0);
+  } finally { sql.close(); }
+});
+
+test('signup normalizes common schemeless LinkedIn profiles and preserves complete valid profile URLs', async () => {
+  const { sql, env } = setup();
+  try {
+    const profiles = [
+      [' linkedin.com/in/synthetic-person?trk=public#about ', 'https://linkedin.com/in/synthetic-person?trk=public#about'],
+      ['www.linkedin.com/in/synthetic-person', 'https://www.linkedin.com/in/synthetic-person'],
+      ['https://uk.linkedin.com/in/synthetic-person', 'https://uk.linkedin.com/in/synthetic-person'],
+      ['http://linkedin.com/in/synthetic-person', 'http://linkedin.com/in/synthetic-person']
+    ];
+    for (const preferredContactMethod of ['Email', 'LinkedIn']) {
+      for (const [linkedinUrl, expected] of profiles) {
+        const { id } = await submit(signup, 'waitlist', exampleSignup({ preferredContactMethod, linkedinUrl }), env);
+        const row = sql.prepare('SELECT * FROM waitlist_signups WHERE id = ?').get(id);
+        assert.equal(row.linkedin_url, expected);
+        assert.equal(JSON.parse(row.intake_details_json).linkedinUrl, expected);
+        assert.equal((await admin(env)).recentWaitlistSignups.find(item => item.id === id).linkedinUrl, expected);
+      }
+    }
+  } finally { sql.close(); }
+});
+
+test('signup allows an omitted optional LinkedIn URL but requires it for LinkedIn contact', async () => {
+  const { sql, env } = setup();
+  try {
+    const response = await signup({ request: post('waitlist', exampleSignup({ preferredContactMethod: 'LinkedIn', linkedinUrl: '  ' })), env });
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).error, 'Enter your LinkedIn profile URL so we can contact you there.');
+    assert.equal(sql.prepare('SELECT COUNT(*) AS n FROM waitlist_signups').get().n, 0);
+    const { id } = await submit(signup, 'waitlist', exampleSignup({ preferredContactMethod: 'Email', linkedinUrl: '' }), env);
+    assert.equal(sql.prepare('SELECT linkedin_url FROM waitlist_signups WHERE id = ?').get(id).linkedin_url, '');
+  } finally { sql.close(); }
+});
+
 for (const version of [8, 10, 18]) {
   test(`follow-up retains readable email, phone and complete response against schema ${version}`, async () => {
     const { sql, env } = setup({ version });
