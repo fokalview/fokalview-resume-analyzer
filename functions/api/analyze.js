@@ -1,5 +1,6 @@
 import { applyDeterministicScoring } from "./scoring.js";
-import { hasVerifiedAccess } from "../lib/workos.js";
+import { ensureUser } from "./identity.js";
+import { ResumeSourceError, readSourceJson, requireOwnedSource, legacyAnalysisSource } from "../lib/resume-sources.js";
 
 const responseSchema = {
   type: "object",
@@ -187,30 +188,38 @@ export async function onRequestPost({ request, env }) {
   const config = readAiConfig(env);
   const dailyLimit = readDailyAnalysisLimit(env);
 
-  if (!(await hasVerifiedAccess(request, env))) {
+  const identity = await ensureUser(request, env);
+  if (!identity) {
     return json({ error: "Sign in with a verified account." }, 401);
   }
 
-  if (!config.apiKey && !config.workersAi) {
-    return json(
-      {
-        error:
-          "Missing AI configuration. Add the Cloudflare Workers AI binding or ARTIFICIAL_INTELLIGENCE_API_KEY and redeploy."
-      },
-      500
-    );
-  }
-
+  let sourceId = "";
   try {
-    const body = await request.json();
-    const resumeText = String(body.resumeText || "").trim();
-    const targetRole = String(body.targetRole || "").trim();
-    const jobContext = String(body.jobContext || "").trim();
+    const body = await readSourceJson(request);
+    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new ResumeSourceError('Send a resume review request.');
+    let source;
+    if (body.sourceId) {
+      source = await requireOwnedSource(env, identity.userId, body.sourceId, {kind:'snapshot'});
+      for (const [key,column] of [['resumeText','resume_text'],['targetRole','target_role'],['jobContext','job_context']]) {
+        if (body[key] !== undefined && body[key] !== source[column]) throw new ResumeSourceError('The submitted text or position differs from the saved resume version. Save a new version before analyzing.',409);
+      }
+    } else {
+      if (typeof body.resumeText !== 'string' || body.resumeText.trim().length < 200) return json({error:'Please upload or paste at least 200 characters of resume text.'},400);
+      // Cached clients still receive the same protection before quota/provider work.
+      source = await legacyAnalysisSource(body,env,identity);
+    }
+    sourceId = source.id;
+    const resumeText = source.resume_text;
+    const targetRole = source.target_role;
+    const jobContext = source.job_context;
     const lockedJobQualifications = normalizeLockedQualifications(body.jobQualifications);
     const scoreHistory = normalizeScoreHistory(body.scoreHistory);
 
-    if (resumeText.length < 200) {
-      return json({ error: "Please upload or paste at least 200 characters of resume text." }, 400);
+    if (resumeText.trim().length < 200) {
+      return json({ error: "Please upload or paste at least 200 characters of resume text.", sourceId }, 400);
+    }
+    if (!config.apiKey && !config.workersAi) {
+      return json({error:"Analysis is not configured. Your resume copy is saved; please try the review again later.",sourceId},503);
     }
 
     const quota = await reserveDailyAnalysis(env, dailyLimit);
@@ -219,6 +228,7 @@ export async function onRequestPost({ request, env }) {
         {
           error: `Today's beta analysis capacity has been reached. SagittaIQ can run ${dailyLimit} readiness reviews per day during the beta. Please try again after ${quota.resetsAt}.`,
           code: "DAILY_ANALYSIS_LIMIT_REACHED",
+          sourceId,
           limit: dailyLimit,
           remaining: 0,
           resetsAt: quota.resetsAt
@@ -263,6 +273,7 @@ export async function onRequestPost({ request, env }) {
     return json(
       {
         ...scoredAnalysis,
+        sourceId,
         ...(scoreAudit ? { scoreAudit } : {}),
         orchestration: {
           provider: config.workersAi ? "cloudflare-workers-ai" : config.provider,
@@ -273,7 +284,7 @@ export async function onRequestPost({ request, env }) {
       quotaHeaders(dailyLimit, quota.remaining, quota.resetsAt)
     );
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Analysis failed" }, 500);
+    return json({ error: error instanceof ResumeSourceError ? error.message : sourceId ? "Analysis could not finish. Your resume copy is saved; please retry the review." : "Your resume copy could not be saved. Please retry before analyzing.", ...(sourceId?{sourceId}:{}) }, error instanceof ResumeSourceError ? error.status : sourceId ? 500 : 503);
   }
 }
 

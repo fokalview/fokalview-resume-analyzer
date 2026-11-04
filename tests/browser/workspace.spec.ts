@@ -5,6 +5,7 @@ async function fixture(page:any) {
  await page.route('**/api/auth/session',(route:any)=>route.fulfill({json:{authenticated:true,user:{id:'fixture',email:'fixture@example.test',emailVerified:true},userId:'fixture',candidateId:'TEST'}}));
  await page.route('**/api/resume-records',(route:any)=>route.fulfill({json:{records:data.records}}));
  await page.route('**/api/applications',(route:any)=>route.fulfill({json:{applications:data.applications}}));
+ await page.route('**/api/resume-sources',(route:any)=>route.fulfill({json:route.request().method()==='GET'?{records:[]}:{id:'source-synthetic',sourceKind:'snapshot',hasOriginal:false,hasText:true,resumeLabel:'Saved resume',createdAt:'2026-11-04T12:00:00Z'}}));
 }
 for(const width of [320,390,768,1440]) for(const theme of ['light','dark']) for(const view of ['dashboard','upload','results','applications']) test(`${view} ${theme} fits ${width}px`,async({page})=>{
  await fixture(page);await page.setViewportSize({width,height:900});await page.addInitScript(theme=>localStorage.setItem('sagittaiq_theme',theme),theme);
@@ -29,6 +30,7 @@ test('opportunity picker retries without losing entered resume text',async({page
 
 test('analysis remains visible and downloadable when saving fails',async({page})=>{
  await fixture(page);
+ await page.route('**/api/resume-records',route=>route.fulfill(route.request().method()==='POST'?{json:{ok:true,id:'review-synthetic'}}:{json:{records:data.records}}));
  await page.route('**/api/analyze',route=>route.fulfill({json:data.records[1].analysis}));
  await page.route('**/api/applications',route=>route.fulfill(route.request().method()==='POST'?{status:503,json:{error:'Save unavailable'}}:{json:{applications:[]}}));
  await page.goto('/?view=upload');await page.getByLabel('Target opportunity',{exact:true}).fill('Platform Engineer');

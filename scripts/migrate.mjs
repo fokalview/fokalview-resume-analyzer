@@ -29,6 +29,8 @@ try {
  for(const f of plan) writeFileSync(join(stage,f.name),f.sql);
  const stagingConfig=join(stage,'wrangler.toml');
  const base=readFileSync(config,'utf8').replace(/pages_build_output_dir\s*=.*\n/,'');
- writeFileSync(stagingConfig,base+`\nmigrations_dir = ${JSON.stringify(stage.replaceAll('\\','/'))}\n`);
+ // Keep the migration directory in the D1 table even when another binding
+ // (for example R2) follows it in the local Wrangler configuration.
+ writeFileSync(stagingConfig,base.replace('[[d1_databases]]',`[[d1_databases]]\nmigrations_dir = ${JSON.stringify(stage.replaceAll('\\','/'))}`));
  run(['d1','migrations','apply','DB','--local','--config',stagingConfig,'--persist-to',persist]);
 }finally{rmSync(stage,{recursive:true,force:true})}

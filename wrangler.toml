@@ -3,6 +3,11 @@ compatibility_date = "2026-05-01"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "dist"
 
+# Provision this private bucket before deploying the resume-retention release.
+[[r2_buckets]]
+binding = "RESUME_FILES"
+bucket_name = "sagittaiq-resume-files"
+
 [ai]
 binding = "AI"
 

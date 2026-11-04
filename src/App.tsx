@@ -15,6 +15,10 @@ import type { JobHandoff, ResumeAnalysis, Screen } from "./types";
 import { ProductBrand } from "./components/BrandFamily";
 import JobImportScreen from "./screens/JobImportScreen";
 import {readJobHandoff,clearPendingJob} from "./services/jobHandoff";
+import type { ResumeDraft } from "./screens/UploadScreen";
+
+const emptyResumeDraft = (): ResumeDraft => ({ document: null, originalSourceId: "", label: "", pendingFile: null });
+const emptyJobHandoff = (): JobHandoff => ({ targetRole: "", jobContext: "", title: "", company: "", location: "", salary: "", url: "", notes: "", source: "" });
 
 export default function App() { return <Suspense fallback={<main className="screen" role="status">Loading SagittaIQ…</main>}><AppContent /></Suspense>; }
 
@@ -100,9 +104,13 @@ function ResumeApp() {
   const [analysisWarning,setAnalysisWarning] = useState("");
   const [analysis, setAnalysis] = useState<ResumeAnalysis | null>(null);
   const [resumeText, setResumeText] = useState("");
+  const [resumeDraft, setResumeDraft] = useState<ResumeDraft>(emptyResumeDraft);
   const [targetRole, setTargetRole] = useState(handoff.targetRole);
   const [jobContext, setJobContext] = useState(handoff.jobContext);
   const [reviewOpportunity, setReviewOpportunity] = useState<ApplicationRecord | null>(null);
+  useEffect(() => {
+    setResumeDraft(emptyResumeDraft()); setResumeText("");
+  }, [verifiedSession?.userId]);
 
   useEffect(() => {
     localStorage.setItem("sagittaiq_theme", theme);
@@ -161,7 +169,8 @@ function ResumeApp() {
       const jobs = await getApplications().catch(() => null);
       if (!active) return;
       const job = jobs?.find(item => item.id === record.opportunityId);
-      setReportJob({targetRole: record.targetRole, title: record.targetRole, jobContext: job?.jobDescription || "", company: job?.company || "", location: job?.location || "", salary: job?.salary || "", url: job?.url || "", notes: "", source: job?.source || ""});
+      const snapshot = record.position;
+      setReportJob({targetRole: record.targetRole, title: snapshot?.title ?? record.targetRole, jobContext: record.jobContext ?? job?.jobDescription ?? "", company: snapshot?.company ?? job?.company ?? "", location: snapshot?.location ?? job?.location ?? "", salary: snapshot?.salary ?? job?.salary ?? "", url: snapshot?.url ?? job?.url ?? "", notes: "", source: snapshot?.source ?? job?.source ?? ""});
       setReportOpportunityId(record.opportunityId || "");
       setLoadedReportId(record.id);
       setReportId(record.id);
@@ -169,7 +178,7 @@ function ResumeApp() {
       url.searchParams.set("report", record.id);
       history.replaceState(null, "", url);
       setAnalysis(record.analysis);
-      if (jobs === null) setAnalysisWarning("Your report loaded, but opportunity details are unavailable. Open Opportunities to retry.");
+      if (jobs === null && !snapshot) setAnalysisWarning("Your report loaded, but opportunity details are unavailable. Open Opportunities to retry.");
     }).catch(() => {if (active) setReportError("Your saved report could not load. Please retry.");});
     return () => {active = false;};
   }, [verifiedSession?.userId, screen, reportId, loadedReportId, reportRetry]);
@@ -282,14 +291,19 @@ function ResumeApp() {
           onSaved={opportunity=>{clearPendingJob();setHandoff({...handoff,capturedJob:undefined});setReviewOpportunity(opportunity);setTargetRole(opportunity.title);setJobContext(opportunity.jobDescription);setScreen("upload");}}/>}
         {screen === "upload" && (
           <UploadScreen
+            key={verifiedSession?.userId}
+            draft={resumeDraft}
+            onDraftChange={setResumeDraft}
             resumeText={resumeText}
             targetRole={targetRole}
             jobContext={jobContext}
-            jobHandoff={{ ...handoff, targetRole, jobContext }}
+            jobHandoff={{ ...(targetRole === handoff.targetRole && jobContext === handoff.jobContext ? handoff : emptyJobHandoff()), targetRole, jobContext }}
             opportunity={reviewOpportunity}
             onOpportunitySelect={(opportunity) => {
               setReviewOpportunity(opportunity);
               setResumeText("");
+              setResumeDraft(emptyResumeDraft());
+              setHandoff(emptyJobHandoff());
               setAnalysis(null);
               setTargetRole(opportunity?.title || "");
               setJobContext(opportunity?.jobDescription || "");
@@ -320,6 +334,8 @@ function ResumeApp() {
             onRerun={(opportunity) => {
               setReviewOpportunity(opportunity);
               setResumeText("");
+              setResumeDraft(emptyResumeDraft());
+              setHandoff(emptyJobHandoff());
               setAnalysis(null);
               setTargetRole(opportunity.title);
               setJobContext(opportunity.jobDescription);

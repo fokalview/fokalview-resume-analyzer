@@ -11,6 +11,7 @@ import {
 } from "../services/api";
 import { downloadResumeReport } from "../services/report";
 import { PageHeader, Toast } from "../components/ExperienceUI";
+import { ResumeSourceLibrary } from "../components/ResumeSourceLibrary";
 
 const STATUSES = [
   "Interested",
@@ -428,6 +429,7 @@ export default function ApplicationTracker({ onRerun, focusedOpportunityId, onOp
                     ) : null}
                   </div>
                 )}
+                <ResumeSourceLibrary opportunityId={item.id} heading="Saved resume versions" collapsed />
                 <ReviewRuns
                   onOpenReport={onOpenReport}
                   opportunity={item}
@@ -550,17 +552,17 @@ function ReviewRuns({
                 onClick={() => downloadResumeReport({
                   analysis: run.analysis,
                   job: {
-                    targetRole: opportunity.title,
-                    title: opportunity.title,
-                    company: opportunity.company,
-                    location: opportunity.location,
-                    salary: opportunity.salary,
-                    url: opportunity.url,
-                    notes: opportunity.notes,
-                    source: opportunity.source,
-                    jobContext: opportunity.jobDescription
+                    targetRole: run.targetRole ?? opportunity.title,
+                    title: run.position ? run.position.title ?? run.targetRole : opportunity.title,
+                    company: run.position ? run.position.company : opportunity.company,
+                    location: run.position ? run.position.location : opportunity.location,
+                    salary: run.position ? run.position.salary : opportunity.salary,
+                    url: run.position ? run.position.url : opportunity.url,
+                    notes: run.position ? undefined : opportunity.notes,
+                    source: run.position ? run.position.source : opportunity.source,
+                    jobContext: run.jobContext ?? run.position?.jobContext ?? (run.position ? undefined : opportunity.jobDescription)
                   },
-                  title: `${opportunity.title} readiness review`
+                  title: `${run.position?.title ?? run.targetRole ?? opportunity.title} readiness review`
                 })}
               >
                 <Download size={15} />
