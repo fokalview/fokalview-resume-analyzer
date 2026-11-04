@@ -2,6 +2,7 @@
 .resume-source-library * { box-sizing: border-box; }
 .resume-source-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
 .resume-source-heading > div { min-width: 0; }
+.resume-source-heading > button { flex: 0 0 auto; white-space: nowrap; }
 .resume-source-heading h2 { margin: 0 0 8px; font-size: 20px; line-height: 1.3; }
 .resume-source-library p { margin: 0 0 10px; line-height: 1.6; }
 .resume-source-heading p, .resume-source-file, .resume-source-date, .resume-source-count, .resume-source-empty { color: var(--text-muted); font-size: 13px; }
