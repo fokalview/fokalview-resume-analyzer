@@ -38,6 +38,7 @@ export default function FollowUpScreen() {
     employer: "",
     jobTitle: "",
     salaryAmount: "",
+    salaryCurrency: "",
     salaryPeriod: "Annual",
     outcomeDate: "",
     jobLocation: "",
@@ -127,6 +128,7 @@ export default function FollowUpScreen() {
           <TextField label="Employer" value={form.employer} onChange={(value) => updateField("employer", value)} placeholder="Company or organization" />
           <TextField label="Job title" value={form.jobTitle} onChange={(value) => updateField("jobTitle", value)} placeholder="Software Engineer, Data Analyst..." />
           <TextField label="Salary amount" value={form.salaryAmount} onChange={(value) => updateField("salaryAmount", value)} type="number" placeholder="103400" />
+          <TextField label="Salary currency (3-letter code, optional)" value={form.salaryCurrency} onChange={(value) => updateField("salaryCurrency", value.toUpperCase())} placeholder="USD, EUR, GBP…" />
           <SelectField label="Salary period" value={form.salaryPeriod} onChange={(value) => updateField("salaryPeriod", value)} options={SALARY_PERIODS} />
           <TextField label="Outcome date" value={form.outcomeDate} onChange={(value) => updateField("outcomeDate", value)} type="date" />
           <TextField label="Job location" value={form.jobLocation} onChange={(value) => updateField("jobLocation", value)} placeholder="Boston, MA / Remote" />

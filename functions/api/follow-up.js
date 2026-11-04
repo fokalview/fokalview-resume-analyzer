@@ -23,6 +23,8 @@ export async function onRequestPost({ request, env }) {
     const email = normalizeEmail(body.email);
     if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) throw new Error("Enter a valid email address.");
     const phone = clean(body.phone, 80);
+    const salaryCurrency = clean(body.salaryCurrency, 20).toUpperCase();
+    if (salaryCurrency && !/^[A-Z]{3}$/.test(salaryCurrency)) throw new Error('Enter a 3-letter salary currency code, such as USD or EUR.');
     const emailDomain = domainFromEmail(email);
     const emailDomainType = classifyEmailDomain(emailDomain);
     const now = new Date().toISOString();
@@ -44,6 +46,7 @@ export async function onRequestPost({ request, env }) {
       employer: clean(body.employer, 180),
       jobTitle: clean(body.jobTitle, 180),
       salaryAmount: clampOptionalInteger(body.salaryAmount, 0, 10000000),
+      salaryCurrency,
       salaryPeriod: clean(body.salaryPeriod, 80) || "Annual",
       outcomeDate: clean(body.outcomeDate, 40),
       jobLocation: clean(body.jobLocation, 180),

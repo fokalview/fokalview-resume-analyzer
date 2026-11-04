@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {onRequest} from '../functions/api/_middleware.js';
 
 test('candidate mutations reject foreign, sibling and opaque origins before handling', async () => {
-  for (const path of ['applications','resume-records','analyze']) {
+  for (const path of ['applications','resume-records','analyze','admin/outreach']) {
     for (const method of ['POST','PATCH','DELETE']) {
       for (const headers of [{Origin:'https://evil.test'},{Origin:'https://other.sagittaiq.com'},{Origin:'null'},{'Sec-Fetch-Site':'cross-site'},{'Sec-Fetch-Site':'same-site'}]) {
         let called=false;

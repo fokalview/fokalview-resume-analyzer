@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { mkdir, readFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { unlockWorkspace, workspaceLink, contactCard } from './support/admin-workspace';
 
 // Real local Pages + D1 integration: supply a synthetic ADMIN_ACCESS_CODE in
 // ignored .dev.vars and the same SAGITTAIQ_TEST_ADMIN_CODE environment variable.
@@ -49,25 +50,20 @@ test('waitlist contact details survive public signup, protected admin views and 
   expect(JSON.stringify(publicResult)).not.toContain(phone);
   await expect(page.getByText('Your waitlist request has been received for early-access review.', { exact: true })).toBeVisible();
 
-  await page.goto('/admin');
-  await page.getByPlaceholder('Admin access code', { exact: true }).fill(adminCode!);
-  await page.getByRole('button', { name: 'Load', exact: true }).click();
-  await page.getByRole('tab', { name: /^Waitlist/ }).click();
-  const waitlistPanel = page.locator('section.admin-table-panel').filter({ has: page.getByRole('heading', { name: 'Waitlist Discovery', exact: true }) });
-  const row = waitlistPanel.locator('article').filter({ hasText: name });
+  await unlockWorkspace(page);
+  await expect(workspaceLink(page, 'Waitlist')).toHaveAttribute('aria-current', 'page');
+  const row = contactCard(page, name);
   await expect(row.getByRole('link', { name: email, exact: true })).toHaveAttribute('href', `mailto:${encodeURIComponent(email)}`);
   await expect(row.getByRole('link', { name: phone, exact: true })).toHaveAttribute('href', 'tel:+12025550142');
-  await expect(row.getByText('Preferred contact: Phone', { exact: true })).toBeVisible();
-  await row.getByRole('button', { name: 'View full signup', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Waitlist record detail', exact: true });
+  await expect(row.getByText('Prefers Phone', { exact: true })).toBeVisible();
+  await row.getByRole('button', { name: 'View contact', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Contact details', exact: true });
   await expect(dialog.getByRole('heading', { name, exact: true })).toBeVisible();
   await expect(dialog.getByRole('link', { name: email, exact: true })).toBeVisible();
-  await expect(dialog.locator(':scope > dl').getByText(challenge, { exact: true })).toBeVisible();
-  await dialog.getByText('Complete signup answers', { exact: true }).click();
-  const answers = dialog.locator('details[open]');
-  await expect(answers.getByText('$75,000', { exact: true })).toBeVisible();
-  const productUpdates = answers.locator('dl > div').filter({ has: page.locator('dt', { hasText: 'Product updates requested' }) });
-  await expect(productUpdates.locator('dd')).toHaveText('No');
+  await expect(dialog.getByText(challenge, { exact: true }).filter({ visible: true }).first()).toBeVisible();
+  await expect(dialog.getByText('$75,000', { exact: true }).filter({ visible: true }).first()).toBeVisible();
+  const productUpdates = dialog.locator('dl > div').filter({ has: page.locator('dt', { hasText: 'Product updates requested' }) });
+  await expect(productUpdates.filter({ visible: true }).first().locator('dd')).toHaveText('No');
   await dialog.getByRole('heading', { name, exact: true }).scrollIntoViewIfNeeded();
   const screenshotPath = process.env.WAITLIST_PREVIEW_PATH || testInfo.outputPath('waitlist-contact-preview.png');
   await mkdir(dirname(screenshotPath), { recursive: true });
@@ -77,7 +73,7 @@ test('waitlist contact details survive public signup, protected admin views and 
   await expect(dialog).toHaveCount(0);
 
   const downloadPromise = page.waitForEvent('download');
-  await waitlistPanel.getByRole('button', { name: 'Export CSV', exact: true }).click();
+  await page.getByRole('button', { name: 'Export CSV', exact: true }).click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/waitlist-contacts.*\.csv$/);
   const csv = await readFile((await download.path())!, 'utf8');

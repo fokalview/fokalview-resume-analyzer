@@ -1,0 +1,9 @@
+# Admin HTML must be requested fresh after releases. Sensitive API responses
+# set their own no-store header in the Pages Function handlers.
+/admin
+  Cache-Control: no-store
+  X-Robots-Tag: noindex
+
+/admin/*
+  Cache-Control: no-store
+  X-Robots-Tag: noindex

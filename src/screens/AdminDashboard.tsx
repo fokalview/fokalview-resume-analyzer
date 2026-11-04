@@ -1,24 +1,22 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
-  Activity,
+  ArrowRight,
+  ArrowUpRight,
   BarChart3,
-  BriefcaseBusiness,
-  Building2,
-  ClipboardList,
   Download,
-  FileText,
-  ImageDown,
   LockKeyhole,
+  LogOut,
+  MessageSquare,
   Moon,
   RefreshCw,
   Search,
-  Settings2,
   Sun,
-  Users
+  Users,
+  Info,
+  X
 } from "lucide-react";
-import { ProductBrand } from "../components/BrandFamily";
-import { ScoreContext, scoreExplanation } from "../components/ScoreContext";
 import { csvForRecords, displayValue, flattenRecord } from "../lib/waitlistExport.js";
+import { OutreachEditor } from "../components/OutreachEditor";
 
 type CountItem = { label: string; count: number; percentAffected?: number };
 type UsageDay = { date: string; resumes: number; applications: number; uniqueUsers: number };
@@ -59,15 +57,9 @@ type FollowUpRecord = ContactDetails & {
   source?: string;
   responseDetails?: Record<string, unknown>;
   submittedAt?: string;
+  matchedContactName?: string;
+  matchedSignupIds?: string[];
 };
-type ActionQueueItem = {
-  type: "lead" | "candidate" | "outcome" | "product";
-  priority: "High" | "Medium" | "Low";
-  title: string;
-  detail: string;
-  nextAction: string;
-};
-type ProductSignal = { label: string; value: string; detail: string };
 type DecisionSignal = {
   label: string;
   value: number;
@@ -76,47 +68,10 @@ type DecisionSignal = {
   detail: string;
   action: string;
 };
-type EnterpriseTileConfig = {
-  tone: "cyan" | "green" | "amber" | "red";
-  icon: ReactNode;
-  value: number | string;
-  label: string;
-  primaryAction: string;
-  secondaryAction: string;
-};
-type AdminView = "all" | "institutional" | "applications" | "waitlist" | "followups";
-
-const DEFAULT_ADMIN_VIEW: AdminView = "all";
-const ADMIN_VIEW_ITEMS: Array<{ id: AdminView; label: string; count: (summary: AdminSummary) => string }> = [
-  {
-    id: "all",
-    label: "Operations",
-    count: (summary) => `${summary.totals.resumeRecords + summary.totals.waitlistSignups} records`
-  },
-  {
-    id: "institutional",
-    label: "Institutional reporting",
-    count: (summary) => `${summary.totals.followUpSurveys || 0} outcomes`
-  },
-  {
-    id: "applications",
-    label: "Main application",
-    count: (summary) => `${summary.totals.resumeRecords} analyses`
-  },
-  {
-    id: "waitlist",
-    label: "Waitlist",
-    count: (summary) => `${summary.totals.waitlistSignups} leads`
-  },
-  {
-    id: "followups",
-    label: "Follow-ups",
-    count: (summary) => `${summary.totals.pendingIntakeFollowUps || 0} pending`
-  }
-];
-
 type AdminSummary = {
-  meta: { readinessThreshold: number; lastLoadedAt: string; query?: string; recordLimit?: number; waitlistRecordsReturned?: number; followupRecordsReturned?: number };
+  meta: { readinessThreshold: number; lastLoadedAt: string; query?: string; recordScope?: string; reportingMethod?: string; recordLimit?: number; waitlistRecordsReturned?: number; followupRecordsReturned?: number; sources?: Record<string, { status: string; count: number }> };
+  globalTotals?: { resumeRecords: number; applicationCaptures: number; waitlistSignups: number; followUpSurveys: number; followUpRespondents: number; uniqueWaitlistContacts: number };
+  salaryByPeriod?: Array<{ period: string; currency?: string; count: number; median: number | null; average: number | null }>;
   totals: {
     resumeRecords: number;
     applicationCaptures: number;
@@ -126,6 +81,10 @@ type AdminSummary = {
     budgetQualified: number;
     averageLeadScore?: number;
     followUpSurveys?: number;
+    followUpRespondents?: number;
+    unlinkedFollowUpResponses?: number;
+    uniqueWaitlistContacts?: number;
+    waitlistContactsWithFollowUp?: number;
     pendingIntakeFollowUps?: number;
     completedFollowUps?: number;
     followUpApplications?: number;
@@ -208,6 +167,8 @@ type AdminSummary = {
     country?: string;
     capturedAt: string;
     rawResumeRetained: boolean;
+    analysis?: Record<string, unknown>;
+    profile?: Record<string, unknown>;
   }>;
   recentWaitlistSignups: Array<ContactDetails & {
     id: string;
@@ -265,6 +226,8 @@ type AdminSummary = {
     recommendedAction?: string;
     status: string;
     createdAt: string;
+    linkedFollowUpIds?: string[];
+    linkedFollowUps?: FollowUpRecord[];
   }>;
   pendingIntakeFollowUps?: Array<ContactDetails & {
     id?: string;
@@ -293,1712 +256,395 @@ type AdminSummary = {
 };
 
 export default function AdminDashboard() {
-  const [code, setCode] = useState(sessionStorage.getItem("fokalview_admin_access_code") || "");
+  const [accessCode, setAccessCode] = useState(() => sessionStorage.getItem("fokalview_admin_access_code") || "");
+  const [codeDraft, setCodeDraft] = useState(accessCode);
   const [theme, setTheme] = useState<"light" | "dark">(() => getStoredTheme());
   const [summary, setSummary] = useState<AdminSummary | null>(null);
   const [query, setQuery] = useState("");
-  const [adminView, setAdminView] = useState<AdminView>(DEFAULT_ADMIN_VIEW);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [view, setView] = useState<WorkspaceView>(() => readWorkspaceView());
+  const [refreshVersion, setRefreshVersion] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [outreachError, setOutreachError] = useState("");
+  const [outreach, setOutreach] = useState<Record<string, OutreachState>>({});
+  const [outreachReady, setOutreachReady] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("All statuses");
+  const [emailFilter, setEmailFilter] = useState("All contacts");
+  const [ownerFilter, setOwnerFilter] = useState("All owners");
+  const [dueFilter, setDueFilter] = useState("Any follow-up date");
+  const [followupMode, setFollowupMode] = useState<"responses" | "pending">("responses");
+  const [page, setPage] = useState(1);
   const [selectedWaitlist, setSelectedWaitlist] = useState<AdminSummary["recentWaitlistSignups"][number] | null>(null);
   const [selectedFollowUp, setSelectedFollowUp] = useState<FollowUpRecord | null>(null);
+  const [contactDetailTab, setContactDetailTab] = useState<"answers" | "plan" | "responses">("answers");
+  const requestNumber = useRef(0);
+  const activeRequest = useRef<AbortController | null>(null);
 
+  useEffect(() => { localStorage.setItem("sagittaiq_admin_theme", theme); }, [theme]);
   useEffect(() => {
-    if (!summary) return;
-    const timeout = window.setTimeout(() => {
-      void loadSummary(undefined, query);
-    }, 350);
-    return () => window.clearTimeout(timeout);
+    const timer = window.setTimeout(() => setSearchQuery(query.trim()), 250);
+    return () => window.clearTimeout(timer);
   }, [query]);
+  useEffect(() => {
+    const onPop = () => { setView(readWorkspaceView()); setQuery(""); setSearchQuery(""); setPage(1); };
+    window.addEventListener("popstate", onPop);
+    const url = new URL(window.location.href);
+    if (!url.searchParams.has("view")) { url.searchParams.set("view", "waitlist"); history.replaceState(null, "", url); }
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem("sagittaiq_admin_theme", theme);
-  }, [theme]);
-
-  useEffect(() => {
-    if (!selectedWaitlist && !selectedFollowUp) return;
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const dialog = document.querySelector<HTMLElement>(".detail-drawer");
-    const focusable = () => Array.from(dialog?.querySelectorAll<HTMLElement>('a[href], button, summary, [tabindex="0"]') || []);
-    focusable()[0]?.focus();
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setSelectedWaitlist(null);
-        setSelectedFollowUp(null);
-      } else if (event.key === "Tab") {
-        const items = focusable();
-        const first = items[0];
-        const last = items[items.length - 1];
-        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-        if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-      }
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => { document.removeEventListener("keydown", onKeyDown); previousFocus?.focus(); };
-  }, [selectedWaitlist, selectedFollowUp]);
-
-  const briefing = useMemo(() => (summary ? buildAdminBriefing(summary) : []), [summary]);
-  const actionQueue = useMemo(() => (summary ? buildActionQueue(summary) : []), [summary]);
-  const productSignals = useMemo(() => (summary ? buildProductSignals(summary) : []), [summary]);
-
-  async function loadSummary(event?: FormEvent, searchQuery = query) {
-    event?.preventDefault();
+    if (!accessCode) return;
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    const request = ++requestNumber.current;
+    const current = () => request === requestNumber.current && !controller.signal.aborted;
     setIsLoading(true);
     setError("");
-
-    try {
-      const params = new URLSearchParams();
-      if (searchQuery.trim()) params.set("q", searchQuery.trim());
-      const response = await fetch(`/api/admin/summary${params.toString() ? `?${params}` : ""}`, {
-        headers: { "X-Admin-Access-Code": code.trim() }
-      });
+    const params = new URLSearchParams();
+    if (searchQuery) params.set("q", searchQuery);
+    fetch(`/api/admin/summary${params.size ? `?${params}` : ""}`, {
+      headers: { "X-Admin-Access-Code": accessCode }, signal: controller.signal
+    }).then(async (response) => {
       const payload = await response.json();
-
-      if (!response.ok) {
-        throw new Error(payload.error || "Could not load admin summary.");
+      if (!current()) return;
+      if (response.status === 401 || response.status === 403) {
+        ++requestNumber.current;
+        controller.abort();
+        sessionStorage.removeItem("fokalview_admin_access_code");
+        setAccessCode(""); setCodeDraft(""); setSummary(null); setSelectedWaitlist(null); setSelectedFollowUp(null);
+        setOutreach({}); setOutreachReady(false);
+        setIsLoading(false);
+        setError(payload.error || "Your admin session could not be verified. Enter your access code again.");
+        return;
       }
-
-      sessionStorage.setItem("fokalview_admin_access_code", code.trim());
+      if (!response.ok) throw new Error(payload.error || "We couldn't refresh the workspace. Please try again.");
+      sessionStorage.setItem("fokalview_admin_access_code", accessCode);
       setSummary(payload as AdminSummary);
-    } catch (nextError) {
-      setError(nextError instanceof Error ? nextError.message : "Could not load admin summary.");
-      setSummary(null);
-    } finally {
-      setIsLoading(false);
-    }
+      setPage(1);
+    }).catch((failure) => {
+      if (current()) setError(failure instanceof Error ? failure.message : "We couldn't refresh the workspace.");
+    }).finally(() => { if (current()) setIsLoading(false); });
+
+    fetch("/api/admin/outreach", { headers: { "X-Admin-Access-Code": accessCode }, signal: controller.signal })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!current()) return;
+        if (!response.ok) throw new Error(payload.error || "Outreach status could not be loaded.");
+        setOutreach(Object.fromEntries((payload.records || []).map((item: OutreachState) => [item.leadId, item])));
+        setOutreachReady(true); setOutreachError("");
+      }).catch((failure) => { if (current()) setOutreachError(failure instanceof Error ? failure.message : "Outreach status could not be loaded."); });
+    return () => controller.abort();
+  }, [accessCode, searchQuery, refreshVersion]);
+
+  function signOut() {
+    ++requestNumber.current; activeRequest.current?.abort();
+    sessionStorage.removeItem("fokalview_admin_access_code");
+    setAccessCode(""); setCodeDraft(""); setSummary(null); setQuery(""); setSearchQuery("");
+    setSelectedWaitlist(null); setSelectedFollowUp(null); setOutreach({}); setOutreachReady(false);
+    setError(""); setOutreachError(""); setIsLoading(false); setPage(1);
+    setStatusFilter("All statuses"); setEmailFilter("All contacts"); setOwnerFilter("All owners"); setDueFilter("Any follow-up date");
   }
+  function navigate(next: WorkspaceView) {
+    const url = new URL(window.location.href); url.searchParams.set("view", next); history.pushState(null, "", url);
+    setView(next); setQuery(""); setSearchQuery(""); setStatusFilter("All statuses"); setEmailFilter("All contacts"); setOwnerFilter("All owners"); setDueFilter("Any follow-up date"); setPage(1);
+  }
+  function unlock(event: FormEvent) { event.preventDefault(); if (codeDraft.trim()) { setError(""); setAccessCode(codeDraft.trim()); setRefreshVersion((value) => value + 1); } }
+  function openContact(record: AdminSummary["recentWaitlistSignups"][number]) { setContactDetailTab("answers"); setSelectedWaitlist(record); }
+
+  const themeButton = <button type="button" className="workspace-icon-button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label={theme === "dark" ? "Use light theme" : "Use dark theme"}>{theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}</button>;
+  if (!accessCode) return (
+    <main className="admin-shell contact-admin admin-locked" data-theme={theme}>
+      <section className="admin-signin" aria-labelledby="admin-signin-title">
+        <div className="signin-brand"><span className="workspace-brand-mark">S</span><strong>SagittaIQ</strong>{themeButton}</div>
+        <h1 id="admin-signin-title">Your admin workspace</h1>
+        <p className="signin-description">Sign in to review contacts, follow up, and track progress.</p>
+        <form onSubmit={unlock} className="workspace-signin-form">
+          <label htmlFor="admin-access-code">Admin access code</label>
+          <div className="signin-input"><LockKeyhole size={17} aria-hidden="true" /><input id="admin-access-code" value={codeDraft} onChange={(event) => setCodeDraft(event.target.value)} type="password" autoComplete="current-password" required /></div>
+          {error && <p className="workspace-alert" role="alert">{error}</p>}
+          <button className="workspace-primary" type="submit" disabled={!codeDraft.trim()}>Unlock workspace <ArrowRight size={17} /></button>
+        </form>
+        <small className="workspace-release">Admin workspace · 2026.11.04 · {import.meta.env.VITE_APP_BUILD || "local-preview"}</small>
+      </section>
+    </main>
+  );
+
+  const records = summary?.recentWaitlistSignups || [];
+  const today = new Date();
+  const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2,"0")}-${String(today.getDate()).padStart(2,"0")}`;
+  const owners = [...new Set(Object.values(outreach).map((item) => item.owner).filter((owner): owner is string => typeof owner === "string" && Boolean(owner)))].sort();
+  const filteredContacts = records.filter((item) => {
+    const plan = outreach[item.id];
+    return (emailFilter !== "Email available" || Boolean(item.email)) && (emailFilter !== "Email missing" || !item.email)
+      && (statusFilter === "All statuses" || (plan?.status || (outreachReady ? "New" : "")) === statusFilter)
+      && (ownerFilter === "All owners" || (ownerFilter === "Unassigned" ? !plan?.owner : plan?.owner === ownerFilter))
+      && (dueFilter === "Any follow-up date" || dueFilter === "Due or overdue" && Boolean(plan?.nextFollowUpDate && plan.nextFollowUpDate <= todayKey && plan.status !== "Closed") || dueFilter === "Scheduled" && Boolean(plan?.nextFollowUpDate) || dueFilter === "Not scheduled" && !plan?.nextFollowUpDate);
+  });
+  const followups = summary?.recentFollowUps || [];
+  const pending = summary?.pendingIntakeFollowUps || [];
+  const listRecords = view === "waitlist" ? filteredContacts : followupMode === "pending" ? pending : followups;
+  const exportRows = view === "waitlist" ? filteredContacts.map((item) => ({ ...item, outreach: outreachReady ? { ...(outreach[item.id] || { status: "New" }), dataStatus: outreachError ? "Previously loaded; refresh failed" : "Current" } : { dataStatus: "Unavailable" } })) : listRecords;
+  const pages = Math.max(1, Math.ceil(listRecords.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pages);
+  const visibleContacts = filteredContacts.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const visibleFollowups = followups.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const visiblePending = pending.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const emailCount = filteredContacts.filter((record) => record.email).length;
+  const hasFilters = Boolean(query || emailFilter !== "All contacts" || statusFilter !== "All statuses" || ownerFilter !== "All owners" || dueFilter !== "Any follow-up date");
+  const totalContacts = summary?.globalTotals?.waitlistSignups ?? summary?.totals.waitlistSignups ?? 0;
+  const totalFollowups = summary?.globalTotals?.followUpSurveys ?? summary?.totals.followUpSurveys ?? 0;
+  const dataIsStale = Boolean(summary && (isLoading || error || query.trim() !== (summary.meta.query || "")));
 
   return (
-    <main className="admin-shell" data-theme={theme}>
-      <header className="admin-header">
-        <div>
-          <p className="eyebrow">Administrator</p>
-          <h1>SagittaIQ Workforce Intelligence Dashboard</h1>
-          {summary && <span className="connected-pill">Connected - Last synced {formatDateTime(summary.meta.lastLoadedAt)}</span>}
-        </div>
-        <form className="admin-access-form" onSubmit={loadSummary}>
-          {!summary && (
-            <label>
-              <LockKeyhole size={16} />
-              <input
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-                type="password"
-                placeholder="Admin access code"
-              />
-            </label>
-          )}
-          <button className="primary-button" disabled={!code.trim() || isLoading}>
-            {isLoading ? <RefreshCw className="spin" size={18} /> : <BarChart3 size={18} />}
-            {summary ? "Refresh" : "Load"}
-          </button>
-          <button className="secondary-action" type="button" disabled={!summary} onClick={() => summary && exportResearchBundle(summary)}>
-            <Download size={16} />
-            Export loaded data
-          </button>
-          <button className="secondary-action" type="button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
-            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-            {theme === "dark" ? "Light" : "Dark"}
-          </button>
-        </form>
+    <main className="admin-shell contact-admin" data-theme={theme}>
+      <a className="skip-link" href="#admin-workspace-content">Skip to workspace</a>
+      <header className="workspace-topbar">
+        <div className="workspace-brand"><span className="workspace-brand-mark">S</span><div><strong>SagittaIQ <span>Admin</span></strong><small className="workspace-release">Admin workspace · 2026.11.04 · {import.meta.env.VITE_APP_BUILD || "local-preview"}</small></div></div>
+        <div className="workspace-session"><span className="session-dot" /><span>Admin session unlocked</span></div>
+        <div className="workspace-toolbar">{themeButton}<button type="button" className="workspace-quiet" onClick={() => setRefreshVersion((value) => value + 1)} disabled={isLoading}><RefreshCw size={16} className={isLoading ? "spin" : ""} /> Refresh</button><button type="button" className="workspace-quiet" onClick={signOut}><LogOut size={16} /> Sign out</button></div>
       </header>
-
-      {!summary && error && <p className="error-message">{error}</p>}
-
-      {summary && (
-        <div className="admin-dashboard-layout">
-          <aside className="admin-view-sidebar" aria-label="Admin dashboard sections">
-            <div className="admin-brand-panel">
-              <ProductBrand product={adminView === "institutional" ? "insights" : "workforce"} inverse />
+      <div className="workspace-frame">
+        <nav className="workspace-nav" aria-label="Admin workspace sections">
+          {WORKSPACE_VIEWS.map((item) => <a key={item.id} aria-label={item.label} href={`?view=${item.id}`} aria-current={view === item.id ? "page" : undefined} onClick={(event) => { if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return; event.preventDefault(); navigate(item.id); }}>{item.icon}<span>{item.label}</span>{summary && item.id !== "reports" && <small>{item.id === "waitlist" ? totalContacts : totalFollowups}</small>}</a>)}
+        </nav>
+        <div id="admin-workspace-content" className="workspace-body">
+          {error && <div className="workspace-alert" role="alert"><strong>{summary ? "Refresh failed. Your previous results are still shown." : "The workspace could not be loaded."}</strong><span>{error}</span><button type="button" onClick={() => setRefreshVersion((value) => value + 1)}>Try again</button></div>}
+          {outreachError && summary && <div className="workspace-alert" role="alert">{outreachError} {outreachReady ? "Previously loaded outreach statuses are shown." : "Outreach statuses are unavailable."}</div>}
+          {!summary && !error && <div className="workspace-loading" role="status"><RefreshCw size={20} className="spin" /><h1>Opening your workspace</h1><p>Loading contacts and reports…</p></div>}
+          {summary && <>
+            <div className="workspace-heading">
+              <div><p className="workspace-eyebrow">{view === "reports" ? "Understand your pipeline" : "People, context, next steps"}</p><h1>{view === "waitlist" ? "Waitlist contacts" : view === "followups" ? "Follow-ups" : "Reports"}</h1><p>{view === "waitlist" ? "Everything you need for a thoughtful follow-up, in one place." : view === "followups" ? "Review progress updates and the people waiting for an intake conversation." : "Clear summaries of signups, career progress, and application activity."}</p></div>
+              <div className="workspace-sync" role="status">{isLoading ? "Refreshing…" : dataIsStale ? "Showing previous results" : `Updated ${formatDateTime(summary.meta.lastLoadedAt)}`}</div>
             </div>
-            <p className="eyebrow">Main navigation</p>
-            <div className="admin-view-toggle" role="tablist" aria-label="Admin dashboard view">
-              {ADMIN_VIEW_ITEMS.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={adminView === item.id}
-                  className={adminView === item.id ? "active" : ""}
-                  onClick={() => setAdminView(item.id)}
-                >
-                  {viewIcon(item.id)}
-                  <span>
-                    <strong>{item.label}</strong>
-                    <small>{item.count(summary)}</small>
-                  </span>
-                </button>
-              ))}
-            </div>
-            <div className="admin-sidebar-status">
-              <span />
-              <div>
-                <strong>Connected</strong>
-                <small>{formatDateTime(summary.meta.lastLoadedAt)}</small>
-              </div>
-            </div>
-          </aside>
-
-          <div className="admin-dashboard-content">
-          <div className="admin-filter-bar">
-            <Search size={16} />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search candidate, role, company, skill, score, country, domain..."
-            />
-            {summary.meta.query && <span>Filtering: {summary.meta.query}</span>}
-          </div>
-
-          {error && <p className="error-message">{error}</p>}
-
-          <EnterpriseDashboardHome summary={summary} actionQueue={actionQueue} view={adminView} />
-
-          {adminView === "all" && (
-            <>
-              <section className="admin-briefing" aria-label="Executive briefing">
-                {briefing.map((item) => (
-                  <article key={item.label}>
-                    <span>{item.label}</span>
-                    <strong>{item.value}</strong>
-                    <p>{item.detail}</p>
-                  </article>
-                ))}
-              </section>
-
-              <ProductSignalsPanel items={productSignals} />
-
-              <SectionHeader
-                eyebrow="Executive overview"
-                title="Platform health"
-                detail="Candidate activity, workforce readiness, opportunity movement, and beta discovery signals."
-              />
-
-              <section className="admin-metrics four">
-                <Metric label="Tracked users" value={summary.totals.uniqueUsers} note="Profiles with saved activity" />
-                <Metric label="Career records" value={summary.totals.resumeRecords} note="Resume analyses retained" />
-                <Metric label="Opportunities tracked" value={summary.totals.applicationCaptures} note="Applications and opportunities" />
-                <ReadinessMetric summary={summary} />
-                <Metric label="Sessions" value={summary.totals.sessions || 0} note="Tracked user visits" />
-                <Metric label="Avg session" value={formatDuration(summary.totals.averageSessionSeconds || 0)} note="Engagement time" />
-                <Metric label="Engaged minutes" value={summary.totals.totalSessionMinutes || 0} note="Total tracked time" />
-                <Metric label="Event types" value={Object.keys(summary.userEventTypes || {}).length} note="Behavior signals captured" />
-              </section>
-            </>
-          )}
-
-          {adminView === "institutional" && (
-            <>
-              <SectionHeader
-                eyebrow="Institutional reporting"
-                title="Outcome reporting snapshot"
-                detail="Program-style aggregate reporting for employers, roles, outcomes, salary signals, geography, and demand. Small-group suppression should be added before external sharing."
-              />
-
-              <section className="admin-metrics four">
-                <Metric label="Knowledge proxy" value={`${percent(summary.totals.followUpSurveys || 0, Math.max(summary.totals.waitlistSignups, 1))}%`} note="Follow-ups collected vs waitlist leads" />
-                <Metric label="Outcome proxy" value={`${percent((summary.totals.followUpPlacements || 0) + (summary.totals.followUpOffers || 0), Math.max(summary.totals.followUpSurveys || 0, 1))}%`} note="Offers or placements per follow-up" />
-                <Metric label="Median salary" value={formatCurrency(summary.totals.medianSalary || 0)} note={`${summary.totals.salaryResponses || 0} salary responses`} />
-                <Metric label="Average salary" value={formatCurrency(summary.totals.averageSalary || 0)} note={`${summary.totals.salaryResponses || 0} salary responses`} />
-              </section>
-
-              <section className="admin-grid">
-                <ChartPanel title="Sample Employers" items={mergeCountItems(summary.followUpEmployers || [], summary.applicationEmployers || [])} />
-                <ChartPanel title="Sample Job Positions" items={mergeCountItems(summary.followUpJobTitles || [], summary.applicationTitles || [])} />
-                <ChartPanel title="Schools" items={summary.waitlistSchools || []} />
-                <ChartPanel title="Programs" items={summary.waitlistPrograms || []} />
-                <ChartPanel title="Majors / Fields" items={summary.waitlistMajors || []} />
-                <ChartPanel title="GPA Bands" items={toCountItems(summary.waitlistGpaBands || {})} />
-                <ChartPanel title="Certifications" items={summary.waitlistCertifications || []} />
-                <ChartPanel title="Degree Levels" items={summary.waitlistDegreeLevels || []} />
-                <ChartPanel title="Class Years" items={summary.waitlistClassYears || []} />
-                <ChartPanel title="Domestic / International" items={summary.waitlistDomesticInternational || []} />
-                <ChartPanel title="Verification Status" items={summary.followUpVerificationStatuses || []} />
-                <ChartPanel title="Target Industries" items={summary.waitlistTargetIndustries || []} />
-                <ChartPanel title="Follow-up Salary Ranges" items={summary.followUpSalaryRanges || []} />
-                <ChartPanel title="Countries" items={summary.countries} />
-                <ChartPanel title="Email Domain Types" items={toCountItems(summary.emailDomainTypes)} />
-              </section>
-            </>
-          )}
-
-          {adminView === "applications" && (
-            <>
-              <SectionHeader
-                eyebrow="Application metrics"
-                title="Candidate readiness and opportunity activity"
-                detail="Resume analyses, readiness bands, skill gaps, usage, application status, and career profile signals."
-              />
-
-              <section className="admin-grid">
-                <UsagePanel days={summary.usageByDay} />
-                <ChartPanel title="Session Sources" items={summary.sessionSources || []} />
-                <ChartPanel title="Session Pages" items={summary.sessionPages || []} />
-                <ChartPanel title="Session Campaigns" items={summary.sessionCampaigns || []} />
-                <ChartPanel title="User Event Types" items={toCountItems(summary.userEventTypes || {})} />
-                <ReadinessBands bands={summary.readinessBands} total={summary.totals.resumeRecords} />
-                <ChartPanel title="Career Levels" items={toCountItems(summary.careerLevels)} showZeroRows />
-                <SkillGapPanel groups={summary.commonSkillGaps} total={summary.totals.resumeRecords} />
-                <ApplicationStatusPanel statuses={summary.applicationStatuses} />
-                <SortablePanel title="Top Skills" items={summary.topSkills} />
-                <SortablePanel title="Top Tools" items={summary.topTools} />
-                <ChartPanel title="Opportunity Sources" items={summary.applicationSources} />
-              </section>
-
-              <section className="admin-table-panel">
-            <div className="panel-heading">
-              <h2>Recent Candidate Activity</h2>
-              <button className="download-chart-button" type="button" onClick={() => exportDataset("candidate-activity", summary.recentResumeRecords)}>
-                <Download size={15} />
-                Export JSON
-              </button>
-            </div>
-            <div className="admin-table record-table">
-              {summary.recentResumeRecords.map((record) => (
-                <article key={`${record.candidateId}-${record.capturedAt}`}>
-                  <div className="candidate-cell">
-                    <span className="avatar">{initials(record.candidateId)}</span>
-                    <div>
-                      <strong>{record.currentTitle || record.candidateId}</strong>
-                      <span>{record.candidateId}</span>
-                      {record.reportId && <small>{record.reportId}</small>}
-                      {(record.emailDomain || record.country) && (
-                        <small>{[record.emailDomain, record.country].filter(Boolean).join(" - ")}</small>
-                      )}
-                    </div>
-                  </div>
-                  <span>{record.targetRole || "No target opportunity"}</span>
-                  <span className={`score-pill ${scoreClass(record.score)}`} title={scoreExplanation(record.score, summary.meta.readinessThreshold)}>{record.score}%</span>
-                  <span>{formatDate(record.capturedAt)}</span>
-                  <span className="status-pill applied">Active</span>
-                  <span className="record-action-label">Saved</span>
-                </article>
-              ))}
-            </div>
-              </section>
-            </>
-          )}
-
-          {adminView === "waitlist" && (
-            <>
-              <SectionHeader
-                eyebrow="Waitlist intelligence"
-                title="Discovery pipeline, lead quality, and market demand"
-                detail="Waitlist, lead scoring, follow-up, geography, source attribution, and organization signals are separated from application metrics."
-              />
-
-              <section className="admin-metrics four">
-                <Metric label="Waitlist signups" value={summary.totals.waitlistSignups || 0} note="Discovery pipeline" />
-                <Metric label="Interview volunteers" value={summary.totals.interviewVolunteers || 0} note="Customer discovery" />
-                <Metric label="Pilot prospects" value={summary.totals.pilotProspects || 0} note="Institutional leads" />
-                <Metric label="Avg lead score" value={summary.totals.averageLeadScore || 0} note="Rules-based priority" />
-                <Metric label="Follow-ups" value={summary.totals.followUpSurveys || 0} note="Outcome signals" />
-                <Metric label="Applications reported" value={summary.totals.followUpApplications || 0} note="From follow-up surveys" />
-                <Metric label="Interviews reported" value={summary.totals.followUpInterviews || 0} note="Outcome momentum" />
-                <Metric label="Offers / placements" value={`${summary.totals.followUpOffers || 0} / ${summary.totals.followUpPlacements || 0}`} note="Career outcomes" />
-              </section>
-
-              <section className="admin-grid">
-                <FunnelPanel title="Waitlist Pipeline" items={summary.waitlistFunnel || []} />
-                <FunnelPanel title="Follow-up Outcome Funnel" items={summary.followUpFunnel || []} />
-                <ConversionPanel items={summary.conversionMetrics || []} />
-                <ChartPanel title="Lead Score Bands" items={toCountItems(summary.waitlistLeadScoreBands || {})} />
-                <ChartPanel title="Waitlist Organization Types" items={summary.waitlistOrganizationTypes || []} />
-                <ChartPanel title="Waitlist User Types" items={summary.waitlistUserTypes || []} />
-                <ChartPanel title="Lead Priorities" items={toCountItems(summary.waitlistLeadPriorities || {})} />
-                <ChartPanel title="Referral Sources" items={summary.waitlistReferralSources || []} />
-                <ChartPanel title="Branch Statuses" items={summary.waitlistBranchStatuses || []} />
-                <ChartPanel title="Target Industries" items={summary.waitlistTargetIndustries || []} />
-                <ChartPanel title="Current Processes" items={summary.waitlistCurrentProcesses || []} />
-                <ChartPanel title="Workforce Regions" items={summary.waitlistWorkforceRegions || []} />
-                <ChartPanel title="Follow-up Outcomes" items={toCountItems(summary.followUpOutcomes || {})} />
-                <ChartPanel title="Follow-up Statuses" items={toCountItems(summary.followUpStatuses || {})} />
-                <ChartPanel title="Follow-up Industries" items={summary.followUpIndustries || []} />
-                <ChartPanel title="Follow-up Salary Ranges" items={summary.followUpSalaryRanges || []} />
-                <ChartPanel title="Waitlist Sources" items={summary.waitlistSources || []} />
-                <ChartPanel title="Waitlist Interest" items={toCountItems(summary.waitlistInterest || {})} />
-                <ChartPanel title="Email Domains" items={summary.emailDomains} />
-                <ChartPanel title="Countries" items={summary.countries} />
-                <ChartPanel title="Email Domain Types" items={toCountItems(summary.emailDomainTypes)} />
-              </section>
-
-              <section className="admin-table-panel">
-            <div className="panel-heading">
-              <h2>Waitlist Discovery</h2>
-              <button className="download-chart-button" type="button" onClick={() => exportDataset("waitlist-discovery", summary.recentWaitlistSignups)}>
-                <Download size={15} />
-                Export JSON
-              </button>
-              <button className="download-chart-button" type="button" onClick={() => exportCsv("waitlist-contacts", summary.recentWaitlistSignups)}>
-                <Download size={15} /> Export CSV
-              </button>
-            </div>
-            <p className="record-scope-note">Showing {summary.recentWaitlistSignups.length} latest signup records. Views and exports include up to 1,000 latest records. Missing legacy email addresses were not retained and cannot be recovered from their hashes.</p>
-            <div className="admin-table waitlist-table">
-              {summary.recentWaitlistSignups?.length ? (
-                summary.recentWaitlistSignups.map((signup) => (
-                  <article key={signup.id} className="clickable-row" onClick={() => setSelectedWaitlist(signup)}>
-                    <div className="candidate-cell">
-                      <span className="avatar">{initials(signup.name)}</span>
-                      <div>
-                        <strong>{signup.name}</strong>
-                        {signup.leadId && <span>{signup.leadId}</span>}
-                        <span>{[signup.organization, signup.organizationType].filter(Boolean).join(" - ") || "No organization"}</span>
-                        <small>{[signup.userType, signup.country].filter(Boolean).join(" - ")}</small>
-                        <ContactLinks contact={signup} />
-                        <small>Preferred contact: {signup.preferredContactMethod || "Not provided"}</small>
-                        <button type="button" className="record-detail-button" onClick={(event) => { event.stopPropagation(); setSelectedWaitlist(signup); }}>View full signup</button>
-                      </div>
-                    </div>
-                    <span>{signup.targetRole || signup.role || "Role not saved"}</span>
-                    <span>
-                      {signup.leadScore !== undefined ? `${signup.leadScore} - ${signup.leadPriority || "Scored"}` : interestLabels(signup).join(", ") || "No interest flags"}
-                    </span>
-                    <span>{formatDate(signup.createdAt)}</span>
-                    <span className="status-pill applied">{signup.branchStatus || signup.status || "New"}</span>
-                  </article>
-                ))
-              ) : (
-                <div className="empty-panel compact">
-                  <strong>No waitlist signups yet.</strong>
-                  <span>Share /waitlist to start collecting discovery data.</span>
+            {view !== "reports" && <>
+              {view === "followups" && <div className="workspace-segment" aria-label="Follow-up list"><button type="button" aria-pressed={followupMode === "responses"} onClick={() => { setFollowupMode("responses"); setPage(1); }}>Progress responses <span>{followups.length}</span></button><button type="button" aria-pressed={followupMode === "pending"} onClick={() => { setFollowupMode("pending"); setPage(1); }}>Needs intake <span>{pending.length}</span></button></div>}
+              <section className="workspace-records" aria-label={view === "waitlist" ? "Waitlist contact list" : "Follow-up list"}>
+                <div className="workspace-record-tools">
+                  <label className="workspace-search"><Search size={17} aria-hidden="true" /><span className="sr-only">{view === "waitlist" ? "Search contacts" : "Search follow-ups"}</span><input aria-label={view === "waitlist" ? "Search contacts" : "Search follow-ups"} value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder={view === "waitlist" ? "Name, email, organization, or goal" : "Email, lead ID, employer, or outcome"} />{query && <button type="button" aria-label="Clear search" onClick={() => setQuery("")}><X size={15} /></button>}</label>
+                  {view === "waitlist" && <div className="workspace-filters"><label><span className="sr-only">Contact availability</span><select value={emailFilter} onChange={(event) => { setEmailFilter(event.target.value); setPage(1); }}>{["All contacts", "Email available", "Email missing"].map((value) => <option key={value}>{value}</option>)}</select></label><label><span className="sr-only">Outreach status</span><select value={statusFilter} disabled={!outreachReady} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}>{["All statuses", ...OUTREACH_STATUSES].map((value) => <option key={value}>{value}</option>)}</select></label></div>}
+                  <div className="workspace-export"><button type="button" className="workspace-quiet" disabled={dataIsStale || !listRecords.length} onClick={() => exportCsv(view === "waitlist" ? "waitlist-contacts" : `followups-${followupMode}`, exportRows)}><Download size={15} />Export CSV</button><button type="button" className="workspace-quiet" disabled={dataIsStale || !listRecords.length} onClick={() => exportDataset(view === "waitlist" ? "waitlist-contacts" : `followups-${followupMode}`, exportRows)}>Export JSON</button></div>
+                  {view === "waitlist" && <details className="workspace-more-filters"><summary>More filters{ownerFilter !== "All owners" || dueFilter !== "Any follow-up date" ? " · active" : ""}</summary><div className="workspace-filters"><label><span>Owner</span><select aria-label="Outreach owner" value={ownerFilter} disabled={!outreachReady} onChange={(event) => { setOwnerFilter(event.target.value); setPage(1); }}>{["All owners", "Unassigned", ...owners].map((owner) => <option key={owner}>{owner}</option>)}</select></label><label><span>Follow-up date</span><select aria-label="Follow-up date" value={dueFilter} disabled={!outreachReady} onChange={(event) => { setDueFilter(event.target.value); setPage(1); }}>{["Any follow-up date", "Due or overdue", "Scheduled", "Not scheduled"].map((date) => <option key={date}>{date}</option>)}</select></label></div></details>}
                 </div>
-              )}
-            </div>
+                <div className="workspace-list-summary"><span><strong>{listRecords.length}</strong> {hasFilters ? "matching" : "total"} {view === "waitlist" ? "contacts" : followupMode === "pending" ? "intake contacts" : "responses"}{view === "waitlist" && <span className="list-summary-extra"> · {emailCount} with an email address</span>}</span><span>Exports include every matching record</span></div>
+                {view === "waitlist" && records.some((record) => !record.email) && <div className="workspace-legacy-note"><Info size={15} /><span>Some older signups have no saved email address. Their available details are still here; a hash cannot restore an address.</span></div>}
+                <div className="workspace-contact-list" aria-busy={isLoading}>
+                  {view === "waitlist" && visibleContacts.map((signup) => <article className="workspace-contact" key={signup.id} aria-label={signup.name || "Unnamed contact"}>
+                    <div className="contact-identity"><span className="contact-avatar">{initials(signup.name)}</span><div><h2>{signup.name || "Unnamed contact"}</h2><p>{[signup.userType, signup.organization || signup.schoolName].filter(Boolean).join(" · ") || "Profile not provided"}</p><ContactLinks contact={signup} /></div></div>
+                    <div className="contact-context"><span className="workspace-label">Their goal</span><p>{signup.biggestChallenge || signup.targetRole || signup.role || "No goal provided"}</p><small>{signup.preferredContactMethod ? `Prefers ${signup.preferredContactMethod}` : "Contact preference not provided"}</small></div>
+                    <div className="contact-next-step"><span className={`workspace-status ${outreach[signup.id]?.status === "Closed" ? "closed" : ""}`}>{outreach[signup.id]?.status || (outreachReady ? "New" : "Status unavailable")}</span><small>Joined {formatDate(signup.createdAt)}</small>{outreach[signup.id]?.nextFollowUpDate && <small>Next follow-up {outreach[signup.id].nextFollowUpDate}</small>}<button type="button" className="workspace-view-button" onClick={() => openContact(signup)}>View contact <ArrowUpRight size={15} /></button></div>
+                  </article>)}
+                  {view === "followups" && followupMode === "responses" && visibleFollowups.map((item, index) => <article className="workspace-contact" key={item.id || `${item.leadId}-${index}`} aria-label={item.email || item.leadId || "Follow-up response"}><div className="contact-identity"><span className="contact-avatar"><MessageSquare size={19} /></span><div><h2>{item.matchedContactName || item.email || item.leadId || item.candidateId || "Follow-up response"}</h2><p>{[item.employer, item.jobTitle || item.currentRole].filter(Boolean).join(" · ") || "Employer not provided"}</p><ContactLinks contact={item} /></div></div><div className="contact-context"><span className="workspace-label">Progress</span><p>{item.currentStatus || "Status not provided"} · {item.placementStatus || "Outcome not provided"}</p><small>{item.applicationCount} applications · {item.interviewCount} interviews · {item.offerCount} offers</small></div><div className="contact-next-step"><small>{formatDate(item.submittedAt || "")}</small><button type="button" className="workspace-view-button" onClick={() => setSelectedFollowUp(item)}>View response <ArrowUpRight size={15} /></button></div></article>)}
+                  {view === "followups" && followupMode === "pending" && visiblePending.map((item, index) => <article className="workspace-contact" key={item.id || index} aria-label={item.name || "Intake contact"}><div className="contact-identity"><span className="contact-avatar">{initials(item.name || "")}</span><div><h2>{item.name || "Unnamed contact"}</h2><p>{item.organization || item.schoolName || item.userType || "Intake requested"}</p><ContactLinks contact={item} /></div></div><div className="contact-context"><span className="workspace-label">Intake requested</span><p>{item.targetRole || item.role || "No target role provided"}</p><small>{item.preferredContactMethod || "Contact preference not provided"}</small></div><div className="contact-next-step"><small>Joined {formatDate(item.createdAt || "")}</small><button type="button" className="workspace-view-button" onClick={() => openContact(records.find((record) => record.id === item.id) || item as AdminSummary["recentWaitlistSignups"][number])}>View contact <ArrowUpRight size={15} /></button></div></article>)}
+                  {!listRecords.length && <div className="workspace-empty"><Search size={24} /><h2>{hasFilters ? "No matching records" : "Nothing here yet"}</h2><p>{hasFilters ? "Try a different search or clear your filters." : view === "waitlist" ? "New signups will appear here with their contact details and answers." : "Follow-up responses and intake requests will appear here."}</p>{hasFilters && <button type="button" className="workspace-quiet" onClick={() => { setQuery(""); setStatusFilter("All statuses"); setEmailFilter("All contacts"); setOwnerFilter("All owners"); setDueFilter("Any follow-up date"); }}>Clear filters</button>}</div>}
+                </div>
+                <RecordPager page={currentPage} pages={pages} total={listRecords.length} onPage={setPage} />
               </section>
-
-              <section className="admin-table-panel">
-            <div className="panel-heading">
-              <h2>Recent Follow-ups</h2>
-              <button className="download-chart-button" type="button" onClick={() => exportDataset("recent-follow-ups", summary.recentFollowUps || [])}>
-                <Download size={15} />
-                Export JSON
-              </button>
-              <button className="download-chart-button" type="button" onClick={() => exportCsv("follow-up-contacts", summary.recentFollowUps || [])}><Download size={15} /> Export CSV</button>
-            </div>
-            <p className="record-scope-note">Showing {(summary.recentFollowUps || []).length} latest follow-up records, up to 1,000. Open a response for all answers and notes.</p>
-            <div className="admin-table followup-table">
-              {summary.recentFollowUps?.length ? (
-                summary.recentFollowUps.map((item, index) => (
-                  <article key={`${item.leadId || item.candidateId || index}-${item.submittedAt}`}>
-                    <div>
-                      <strong>{item.candidateId || item.leadId || "Unlinked follow-up"}</strong>
-                      <ContactLinks contact={item} />
-                      <button type="button" className="record-detail-button" onClick={() => setSelectedFollowUp(item)}>View full response</button>
-                    </div>
-                    <span>{item.currentStatus || "Status not saved"}</span>
-                    <span>{item.placementStatus || "No outcome"}</span>
-                    <span>{`${item.applicationCount} apps / ${item.interviewCount} interviews / ${item.offerCount} offers`}</span>
-                    <span>{formatDate(item.submittedAt || "")}</span>
-                  </article>
-                ))
-              ) : (
-                <div className="empty-panel compact">
-                  <strong>No follow-ups yet.</strong>
-                  <span>Share /follow-up with a lead or candidate ID to collect outcome updates.</span>
-                </div>
-              )}
-            </div>
-              </section>
-            </>
-          )}
-
-          {adminView === "followups" && (
-            <>
-              <SectionHeader
-                eyebrow="Follow-up workflow"
-                title="Intake interviews and completed updates"
-                detail="Track who still needs an intake conversation and who has already submitted follow-up outcome data."
-              />
-
-              <section className="admin-metrics four">
-                <Metric label="Pending intake interviews" value={summary.totals.pendingIntakeFollowUps || 0} note="Interview volunteers without follow-up yet" />
-                <Metric label="Completed follow-ups" value={summary.totals.completedFollowUps || 0} note="Submitted outcome updates" />
-                <Metric label="Interviews reported" value={summary.totals.followUpInterviews || 0} note="From completed follow-ups" />
-                <Metric label="Offers / placements" value={`${summary.totals.followUpOffers || 0} / ${summary.totals.followUpPlacements || 0}`} note="Reported outcomes" />
-              </section>
-
-              <section className="admin-table-panel">
-                <div className="panel-heading">
-                  <h2>Pending Intake Interviews</h2>
-                  <button className="download-chart-button" type="button" onClick={() => exportDataset("pending-intake-follow-ups", summary.pendingIntakeFollowUps || [])}>
-                    <Download size={15} />
-                    Export pending
-                  </button>
-                  <button className="download-chart-button" type="button" onClick={() => exportCsv("pending-intake-contacts", summary.pendingIntakeFollowUps || [])}><Download size={15} /> Export CSV</button>
-                </div>
-                <p className="record-scope-note">Intake queue based on up to 1,000 latest signup and follow-up records.</p>
-                <div className="admin-table waitlist-table">
-                  {summary.pendingIntakeFollowUps?.length ? (
-                    summary.pendingIntakeFollowUps.map((item, index) => (
-                      <article key={`${item.leadId || item.candidateId || item.id || index}-pending`}>
-                        <div className="candidate-cell">
-                          <span className="avatar">{initials(item.name || item.leadId || "FV")}</span>
-                          <div>
-                            <strong>{item.name || item.leadId || "Unnamed lead"}</strong>
-                            <span>{[item.leadId, item.candidateId, item.contactId].filter(Boolean).join(" - ")}</span>
-                            <ContactLinks contact={item} />
-                            <small>Preferred contact: {item.preferredContactMethod || "Not provided"}</small>
-                            {summary.recentWaitlistSignups.some((signup) => signup.id === item.id) && (
-                              <button type="button" className="record-detail-button" onClick={() => setSelectedWaitlist(summary.recentWaitlistSignups.find((signup) => signup.id === item.id) || null)}>View full signup</button>
-                            )}
-                          </div>
-                        </div>
-                        <span>{item.targetRole || item.role || "Role not saved"}</span>
-                        <span>{[item.schoolName, item.majorField, item.classYear].filter(Boolean).join(" - ") || item.organization || "No school/org saved"}</span>
-                        <span>{item.leadScore ? `${item.leadScore} - ${item.leadPriority || "Scored"}` : item.recommendedAction || "Needs intake"}</span>
-                        <span>{formatDate(item.createdAt || "")}</span>
-                      </article>
-                    ))
-                  ) : (
-                    <div className="empty-panel compact">
-                      <strong>No pending intake interviews.</strong>
-                      <span>Everyone who opted into an intake appears to have a follow-up record or no one has opted in yet.</span>
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              <section className="admin-table-panel">
-                <div className="panel-heading">
-                  <h2>Completed Follow-ups</h2>
-                  <button className="download-chart-button" type="button" onClick={() => exportDataset("completed-follow-ups", summary.completedFollowUps || [])}>
-                    <Download size={15} />
-                    Export completed
-                  </button>
-                  <button className="download-chart-button" type="button" onClick={() => exportCsv("completed-follow-up-contacts", summary.completedFollowUps || [])}><Download size={15} /> Export CSV</button>
-                </div>
-                <p className="record-scope-note">Completed responses from up to 1,000 latest follow-up records.</p>
-                <div className="admin-table followup-table">
-                  {summary.completedFollowUps?.length ? (
-                    summary.completedFollowUps.map((item, index) => (
-                      <article key={`${item.leadId || item.candidateId || index}-${item.submittedAt}-completed`}>
-                        <div>
-                          <strong>{item.candidateId || item.leadId || item.contactId || "Unlinked follow-up"}</strong>
-                          <span>{[item.employer, item.jobTitle || item.currentRole].filter(Boolean).join(" - ") || "No employer/title saved"}</span>
-                          <ContactLinks contact={item} />
-                          <button type="button" className="record-detail-button" onClick={() => setSelectedFollowUp(item)}>View full response</button>
-                        </div>
-                        <span>{item.currentStatus || "Status not saved"}</span>
-                        <span>{item.placementStatus || "No outcome"}</span>
-                        <span>{`${item.applicationCount} apps / ${item.interviewCount} interviews / ${item.offerCount} offers`}</span>
-                        <span>{formatDate(item.submittedAt || "")}</span>
-                      </article>
-                    ))
-                  ) : (
-                    <div className="empty-panel compact">
-                      <strong>No completed follow-ups yet.</strong>
-                      <span>Completed updates appear here after someone submits the follow-up form.</span>
-                    </div>
-                  )}
-                </div>
-              </section>
-            </>
-          )}
-
-          <details className="system-drawer">
-            <summary>
-              <Settings2 size={16} />
-              System info
-            </summary>
-            <p>Raw resumes retained: {summary.systemInfo.rawResumeRecords}</p>
-            <p>Raw retention rate: {summary.systemInfo.rawResumeRetentionRate}%</p>
-            <p>Unique tracked users: {summary.totals.uniqueUsers}</p>
-          </details>
-
-          {selectedWaitlist && (
-            <div className="detail-backdrop" role="presentation" onClick={() => setSelectedWaitlist(null)}>
-              <aside
-                className="detail-drawer"
-                role="dialog"
-                aria-modal="true"
-                aria-label="Waitlist record detail"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <div className="panel-heading">
-                  <div>
-                    <p className="eyebrow">Waitlist detail</p>
-                    <h2>{selectedWaitlist.name}</h2>
-                  </div>
-                  <button className="panel-menu" onClick={() => setSelectedWaitlist(null)} aria-label="Close detail">x</button>
-                </div>
-                <ContactLinks contact={selectedWaitlist} />
-                <p>Preferred contact: {selectedWaitlist.preferredContactMethod || "Not provided"}</p>
-                <p className="record-scope-note">These are the saved signup answers. “Not provided” means no value was saved; it does not mean “No.”</p>
-                <RecordDetails record={selectedWaitlist} />
-                <ScoreBreakdown breakdown={selectedWaitlist.scoreBreakdown} />
-              </aside>
-            </div>
-          )}
-          {selectedFollowUp && (
-            <div className="detail-backdrop" role="presentation" onClick={() => setSelectedFollowUp(null)}>
-              <aside className="detail-drawer" role="dialog" aria-modal="true" aria-label="Follow-up response detail" onClick={(event) => event.stopPropagation()}>
-                <div className="panel-heading">
-                  <div><p className="eyebrow">Follow-up detail</p><h2>{selectedFollowUp.email || selectedFollowUp.leadId || "Career progress update"}</h2></div>
-                  <button className="panel-menu" type="button" onClick={() => setSelectedFollowUp(null)} aria-label="Close follow-up detail">x</button>
-                </div>
-                <ContactLinks contact={selectedFollowUp} />
-                <RecordDetails record={selectedFollowUp} />
-              </aside>
-            </div>
-          )}
-          </div>
+            </>}
+            {view === "reports" && <WorkspaceReports summary={summary} onNavigate={navigate} outreach={outreach} outreachReady={outreachReady} outreachError={outreachError} />}
+          </>}
         </div>
-      )}
+        <footer className="workspace-footer"><span>SagittaIQ · Private admin workspace</span><a href="/waitlist" target="_blank" rel="noreferrer">Open signup page <ArrowUpRight size={13} /></a></footer>
+      </div>
+      {selectedWaitlist && <RecordDrawer title={selectedWaitlist.name || "Contact"} label="Contact details" onClose={() => setSelectedWaitlist(null)}>
+        <div className="drawer-contact-summary"><ContactLinks contact={selectedWaitlist} /><span>Prefers {selectedWaitlist.preferredContactMethod || "a contact method not yet specified"}</span></div>
+        <div className="workspace-segment" aria-label="Contact detail view"><button type="button" aria-pressed={contactDetailTab === "answers"} onClick={() => setContactDetailTab("answers")}>Signup answers</button><button type="button" aria-pressed={contactDetailTab === "plan"} onClick={() => setContactDetailTab("plan")}>Follow-up plan</button><button type="button" aria-pressed={contactDetailTab === "responses"} onClick={() => setContactDetailTab("responses")}>Survey responses ({selectedWaitlist.linkedFollowUps?.length || 0})</button></div>
+        {contactDetailTab === "answers" && <GroupedRecordDetails record={selectedWaitlist} />}
+        {contactDetailTab === "plan" && <OutreachEditor leadId={selectedWaitlist.id} adminCode={accessCode} onSaved={(current) => { setOutreach((value) => ({ ...value, [selectedWaitlist.id]: { ...current, leadId: selectedWaitlist.id } })); }} />}
+        {contactDetailTab === "responses" && <section className="linked-survey-responses"><h3>Survey response history</h3>{selectedWaitlist.linkedFollowUps?.length ? selectedWaitlist.linkedFollowUps.map((response, index) => <details className="workspace-reference" key={response.id || index}><summary>{formatDateTime(response.submittedAt || "")} · {response.currentStatus || "Progress update"}</summary><GroupedRecordDetails record={response} followup /></details>) : <p>No progress surveys are linked to this contact yet.</p>}</section>}
+      </RecordDrawer>}
+      {selectedFollowUp && <RecordDrawer title={selectedFollowUp.matchedContactName || selectedFollowUp.email || selectedFollowUp.leadId || "Career progress update"} label="Follow-up details" onClose={() => setSelectedFollowUp(null)}><div className="drawer-contact-summary"><ContactLinks contact={selectedFollowUp} /></div><GroupedRecordDetails record={selectedFollowUp} followup /></RecordDrawer>}
     </main>
   );
 }
 
-function Detail({ label, value }: { label: string; value?: string | number }) {
-  return (
-    <div>
-      <dt>{label}</dt>
-      <dd>{displayValue(value)}</dd>
-    </div>
-  );
+type WorkspaceView = "waitlist" | "followups" | "reports";
+type OutreachState = { leadId: string; status: string; nextFollowUpDate?: string; [key: string]: unknown };
+const PAGE_SIZE = 20;
+const OUTREACH_STATUSES = ["New", "Contacted", "Awaiting reply", "Meeting scheduled", "Pilot discussion", "Closed"];
+const WORKSPACE_VIEWS: Array<{ id: WorkspaceView; label: string; icon: ReactNode }> = [
+  { id: "waitlist", label: "Waitlist", icon: <Users size={17} /> },
+  { id: "followups", label: "Follow-ups", icon: <MessageSquare size={17} /> },
+  { id: "reports", label: "Reports", icon: <BarChart3 size={17} /> }
+];
+function readWorkspaceView(): WorkspaceView {
+  const requested = new URLSearchParams(window.location.search).get("view");
+  if (requested === "followups") return "followups";
+  if (["reports", "all", "institutional", "applications"].includes(requested || "")) return "reports";
+  return "waitlist";
+}
+function RecordPager({ page, pages, total, onPage }: { page: number; pages: number; total: number; onPage: (page: number) => void }) {
+  if (!total) return null;
+  return <div className="workspace-pagination"><span>Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}</span><div><button type="button" className="workspace-quiet" disabled={page === 1} onClick={() => onPage(page - 1)}>Previous</button><span>Page {page} of {pages}</span><button type="button" className="workspace-quiet" disabled={page === pages} onClick={() => onPage(page + 1)}>Next</button></div></div>;
+}
+function RecordDrawer({ title, label, onClose, children }: { title: string; label: string; onClose: () => void; children: ReactNode }) {
+  const drawerRef = useRef<HTMLElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const elements = () => Array.from(drawerRef.current?.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),summary,[tabindex="0"]') || []).filter((item) => item.getClientRects().length > 0);
+    elements()[0]?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeRef.current();
+      if (event.key === "Tab") { const items = elements(); const first = items[0]; const last = items[items.length - 1]; if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); } else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); } }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = previousOverflow; previous?.focus(); };
+  }, []);
+  return <div className="workspace-drawer-backdrop" onClick={onClose}><aside ref={drawerRef} className="workspace-drawer" role="dialog" aria-modal="true" aria-label={label} onClick={(event) => event.stopPropagation()}><header className="workspace-drawer-header"><div><p className="workspace-eyebrow">{label}</p><h2>{title}</h2></div><button type="button" className="workspace-icon-button" aria-label={`Close ${label.toLowerCase()}`} onClick={onClose}><X size={20} /></button></header><div className="workspace-drawer-body">{children}</div></aside></div>;
+}
+function GroupedRecordDetails({ record, followup = false }: { record: Record<string, unknown>; followup?: boolean }) {
+  const internalKeys = new Set(["id", "leadId", "candidateId", "contactId", "organizationId", "emailDomain", "emailDomainType", "source", "scoreBreakdown", "linkedFollowUpIds", "matchedSignupIds"]);
+  const contactKeys = new Set(["name", "matchedContactName", "email", "emailStatus", "phone", "linkedinUrl", "preferredContactMethod", "city", "state", "zipPostal", "country", "county", "metroArea", "workforceRegion"]);
+  const goalKeys = new Set(["biggestChallenge", "currentTools", "desiredFeatures", "interviewInterest", "betaInterest", "pilotInterest", "budgetInterest", "reportingWish", "recommendedAction", "targetRole", "targetIndustry", "timeline", "buyingAuthority", "leadScore", "leadPriority"]);
+  const profileKeys = new Set(["userType", "organization", "organizationType", "role", "schoolName", "programName", "majorField", "gpa", "certifications", "degreeLevel", "classYear", "studentStatus", "seekingStatus", "domesticInternational", "experienceLevel", "populationServed", "currentProcess"]);
+  const { branchProfile, intakeDetails, responseDetails, linkedFollowUps: _linkedFollowUps, ...answers } = record;
+  const snapshots = { branchProfile, intakeDetails, responseDetails };
+  const aliases: Record<string, string> = { degreeProgram: "programName", expectedGraduationYear: "classYear", beta: "betaInterest", interview: "interviewInterest", pilot: "pilotInterest", budget: "budgetInterest", resumeAnalysis: "resumeAnalysisInterest", applicationTracker: "applicationTrackerInterest", productUpdates: "productUpdatesInterest", feedback: "feedbackInterest" };
+  function addAnswers(value: unknown, source: string) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) return;
+    for (const [originalKey, entry] of Object.entries(value)) {
+      if (entry && typeof entry === "object" && !Array.isArray(entry)) { addAnswers(entry, source); continue; }
+      const key = aliases[originalKey] || originalKey;
+      const existing = answers[key];
+      if (existing === null || existing === undefined || existing === "") answers[key] = entry;
+      else if (displayValue(existing) !== displayValue(entry) && entry !== null && entry !== undefined && entry !== "") answers[`${originalKey} (${source})`] = entry;
+    }
+  }
+  addAnswers(branchProfile, "profile answer"); addAnswers(intakeDetails, "signup answer"); addAnswers(responseDetails, "follow-up answer");
+  const groups: Array<[string, Record<string, unknown>]> = [["Contact information", {}], [followup ? "Progress and outcomes" : "Goals and interests", {}], ["Profile and organization", {}], ["Additional answers", {}], ["Internal references", {}]];
+  for (const [key, value] of Object.entries(answers)) {
+    const group = internalKeys.has(key) ? 4 : contactKeys.has(key) ? 0 : goalKeys.has(key) || followup && !["responseDetails", "submittedAt"].includes(key) ? 1 : profileKeys.has(key) ? 2 : 3;
+    groups[group][1][key] = value;
+  }
+  return <div className="grouped-record-details">{groups.map(([title, values], index) => {
+    if (!Object.keys(values).length) return null;
+    const fields = <dl className="workspace-fields">{Object.entries(flattenRecord(values)).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{displayValue(value)}</dd></div>)}</dl>;
+    return index === 4 ? <details key={title} className="workspace-reference"><summary>{title}</summary>{fields}</details> : <section key={title} aria-label={title}><h3>{title}</h3>{fields}</section>;
+  })}{Object.values(snapshots).some((value) => value && typeof value === "object") && <details className="workspace-reference"><summary>Original saved answers</summary><p className="report-source-note">Complete saved submissions, including repeated fields, for reference.</p><dl className="workspace-fields">{Object.entries(flattenRecord(Object.fromEntries(Object.entries(snapshots).filter(([, value]) => value && typeof value === "object")))).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{displayValue(value)}</dd></div>)}</dl></details>}</div>;
 }
 
-function RecordDetails({ record }: { record: Record<string, unknown> }) {
-  const { scoreBreakdown: _scoreBreakdown, branchProfile, intakeDetails, responseDetails, ...details } = record;
-  const fields = (value: Record<string, unknown>) => <dl className="detail-list">{Object.entries(flattenRecord(value)).map(([label, entry]) => <Detail key={label} label={label} value={entry} />)}</dl>;
-  return <>
-    {fields(details)}
-    {branchProfile && typeof branchProfile === "object" && (
-      <details className="record-answer-group" open={!intakeDetails}><summary>Profile and interest answers</summary>{fields(branchProfile as Record<string, unknown>)}</details>
-    )}
-    {intakeDetails && typeof intakeDetails === "object" && (
-      <details className="record-answer-group"><summary>Complete signup answers</summary>{fields(intakeDetails as Record<string, unknown>)}</details>
-    )}
-    {responseDetails && typeof responseDetails === "object" && (
-      <details className="record-answer-group"><summary>Complete follow-up answers</summary>{fields(responseDetails as Record<string, unknown>)}</details>
-    )}
-  </>;
+function WorkspaceReports({ summary, onNavigate, outreach, outreachReady, outreachError }: { summary: AdminSummary; onNavigate: (view: WorkspaceView) => void; outreach: Record<string, OutreachState>; outreachReady: boolean; outreachError: string }) {
+  const [report, setReport] = useState<"waitlist" | "outcomes" | "activity">("waitlist");
+  const [reportError, setReportError] = useState("");
+  const sections: Array<{ id: typeof report; label: string }> = [{ id: "waitlist", label: "Waitlist insights" }, { id: "outcomes", label: "Career outcomes" }, { id: "activity", label: "Application activity" }];
+  const exportSummary = { ...summary, recentWaitlistSignups: summary.recentWaitlistSignups.map((item) => ({ ...item, outreach: outreach[item.id] || (outreachReady ? { status: "New" } : { dataStatus: "Unavailable" }), outreachDataStatus: outreachError ? "Previously loaded; refresh failed" : outreachReady ? "Current" : "Unavailable" })) };
+  return <div className="workspace-reports">
+    <div className="workspace-report-tools">
+      <div className="workspace-segment" aria-label="Report category">{sections.map((item) => <button type="button" key={item.id} aria-pressed={report === item.id} onClick={() => setReport(item.id)}>{item.label}</button>)}</div>
+      <button type="button" className="workspace-quiet" onClick={() => { try { exportResearchBundle(exportSummary); } catch { setReportError("The report download could not be created. Please try again."); } }}><Download size={15} />Export report data</button>
+    </div>
+    {reportError && <p role="alert" className="workspace-alert">{reportError}</p>}
+    <p className="report-source-note">{summary.meta.query ? `Records matching “${summary.meta.query}”` : "All available records"}, refreshed {formatDateTime(summary.meta.lastLoadedAt)}. Outcomes and verification labels are respondent-supplied; independent verification is not established here.</p>
+    <details className="workspace-report-sources"><summary>Report sources and counting method</summary><p>{summary.meta.reportingMethod || "Outcome totals use the latest response per saved contact identity. Full response history is retained."}</p><dl>{Object.entries(summary.meta.sources || {}).map(([name, source]) => <div key={name}><dt>{name}</dt><dd>{source.status} · {source.count} records</dd></div>)}</dl></details>
+    {report === "waitlist" && <>
+      <div className="workspace-report-metrics">
+        <Metric label="Waitlist signups" value={summary.totals.waitlistSignups} note="Signup records, including repeat signups" />
+        <Metric label="Discovery call interest" value={summary.totals.interviewVolunteers} note="Signups that requested an introduction" />
+        <Metric label="Pilot interest" value={summary.totals.pilotProspects} note="Signups interested in a pilot" />
+        <Metric label="Email addresses available" value={summary.recentWaitlistSignups.filter((item) => item.email).length} note="Records with readable contact information" />
+      </div>
+      <div className="workspace-report-link"><p>Ready to turn these signals into conversations?</p><button type="button" onClick={() => onNavigate("waitlist")}>Open waitlist contacts <ArrowRight size={16} /></button></div>
+      <div className="workspace-report-grid">
+        <ChartPanel title="Who is joining" items={summary.waitlistUserTypes || []} /><ChartPanel title="Referral sources" items={summary.waitlistReferralSources || []} />
+        <ChartPanel title="Requested interests" items={toCountItems(summary.waitlistInterest || {})} /><ChartPanel title="Target industries" items={summary.waitlistTargetIndustries || []} />
+        <ChartPanel title="Organizations" items={summary.waitlistOrganizationTypes || []} /><ChartPanel title="Workforce regions" items={summary.waitlistWorkforceRegions || []} />
+        <ChartPanel title="Schools" items={summary.waitlistSchools || []} /><ChartPanel title="Programs" items={summary.waitlistPrograms || []} />
+        <ChartPanel title="Fields of study" items={summary.waitlistMajors || []} /><ChartPanel title="Current processes" items={summary.waitlistCurrentProcesses || []} />
+        <ChartPanel title="Lead priority" items={toCountItems(summary.waitlistLeadPriorities || {})} /><ChartPanel title="Profile status" items={summary.waitlistBranchStatuses || []} />
+      </div>
+    </>}
+    {report === "outcomes" && <>
+      <div className="workspace-report-metrics">
+        <Metric label="Follow-up responses" value={summary.totals.followUpSurveys || 0} note="All submitted progress updates" />
+        <Metric label="Distinct respondents" value={summary.totals.followUpRespondents || 0} note="Saved contact identities with an update" />
+        <Metric label="Contacts with a follow-up" value={`${summary.totals.waitlistContactsWithFollowUp || 0} / ${summary.totals.uniqueWaitlistContacts || 0}`} note="Matched waitlist identities / all unique waitlist identities" />
+        <Metric label="Reported placements" value={summary.totals.followUpPlacements || 0} note="Latest update per identifiable respondent" />
+        <Metric label="Applications reported" value={summary.totals.followUpApplications || 0} note="Latest update per identifiable respondent" />
+        <Metric label="Interviews reported" value={summary.totals.followUpInterviews || 0} note="Latest update per identifiable respondent" />
+        <Metric label="Offers reported" value={summary.totals.followUpOffers || 0} note="Latest update per identifiable respondent" />
+        <Metric label="Unlinked responses" value={summary.totals.unlinkedFollowUpResponses || 0} note="Excluded from respondent-level totals and rates" />
+      </div>
+      <div className="workspace-report-link"><p>Read the full responses and support requests behind these numbers.</p><button type="button" onClick={() => onNavigate("followups")}>Open follow-ups <ArrowRight size={16} /></button></div>
+      <div className="workspace-report-grid">
+        <ChartPanel title="Career outcomes" items={toCountItems(summary.followUpOutcomes || {})} /><ChartPanel title="Current search status" items={toCountItems(summary.followUpStatuses || {})} />
+        <ChartPanel title="Employers" items={summary.followUpEmployers || []} /><ChartPanel title="Job titles" items={summary.followUpJobTitles || []} />
+        <ChartPanel title="Industries" items={summary.followUpIndustries || []} /><ChartPanel title="Salary ranges" items={summary.followUpSalaryRanges || []} />
+        <ChartPanel title="Reported verification status" items={summary.followUpVerificationStatuses || []} />
+        {summary.salaryByPeriod?.map((item) => <section className="workspace-salary-report" key={`${item.period}-${item.currency || "unknown"}`}><h2>{item.period || "Unspecified period"} compensation · {item.currency || "Currency not recorded"}</h2><dl><div><dt>Responses</dt><dd>{item.count}</dd></div><div><dt>Median amount</dt><dd>{item.median?.toLocaleString() ?? "Not comparable"}</dd></div><div><dt>Average amount</dt><dd>{item.average?.toLocaleString() ?? "Not comparable"}</dd></div></dl><p>Grouped by currency and pay period. Missing currency or period prevents averaging; no currency conversion or annualization is applied.</p></section>)}
+      </div>
+    </>}
+    {report === "activity" && <>
+      <div className="workspace-report-metrics">
+        <Metric label="Resume analyses" value={summary.totals.resumeRecords} note="Saved analysis records" /><Metric label="Applications captured" value={summary.totals.applicationCaptures} note="Saved opportunity records" />
+        <Metric label="Tracked users" value={summary.totals.uniqueUsers} note="Distinct users in saved activity" /><Metric label="Average readiness" value={summary.totals.resumeRecords ? `${summary.totals.averageReadinessScore}%` : "Not available"} note="Across saved resume analyses" />
+      </div>
+      <AnalysisRecords records={summary.recentResumeRecords} />
+      <div className="workspace-report-grid">
+        <ChartPanel title="Readiness bands" items={toCountItems(summary.readinessBands || {})} /><ChartPanel title="Application status" items={toCountItems(summary.applicationStatuses || {})} />
+        <ChartPanel title="Application sources" items={summary.applicationSources || []} /><ChartPanel title="Opportunity employers" items={summary.applicationEmployers || []} />
+        <ChartPanel title="Top skills" items={summary.topSkills || []} /><ChartPanel title="Top tools" items={summary.topTools || []} />
+      </div>
+    </>}
+  </div>;
+}
+function AnalysisRecords({ records }: { records: AdminSummary["recentResumeRecords"] }) {
+  const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [selected, setSelected] = useState<AdminSummary["recentResumeRecords"][number] | null>(null);
+  const matching = records.filter((record) => [record.candidateId, record.targetRole, record.currentTitle, record.careerLevel, record.country].join(" ").toLowerCase().includes(query.trim().toLowerCase()));
+  const pages = Math.max(1, Math.ceil(matching.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pages);
+  return <section className="workspace-records analysis-records" aria-labelledby="saved-analyses-title">
+    <div className="workspace-analysis-heading"><div><h2 id="saved-analyses-title">Saved analyses</h2><p>Every saved report, with its original analysis and profile details.</p></div><button type="button" className="workspace-quiet" onClick={() => exportDataset("saved-analyses", matching)} disabled={!matching.length}><Download size={15} />Export analyses JSON</button></div>
+    <div className="workspace-record-tools"><label className="workspace-search"><Search size={17} /><input aria-label="Search analyses" value={query} onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Candidate, target role, or title" /></label><span className="report-source-note">{matching.length} matching reports · {records.length} total</span></div>
+    {matching.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE).map((record, index) => <article className="workspace-contact analysis-record" key={record.id || `${record.candidateId}-${index}`}><div className="contact-identity"><span className="contact-avatar"><BarChart3 size={18} /></span><div><h3>{record.targetRole || record.currentTitle || "Resume analysis"}</h3><p>{record.candidateId || "Candidate ID not provided"}</p><small>{formatDateTime(record.capturedAt)}</small></div></div><div className="contact-context"><span className="workspace-label">Readiness score</span><p>{record.score}%</p><small>{record.careerLevel || "Career level not provided"}</small></div><div className="contact-next-step"><button type="button" className="workspace-view-button" onClick={() => setSelected(record)}>View analysis <ArrowUpRight size={15} /></button></div></article>)}
+    {!matching.length && <div className="workspace-empty"><h3>No matching analyses</h3><p>Try another candidate or role.</p></div>}
+    <RecordPager page={currentPage} pages={pages} total={matching.length} onPage={setPage} />
+    {selected && <RecordDrawer title={selected.targetRole || selected.currentTitle || "Resume analysis"} label="Analysis details" onClose={() => setSelected(null)}><p className="report-source-note">Saved {formatDateTime(selected.capturedAt)}. This is the stored report; it has not been regenerated.</p><dl className="workspace-fields">{Object.entries(flattenRecord(selected)).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{displayValue(value)}</dd></div>)}</dl></RecordDrawer>}
+  </section>;
 }
 
 function ContactLinks({ contact }: { contact: ContactDetails }) {
   let linkedIn = "";
-  try {
-    const parsed = new URL(contact.linkedinUrl || "");
-    if (parsed.protocol === "https:" || parsed.protocol === "http:") linkedIn = parsed.href;
-  } catch { /* Missing or invalid legacy profile URL is displayed as text in details. */ }
+  try { const parsed = new URL(contact.linkedinUrl || ""); if (parsed.protocol === "https:" || parsed.protocol === "http:") linkedIn = parsed.href; } catch { /* Legacy values remain visible in the full record. */ }
   const phoneTarget = contact.phone?.replace(/[^\d+]/g, "") || "";
-  return (
-    <div className="contact-links" onClick={(event) => event.stopPropagation()}>
-      {contact.email ? <a href={`mailto:${encodeURIComponent(contact.email)}`}>{contact.email}</a> : <span>{contact.emailStatus || "Email address not available"}</span>}
-      {contact.phone && (phoneTarget ? <a href={`tel:${phoneTarget}`}>{contact.phone}</a> : <span>{contact.phone}</span>)}
-      {linkedIn && <a href={linkedIn} target="_blank" rel="noreferrer">Open LinkedIn profile</a>}
-    </div>
-  );
+  return <div className="contact-links" onClick={(event) => event.stopPropagation()}>
+    {contact.email ? <a href={`mailto:${encodeURIComponent(contact.email)}`}>{contact.email}</a> : <span>{contact.emailStatus || "Email address not available"}</span>}
+    {contact.phone && (phoneTarget ? <a href={`tel:${phoneTarget}`}>{contact.phone}</a> : <span>{contact.phone}</span>)}
+    {linkedIn && <a href={linkedIn} target="_blank" rel="noreferrer">Open LinkedIn profile</a>}
+  </div>;
 }
-
 function Metric({ label, value, note }: { label: string; value: number | string; note?: string }) {
-  return (
-    <article>
-      <strong>{value}</strong>
-      <span>{label}</span>
-      {note && <small>{note}</small>}
-    </article>
-  );
+  return <article><strong>{value}</strong><span>{label}</span>{note && <small>{note}</small>}</article>;
 }
-
-function EnterpriseDashboardHome({ summary, actionQueue, view }: { summary: AdminSummary; actionQueue: ActionQueueItem[]; view: AdminView }) {
-  const recentActivity = buildRecentActivity(summary);
-  const reportingLinks = buildReportingShortcuts(summary);
-  const tiles = buildEnterpriseTiles(summary, view);
-
-  return (
-    <section className="enterprise-dashboard-home" aria-label="Enterprise dashboard home">
-      <div className="enterprise-kpi-grid">
-        {tiles.map((tile) => (
-          <EnterpriseTile key={tile.label} {...tile} />
-        ))}
-      </div>
-
-      <div className="enterprise-work-grid">
-        <section className="enterprise-work-panel">
-          <PanelTitle icon={<ClipboardList size={18} />} title="Advisor To-Do List" />
-          <div className="enterprise-task-list">
-            {actionQueue.slice(0, 5).map((item) => (
-              <article key={`${item.type}-${item.title}`}>
-                <span className={`priority-dot ${item.priority.toLowerCase()}`} />
-                <div>
-                  <strong>{item.title}</strong>
-                  <small>{item.nextAction}</small>
-                </div>
-                <em>{item.priority}</em>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="enterprise-work-panel">
-          <PanelTitle icon={<Activity size={18} />} title="Recent User Activity" />
-          <div className="enterprise-activity-list">
-            {recentActivity.map((item) => (
-              <article key={`${item.label}-${item.detail}`}>
-                <span className="activity-dot" />
-                <div>
-                  <strong>{item.label}</strong>
-                  <small>{item.detail}</small>
-                </div>
-                <time>{item.time}</time>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <section className="enterprise-work-panel">
-          <PanelTitle icon={<FileText size={18} />} title="Reporting Shortcuts" />
-          <div className="enterprise-report-list">
-            {reportingLinks.map((item) => (
-              <article key={item.label}>
-                <strong>{item.label}</strong>
-                <span>{item.value}</span>
-                <small>{item.detail}</small>
-              </article>
-            ))}
-          </div>
-        </section>
-      </div>
-      <DecisionSignalsPanel items={summary.decisionSignals || []} />
-    </section>
-  );
-}
-
-function EnterpriseTile({
-  tone,
-  icon,
-  value,
-  label,
-  primaryAction,
-  secondaryAction
-}: {
-  tone: "cyan" | "green" | "amber" | "red";
-  icon: ReactNode;
-  value: number | string;
-  label: string;
-  primaryAction: string;
-  secondaryAction: string;
-}) {
-  return (
-    <article className={`enterprise-tile ${tone}`}>
-      <div>
-        <strong>{value}</strong>
-        <span>{label}</span>
-      </div>
-      <div className="enterprise-tile-icon" aria-hidden="true">{icon}</div>
-      <footer>
-        <span>{primaryAction}</span>
-        <small>{secondaryAction}</small>
-      </footer>
-    </article>
-  );
-}
-
-function PanelTitle({ icon, title }: { icon: ReactNode; title: string }) {
-  return (
-    <div className="enterprise-panel-title">
-      <span>{icon}</span>
-      <h2>{title}</h2>
-      <Settings2 size={17} aria-hidden="true" />
-    </div>
-  );
-}
-
-function DecisionSignalsPanel({ items }: { items: DecisionSignal[] }) {
-  return (
-    <section className="decision-signals-panel">
-      <div className="panel-heading">
-        <div>
-          <p className="eyebrow">Decision intelligence</p>
-          <h2>What the current data suggests</h2>
-        </div>
-        <span className="queue-count">{items.length} signals</span>
-      </div>
-      <div className="decision-signal-grid">
-        {items.map((item) => (
-          <article key={item.label} className={item.severity}>
-            <div>
-              <strong>{item.value}{item.unit === "%" ? "%" : ""}</strong>
-              <span>{item.unit === "%" ? item.label : `${item.label} / ${item.unit}`}</span>
-            </div>
-            <p>{item.detail}</p>
-            <small>{item.action}</small>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ActionQueuePanel({ items }: { items: ActionQueueItem[] }) {
-  return (
-    <section className="admin-action-panel">
-      <div className="panel-heading">
-        <div>
-          <p className="eyebrow">Admin action queue</p>
-          <h2>What needs attention</h2>
-        </div>
-        <span className="queue-count">{items.length} actions</span>
-      </div>
-      <div className="action-list">
-        {items.map((item) => (
-          <article key={`${item.type}-${item.title}-${item.detail}`}>
-            <span className={`priority-dot ${item.priority.toLowerCase()}`} />
-            <div>
-              <strong>{item.title}</strong>
-              <p>{item.detail}</p>
-              <small>{item.nextAction}</small>
-            </div>
-            <span className={`priority-pill ${item.priority.toLowerCase()}`}>{item.priority}</span>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ProductSignalsPanel({ items }: { items: ProductSignal[] }) {
-  return (
-    <section className="admin-action-panel product-signal-panel">
-      <div className="panel-heading">
-        <div>
-          <p className="eyebrow">Product discovery</p>
-          <h2>Signals from users</h2>
-        </div>
-      </div>
-      <div className="product-signal-list">
-        {items.map((item) => (
-          <article key={item.label}>
-            <span>{item.label}</span>
-            <strong>{item.value}</strong>
-            <p>{item.detail}</p>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ScoreBreakdown({ breakdown }: { breakdown?: Record<string, unknown> }) {
-  const entries = Object.entries(breakdown || {}).filter(([, value]) => value !== null && value !== undefined && value !== "");
-  if (!entries.length) return null;
-
-  return (
-    <div className="score-breakdown">
-      <strong>Lead score reasoning</strong>
-      {entries.map(([key, value]) => (
-        <div key={key}>
-          <span>{humanizeKey(key)}</span>
-          <small>{String(value)}</small>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function SectionHeader({ eyebrow, title, detail }: { eyebrow: string; title: string; detail: string }) {
-  return (
-    <div className="admin-section-header">
-      <p className="eyebrow">{eyebrow}</p>
-      <h2>{title}</h2>
-      <p>{detail}</p>
-    </div>
-  );
-}
-
-function ReadinessMetric({ summary }: { summary: AdminSummary }) {
-  const score = summary.totals.averageReadinessScore;
-  const delta = summary.totals.readinessDelta;
-  const threshold = summary.meta.readinessThreshold;
-  return (
-    <article className="readiness-metric">
-      <strong className={scoreClass(score)}>{score}%</strong>
-      <span>Average career readiness</span>
-      <small>{delta >= 0 ? "+" : ""}{delta} pts from strong match threshold</small>
-      <div className="threshold-track" title="Readiness = weighted match across skills, tools, and role fit">
-        <span style={{ width: `${Math.min(100, score)}%` }} />
-        <i style={{ left: `${threshold}%` }} />
-      </div>
-      <ScoreContext score={score} threshold={threshold} compact />
-    </article>
-  );
-}
-
-function UsagePanel({ days }: { days: UsageDay[] }) {
-  const title = "Usage";
-  const panelId = panelIdFor(title);
-  const max = Math.max(...days.map((day) => day.resumes + day.applications), 1);
-  const points = days.map((day, index) => {
-    const x = days.length <= 1 ? 0 : (index / (days.length - 1)) * 100;
-    const y = 100 - ((day.resumes + day.applications) / max) * 88;
-    return `${x},${Math.max(8, y)}`;
-  }).join(" ");
-  return (
-    <section className="chart-panel" id={panelId} aria-labelledby={`${panelId}-title`}>
-      <PanelHeading title={title} panelId={panelId} />
-      <svg className="line-chart" viewBox="0 0 100 100" role="img" aria-label="Usage trend line for the last fourteen days" preserveAspectRatio="none">
-        <polyline points={points} />
-      </svg>
-      <div className="usage-chart" role="img" aria-label="Fourteen day usage chart showing resume analyses and tracked applications">
-        {days.map((day) => (
-          <div key={day.date}>
-            <span
-              style={{
-                height: `${Math.max(6, ((day.resumes + day.applications) / max) * 100)}%`
-              }}
-              title={`${day.date}: ${day.resumes} resumes, ${day.applications} applications`}
-            />
-            <small>{new Date(`${day.date}T00:00:00`).getDate()}</small>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function ReadinessBands({ bands, total }: { bands: Record<string, number>; total: number }) {
-  const title = "Readiness Bands";
-  const panelId = panelIdFor(title);
-  const ordered = ["0-49", "50-69", "70-84", "85-100"].map((label) => ({
-    label,
-    count: bands[label] || 0
-  }));
-  return (
-    <section className="chart-panel" id={panelId} aria-labelledby={`${panelId}-title`}>
-      <PanelHeading title={title} panelId={panelId} />
-      <div className="band-list">
-        {ordered.map((item) => (
-          <div className={`band-row band-${item.label.replace("-", "")}`} key={item.label}>
-            <div>
-              <span>{item.label}</span>
-              <strong>{item.count}</strong>
-            </div>
-            <span className="fill"><i style={{ width: `${total ? (item.count / total) * 100 : 0}%` }} /></span>
-          </div>
-        ))}
-      </div>
-      <small>{total} of {total} records scored</small>
-    </section>
-  );
-}
-
-function SkillGapPanel({ groups, total }: { groups: Record<string, CountItem[]>; total: number }) {
+function ChartPanel({ title, items }: { title: string; items: CountItem[] }) {
   const [expanded, setExpanded] = useState(false);
-  const title = "Skill Gaps";
-  const panelId = panelIdFor(title);
-  const rankedItems = Object.entries(groups)
-    .flatMap(([group, items]) => items.map((item) => ({ group, item })))
-    .sort((left, right) => right.item.count - left.item.count || left.item.label.localeCompare(right.item.label));
-  const visibleItems = expanded ? rankedItems : rankedItems.slice(0, 10);
-  const visibleGroups = visibleItems.reduce<Record<string, CountItem[]>>((nextGroups, { group, item }) => {
-    nextGroups[group] = [...(nextGroups[group] || []), item];
-    return nextGroups;
-  }, {});
-  const hiddenCount = Math.max(0, rankedItems.length - visibleItems.length);
-
-  return (
-    <section className="chart-panel skill-gap-panel" id={panelId} aria-labelledby={`${panelId}-title`}>
-      <PanelHeading title={title} panelId={panelId} />
-      <div className="skill-gap-groups">
-        {Object.entries(visibleGroups).map(([group, items]) => (
-          <details key={group} open>
-            <summary>{group}</summary>
-            {items.length ? (
-              items.map((item) => (
-                <div className="gap-row" key={`${group}-${item.label}`}>
-                  <span>{item.label}</span>
-                  <strong>{item.count}</strong>
-                  <small>{item.percentAffected ?? percent(item.count, total)}%</small>
-                </div>
-              ))
-            ) : (
-              <p>No gaps in this category.</p>
-            )}
-          </details>
-        ))}
-        {!rankedItems.length && <p>No keyword gaps yet.</p>}
-      </div>
-      <ListLimitToggle
-        expanded={expanded}
-        hiddenCount={hiddenCount}
-        itemName="keyword gaps"
-        onToggle={() => setExpanded((current) => !current)}
-      />
-    </section>
-  );
+  const records = items.filter((item) => item.count > 0);
+  const visible = expanded ? records : records.slice(0, 10);
+  const max = Math.max(...records.map((item) => item.count), 1);
+  return <section className="chart-panel">
+    <div className="panel-heading"><h2>{title}</h2><button className="download-chart-button" type="button" disabled={!records.length} onClick={() => exportCsv(title.toLowerCase().replace(/[^a-z0-9]+/g, "-"), records)} aria-label={`Export ${title} data`}><Download size={13} />Export data</button></div>
+    {records.length ? <dl className="workspace-chart" aria-label={title}>{visible.map((item) => <div key={item.label}><dt>{item.label}</dt><dd>{item.count}</dd><span aria-hidden="true"><i style={{ width: `${Math.max(2, item.count / max * 100)}%` }} /></span></div>)}</dl> : <p className="report-source-note">No data available for this category.</p>}
+    {records.length > 10 && <button type="button" className="workspace-view-button" onClick={() => setExpanded((value) => !value)}>{expanded ? "Show top 10" : `Show all ${records.length}`}</button>}
+  </section>;
 }
-
-function ApplicationStatusPanel({ statuses }: { statuses: Record<string, number> }) {
-  const title = "Application Status Funnel";
-  const panelId = panelIdFor(title);
-  const items = toCountItems(statuses);
-  return (
-    <section className="chart-panel" id={panelId} aria-labelledby={`${panelId}-title`}>
-      <PanelHeading title={title} panelId={panelId} />
-      {items.length ? (
-        <VisualBarChart items={items} />
-      ) : (
-        <div className="empty-panel compact">
-          <strong>No applications linked.</strong>
-          <span>Opportunity tracking appears once users add opportunities with email enabled.</span>
-          <button className="secondary-action">Add manually</button>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function FunnelPanel({ title, items }: { title: string; items: FunnelItem[] }) {
-  const panelId = panelIdFor(title);
-  const max = Math.max(...items.map((item) => item.count), 1);
-  return (
-    <section className="chart-panel funnel-panel" id={panelId} aria-labelledby={`${panelId}-title`}>
-      <PanelHeading title={title} panelId={panelId} />
-      {items.length ? (
-        <div className="funnel-list">
-          {items.map((item) => (
-            <div key={item.label} className="funnel-row">
-              <div>
-                <strong>{item.count}</strong>
-                <span>{item.label}</span>
-                <small>{item.rate}% conversion</small>
-              </div>
-              <span className="funnel-fill">
-                <i style={{ width: item.count ? `${Math.max(4, (item.count / max) * 100)}%` : "0%" }} />
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p>No pipeline data yet.</p>
-      )}
-    </section>
-  );
-}
-
-function ConversionPanel({ items }: { items: ConversionMetric[] }) {
-  const title = "Conversion Signals";
-  const panelId = panelIdFor(title);
-  return (
-    <section className="chart-panel conversion-panel" id={panelId} aria-labelledby={`${panelId}-title`}>
-      <PanelHeading title={title} panelId={panelId} />
-      {items.length ? (
-        <div className="conversion-grid">
-          {items.map((item) => (
-            <article key={item.label}>
-              <strong>{item.value}%</strong>
-              <span>{item.label}</span>
-              <small>{item.detail}</small>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <p>No conversion data yet.</p>
-      )}
-    </section>
-  );
-}
-
-function SortablePanel({ title, items }: { title: string; items: CountItem[] }) {
-  const [sort, setSort] = useState<"count" | "az">("count");
-  const [expanded, setExpanded] = useState(false);
-  const panelId = panelIdFor(title);
-  const sorted = [...items].sort((left, right) =>
-    sort === "count" ? right.count - left.count || left.label.localeCompare(right.label) : left.label.localeCompare(right.label)
-  );
-  const visibleItems = expanded ? sorted : sorted.slice(0, 10);
-  const hiddenCount = Math.max(0, sorted.length - visibleItems.length);
-
-  return (
-    <section className="chart-panel" id={panelId} aria-labelledby={`${panelId}-title`}>
-      <div className="panel-heading">
-        <h2 id={`${panelId}-title`}>{title}</h2>
-        <div className="panel-actions">
-          <label>
-            <span className="sr-only">Sort {title}</span>
-            <select value={sort} onChange={(event) => setSort(event.target.value as "count" | "az")}>
-              <option value="count">Sort: Count</option>
-              <option value="az">Sort: A-Z</option>
-            </select>
-          </label>
-          <button className="download-chart-button no-export" type="button" onClick={() => void downloadElementPng(panelId, title)} aria-label={`Download ${title} chart as PNG`}>
-            <ImageDown size={15} />
-            Download PNG
-          </button>
-        </div>
-      </div>
-      <VisualBarChart items={visibleItems} />
-      <ListLimitToggle
-        expanded={expanded}
-        hiddenCount={hiddenCount}
-        itemName={title.toLowerCase()}
-        onToggle={() => setExpanded((current) => !current)}
-      />
-    </section>
-  );
-}
-
-function ListLimitToggle({
-  expanded,
-  hiddenCount,
-  itemName,
-  onToggle
-}: {
-  expanded: boolean;
-  hiddenCount: number;
-  itemName: string;
-  onToggle: () => void;
-}) {
-  if (!expanded && hiddenCount <= 0) return null;
-  return (
-    <button className="list-limit-toggle" type="button" onClick={onToggle}>
-      {expanded ? "Show top 10" : `Show ${hiddenCount} more ${itemName}`}
-    </button>
-  );
-}
-
-function ChartPanel({ title, items, showZeroRows = false }: { title: string; items: CountItem[]; showZeroRows?: boolean }) {
-  const panelId = panelIdFor(title);
-  return (
-    <section className="chart-panel" id={panelId} aria-labelledby={`${panelId}-title`}>
-      <PanelHeading title={title} panelId={panelId} />
-      <VisualBarChart items={items} showZeroRows={showZeroRows} />
-    </section>
-  );
-}
-
-function VisualBarChart({ items, showZeroRows = false }: { items: CountItem[]; showZeroRows?: boolean }) {
-  const visibleItems = showZeroRows ? items : items.filter((item) => item.count > 0);
-  const max = Math.max(...visibleItems.map((item) => item.count), 1);
-  return (
-    <div className="visual-bar-chart" role="img" aria-label="Horizontal bar chart">
-      {visibleItems.length ? visibleItems.map((item) => <BarRow key={item.label} item={item} max={max} />) : <p>No data yet.</p>}
-    </div>
-  );
-}
-
-function BarRow({ item, max }: { item: CountItem; max: number }) {
-  return (
-    <div className={item.count ? "bar-row" : "bar-row muted"}>
-      <div>
-        <span>{item.label}</span>
-        <strong>{item.count}</strong>
-      </div>
-      <span className="bar-track" aria-hidden="true">
-        <i style={{ width: `${max ? Math.max(item.count ? 4 : 0, (item.count / max) * 100) : 0}%` }} />
-      </span>
-    </div>
-  );
-}
-
-function PanelHeading({ title, panelId }: { title: string; panelId: string }) {
-  return (
-    <div className="panel-heading">
-      <h2 id={`${panelId}-title`}>{title}</h2>
-      <button className="download-chart-button no-export" type="button" onClick={() => void downloadElementPng(panelId, title)} aria-label={`Download ${title} chart as PNG`}>
-        <ImageDown size={15} />
-        Download PNG
-      </button>
-    </div>
-  );
-}
-
-function toCountItems(record: Record<string, number>) {
-  return Object.entries(record).map(([label, count]) => ({ label, count }));
-}
-
+function toCountItems(record: Record<string, number>) { return Object.entries(record).map(([label, count]) => ({ label, count })); }
 function exportResearchBundle(summary: AdminSummary) {
-  const payload = {
-    exportedAt: new Date().toISOString(),
-    meta: summary.meta,
-    totals: summary.totals,
-    recordScope: "Up to 1,000 latest signup and follow-up records; counts and aggregates use the loaded dataset.",
-    waitlist: summary.recentWaitlistSignups,
-    followUps: summary.recentFollowUps || [],
-    pendingIntakeFollowUps: summary.pendingIntakeFollowUps || [],
-    completedFollowUps: summary.completedFollowUps || [],
-    aggregatePanels: {
-      waitlistUserTypes: summary.waitlistUserTypes,
-      waitlistReferralSources: summary.waitlistReferralSources,
-      waitlistLeadPriorities: summary.waitlistLeadPriorities,
-      waitlistBranchStatuses: summary.waitlistBranchStatuses,
-      waitlistTargetIndustries: summary.waitlistTargetIndustries,
-      waitlistCurrentProcesses: summary.waitlistCurrentProcesses,
-      waitlistWorkforceRegions: summary.waitlistWorkforceRegions,
-      waitlistLeadScoreBands: summary.waitlistLeadScoreBands,
-      waitlistFunnel: summary.waitlistFunnel,
-      followUpFunnel: summary.followUpFunnel,
-      conversionMetrics: summary.conversionMetrics,
-      followUpOutcomes: summary.followUpOutcomes,
-      followUpStatuses: summary.followUpStatuses,
-      followUpIndustries: summary.followUpIndustries,
-      followUpSalaryRanges: summary.followUpSalaryRanges
-    }
-  };
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `sagittaiq-research-export-${new Date().toISOString().slice(0, 10)}.json`;
-  link.click();
-  URL.revokeObjectURL(url);
+  const payload = { exportedAt: new Date().toISOString(), recordScope: summary.meta.recordScope || "All matching records", ...summary };
+  downloadFile(`sagittaiq-report-data-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify(payload, null, 2), "application/json");
 }
-
-function exportDataset(name: string, rows: unknown[]) {
-  const blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `sagittaiq-${name}-${new Date().toISOString().slice(0, 10)}.json`;
-  link.click();
-  URL.revokeObjectURL(url);
+function exportDataset(name: string, rows: unknown[]) { downloadFile(`sagittaiq-${name}-${new Date().toISOString().slice(0,10)}.json`, JSON.stringify(rows, null, 2), "application/json"); }
+function exportCsv(name: string, rows: Record<string, unknown>[]) { downloadFile(`sagittaiq-${name}-${new Date().toISOString().slice(0,10)}.csv`, "\uFEFF" + csvForRecords(rows), "text/csv;charset=utf-8"); }
+function downloadFile(name: string, content: string, type: string) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const link = document.createElement("a"); link.href = url; link.download = name; link.click(); URL.revokeObjectURL(url);
 }
-
-function exportCsv(name: string, rows: Record<string, unknown>[]) {
-  const blob = new Blob(["\uFEFF", csvForRecords(rows)], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `sagittaiq-${name}-${new Date().toISOString().slice(0, 10)}.csv`;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
-function buildActionQueue(summary: AdminSummary): ActionQueueItem[] {
-  const items: ActionQueueItem[] = [];
-  const hotLead = [...summary.recentWaitlistSignups]
-    .filter((lead) => Number(lead.leadScore || 0) >= 75 || lead.pilotInterest || lead.budgetInterest)
-    .sort((left, right) => Number(right.leadScore || 0) - Number(left.leadScore || 0))[0];
-
-  if (hotLead) {
-    items.push({
-      type: "lead",
-      priority: Number(hotLead.leadScore || 0) >= 75 ? "High" : "Medium",
-      title: `Contact ${hotLead.name || hotLead.leadId || "high-signal lead"}`,
-      detail: [
-        hotLead.leadId,
-        hotLead.organization || hotLead.organizationType,
-        hotLead.leadScore ? `${hotLead.leadScore}/100 lead score` : "",
-        hotLead.leadPriority
-      ].filter(Boolean).join(" - "),
-      nextAction: hotLead.recommendedAction || "Schedule discovery outreach and confirm pilot/budget interest."
-    });
-  }
-
-  const lowReadiness = [...summary.recentResumeRecords]
-    .filter((record) => Number(record.score || 0) < 65)
-    .sort((left, right) => left.score - right.score)[0];
-
-  if (lowReadiness) {
-    items.push({
-      type: "candidate",
-      priority: "High",
-      title: `Review low-readiness candidate ${lowReadiness.candidateId}`,
-      detail: `${lowReadiness.score}% readiness for ${lowReadiness.targetRole || "target opportunity"}`,
-      nextAction: "Check skill gaps, feedback quality, and whether the user needs advisor support."
-    });
-  }
-
-  const followUpNeed = summary.totals.waitlistSignups - (summary.totals.followUpSurveys || 0);
-  if (followUpNeed > 0) {
-    items.push({
-      type: "outcome",
-      priority: followUpNeed >= 5 ? "High" : "Medium",
-      title: "Collect outcome follow-ups",
-      detail: `${followUpNeed} waitlist lead(s) do not yet have follow-up outcome data.`,
-      nextAction: "Send follow-up form to improve application, interview, offer, and placement reporting."
-    });
-  }
-
-  const productSignal = topLabel(summary.waitlistCurrentProcesses || []) || topLabel(summary.waitlistTargetIndustries || []);
-  if (productSignal) {
-    items.push({
-      type: "product",
-      priority: "Medium",
-      title: `Investigate ${productSignal}`,
-      detail: "This theme is surfacing in waitlist discovery data.",
-      nextAction: "Open recent waitlist records and tag repeated pain points or report requests."
-    });
-  }
-
-  if (!items.length) {
-    items.push({
-      type: "lead",
-      priority: "Low",
-      title: "No urgent admin actions",
-      detail: "The current dataset has no high-risk candidate or high-signal lead triggers.",
-      nextAction: "Refresh after new waitlist, resume, or follow-up activity."
-    });
-  }
-
-  return items.slice(0, 5);
-}
-
-function buildProductSignals(summary: AdminSummary): ProductSignal[] {
-  const mostCommonGap = Object.values(summary.commonSkillGaps || {})
-    .flat()
-    .sort((left, right) => right.count - left.count)[0];
-  const topIndustry = topLabel(summary.waitlistTargetIndustries || []);
-  const topProcess = topLabel(summary.waitlistCurrentProcesses || []);
-  const topRegion = topLabel(summary.waitlistWorkforceRegions || []);
-  const followUps = summary.totals.followUpSurveys || 0;
-  const offerRate = followUps ? Math.round(((summary.totals.followUpOffers || 0) / followUps) * 100) : 0;
-
-  return [
-    {
-      label: "Top readiness gap",
-      value: mostCommonGap?.label || "Building",
-      detail: mostCommonGap ? `${mostCommonGap.count} candidate record(s) show this gap.` : "More resume analyses will sharpen gap intelligence."
-    },
-    {
-      label: "Demand segment",
-      value: topIndustry || topProcess || "Building",
-      detail: topIndustry ? "Target industry demand is clustering here." : topProcess ? "Workflow/process demand is clustering here." : "Waitlist volume is still early."
-    },
-    {
-      label: "Regional signal",
-      value: topRegion || "Unknown",
-      detail: topRegion ? "Useful for local workforce-development outreach." : "Collect more city/state/region data for market targeting."
-    },
-    {
-      label: "Outcome quality",
-      value: `${offerRate}%`,
-      detail: "Offer rate across follow-up responses; improves as more users report outcomes."
-    }
-  ];
-}
-
-function buildAdminBriefing(summary: AdminSummary) {
-  const followUps = summary.totals.followUpSurveys || 0;
-  const waitlist = summary.totals.waitlistSignups || 0;
-  const interviews = summary.totals.followUpInterviews || 0;
-  const offers = summary.totals.followUpOffers || 0;
-  const strongestLeadGroup = topLabel(toCountItems(summary.waitlistLeadPriorities || {}));
-  const strongestIndustry = topLabel(summary.waitlistTargetIndustries || []);
-  const biggestGap = Object.values(summary.commonSkillGaps || {})
-    .flat()
-    .sort((left, right) => right.count - left.count)[0];
-
-  return [
-    {
-      label: "Pipeline pulse",
-      value: `${waitlist} leads`,
-      detail: strongestLeadGroup ? `${strongestLeadGroup} is the strongest lead priority signal.` : "Waitlist volume is the current top-of-funnel baseline."
-    },
-    {
-      label: "Outcome signal",
-      value: `${interviews}/${offers}`,
-      detail: `${interviews} interviews and ${offers} offers reported from ${followUps} follow-up responses.`
-    },
-    {
-      label: "Market signal",
-      value: strongestIndustry || "Building",
-      detail: strongestIndustry ? `${strongestIndustry} is leading current waitlist demand.` : "Target industry demand will sharpen as more leads sign up."
-    },
-    {
-      label: "Product focus",
-      value: biggestGap?.label || "Skills",
-      detail: biggestGap ? `${biggestGap.count} record(s) show this as a readiness gap.` : "Skill-gap intelligence will grow with resume volume."
-    }
-  ];
-}
-
-function buildEnterpriseTiles(summary: AdminSummary, view: AdminView): EnterpriseTileConfig[] {
-  const baseTiles: EnterpriseTileConfig[] = [
-    {
-      tone: "cyan",
-      icon: <Users size={44} />,
-      value: summary.totals.uniqueUsers,
-      label: "Active participants",
-      primaryAction: "Review participants",
-      secondaryAction: `${summary.totals.resumeRecords} career records`
-    },
-    {
-      tone: "green",
-      icon: <BriefcaseBusiness size={44} />,
-      value: summary.totals.applicationCaptures,
-      label: "Tracked opportunities",
-      primaryAction: "Open opportunity funnel",
-      secondaryAction: `${summary.totals.followUpInterviews || 0} interviews reported`
-    },
-    {
-      tone: "amber",
-      icon: <Building2 size={44} />,
-      value: summary.totals.waitlistSignups,
-      label: "Discovery pipeline",
-      primaryAction: "Review waitlist leads",
-      secondaryAction: `${summary.totals.pilotProspects || 0} pilot prospects`
-    },
-    {
-      tone: "red",
-      icon: <Activity size={44} />,
-      value: `${summary.totals.followUpOffers || 0}/${summary.totals.followUpPlacements || 0}`,
-      label: "Offers / placements",
-      primaryAction: "Check outcomes",
-      secondaryAction: `${summary.totals.followUpSurveys || 0} follow-ups`
-    }
-  ];
-
-  if (view === "institutional") {
-    return [
-      {
-        tone: "cyan",
-        icon: <FileText size={44} />,
-        value: `${percent(summary.totals.followUpSurveys || 0, Math.max(summary.totals.waitlistSignups, 1))}%`,
-        label: "Knowledge proxy",
-        primaryAction: "Review reporting coverage",
-        secondaryAction: `${summary.totals.followUpSurveys || 0} follow-up responses`
-      },
-      {
-        tone: "green",
-        icon: <Activity size={44} />,
-        value: `${percent((summary.totals.followUpPlacements || 0) + (summary.totals.followUpOffers || 0), Math.max(summary.totals.followUpSurveys || 0, 1))}%`,
-        label: "Outcome proxy",
-        primaryAction: "Review outcomes",
-        secondaryAction: `${summary.totals.followUpOffers || 0} offers, ${summary.totals.followUpPlacements || 0} placements`
-      },
-      {
-        tone: "amber",
-        icon: <Building2 size={44} />,
-        value: formatCurrency(summary.totals.medianSalary || 0),
-        label: "Median salary",
-        primaryAction: "Open salary ranges",
-        secondaryAction: `${summary.totals.salaryResponses || 0} salary responses`
-      },
-      {
-        tone: "red",
-        icon: <BriefcaseBusiness size={44} />,
-        value: topLabel(mergeCountItems(summary.followUpEmployers || [], summary.applicationEmployers || [])) || "Building",
-        label: "Top employer signal",
-        primaryAction: "Review sample employers",
-        secondaryAction: "Useful for program reporting"
-      }
-    ];
-  }
-
-  if (view === "applications") {
-    return [
-      {
-        tone: "cyan",
-        icon: <FileText size={44} />,
-        value: summary.totals.resumeRecords,
-        label: "Resume reviews",
-        primaryAction: "Review candidate activity",
-        secondaryAction: `${summary.totals.uniqueUsers} tracked users`
-      },
-      {
-        tone: "green",
-        icon: <Activity size={44} />,
-        value: `${summary.totals.averageReadinessScore}%`,
-        label: "Average readiness",
-        primaryAction: "Open readiness bands",
-        secondaryAction: `${summary.totals.readinessDelta} pts from threshold`
-      },
-      {
-        tone: "amber",
-        icon: <BriefcaseBusiness size={44} />,
-        value: summary.totals.applicationCaptures,
-        label: "Opportunities tracked",
-        primaryAction: "Review application funnel",
-        secondaryAction: `${topLabel(toCountItems(summary.applicationStatuses)) || "No"} leading status`
-      },
-      {
-        tone: "red",
-        icon: <ClipboardList size={44} />,
-        value: topLabel(Object.values(summary.commonSkillGaps || {}).flat()) || "Building",
-        label: "Top skill gap",
-        primaryAction: "Review keyword gaps",
-        secondaryAction: "Use this to shape advisor guidance"
-      }
-    ];
-  }
-
-  if (view === "followups") {
-    return [
-      {
-        tone: "cyan",
-        icon: <ClipboardList size={44} />,
-        value: summary.totals.pendingIntakeFollowUps || 0,
-        label: "Pending intakes",
-        primaryAction: "Export pending list",
-        secondaryAction: "Interview volunteers needing outreach"
-      },
-      {
-        tone: "green",
-        icon: <Activity size={44} />,
-        value: summary.totals.completedFollowUps || 0,
-        label: "Completed follow-ups",
-        primaryAction: "Review completed updates",
-        secondaryAction: `${summary.totals.followUpApplications || 0} applications reported`
-      },
-      {
-        tone: "amber",
-        icon: <BriefcaseBusiness size={44} />,
-        value: summary.totals.followUpInterviews || 0,
-        label: "Interview signals",
-        primaryAction: "Open outcome funnel",
-        secondaryAction: `${summary.totals.followUpOffers || 0} offers reported`
-      },
-      {
-        tone: "red",
-        icon: <Building2 size={44} />,
-        value: topLabel(summary.followUpSalaryRanges || []) || "Building",
-        label: "Salary signal",
-        primaryAction: "Review salary ranges",
-        secondaryAction: `${summary.totals.salaryResponses || 0} salary responses`
-      }
-    ];
-  }
-
-  if (view === "waitlist") {
-    return [
-      baseTiles[2],
-      {
-        tone: "green",
-        icon: <ClipboardList size={44} />,
-        value: summary.totals.interviewVolunteers || 0,
-        label: "Discovery volunteers",
-        primaryAction: "Schedule interviews",
-        secondaryAction: `${summary.totals.pendingIntakeFollowUps || 0} pending intakes`
-      },
-      {
-        tone: "amber",
-        icon: <Building2 size={44} />,
-        value: summary.totals.pilotProspects || 0,
-        label: "Pilot prospects",
-        primaryAction: "Review institutional leads",
-        secondaryAction: `${summary.totals.budgetQualified || 0} budget qualified`
-      },
-      {
-        tone: "red",
-        icon: <Activity size={44} />,
-        value: summary.totals.averageLeadScore || 0,
-        label: "Average lead score",
-        primaryAction: "Prioritize outreach",
-        secondaryAction: `${topLabel(toCountItems(summary.waitlistLeadPriorities || {})) || "No"} lead priority`
-      }
-    ];
-  }
-
-  return baseTiles;
-}
-
-function buildRecentActivity(summary: AdminSummary) {
-  const resumeItems = summary.recentResumeRecords.slice(0, 4).map((record) => ({
-    label: `${record.currentTitle || "Candidate"} ran a readiness review`,
-    detail: `${record.score}% for ${record.targetRole || "target opportunity"}`,
-    time: formatDate(record.capturedAt),
-    sortAt: record.capturedAt
-  }));
-  const waitlistItems = summary.recentWaitlistSignups.slice(0, 4).map((signup) => ({
-    label: `${signup.name || signup.leadId || "Lead"} joined the waitlist`,
-    detail: [signup.userType, signup.targetIndustry, signup.workforceRegion].filter(Boolean).join(" - ") || "Discovery profile captured",
-    time: formatDate(signup.createdAt),
-    sortAt: signup.createdAt
-  }));
-  const followUpItems = (summary.recentFollowUps || []).slice(0, 4).map((item) => ({
-    label: `${item.candidateId || item.leadId || "User"} submitted a follow-up`,
-    detail: [item.currentStatus, item.placementStatus, item.employer].filter(Boolean).join(" - ") || "Outcome update captured",
-    time: formatDate(item.submittedAt || ""),
-    sortAt: item.submittedAt || ""
-  }));
-
-  const items = [...resumeItems, ...waitlistItems, ...followUpItems]
-    .sort((left, right) => new Date(right.sortAt).getTime() - new Date(left.sortAt).getTime())
-    .slice(0, 6);
-
-  return items.length ? items : [{
-    label: "No recent activity yet",
-    detail: "New analyses, waitlist signups, and follow-ups will appear here.",
-    time: "Now",
-    sortAt: new Date().toISOString()
-  }];
-}
-
-function buildReportingShortcuts(summary: AdminSummary) {
-  return [
-    {
-      label: "Readiness report",
-      value: `${summary.totals.averageReadinessScore}%`,
-      detail: `${summary.totals.readinessDelta} pts from strong-match threshold`
-    },
-    {
-      label: "Pipeline report",
-      value: `${summary.totals.waitlistSignups} leads`,
-      detail: `${summary.totals.interviewVolunteers || 0} discovery volunteers`
-    },
-    {
-      label: "Outcome report",
-      value: `${summary.totals.followUpOffers || 0} offers`,
-      detail: `${summary.totals.followUpApplications || 0} applications reported from follow-ups`
-    },
-    {
-      label: "Market report",
-      value: topLabel(summary.followUpEmployers || summary.applicationEmployers || []) || "Building",
-      detail: "Employer and title signals for institutional reporting"
-    }
-  ];
-}
-
-function viewIcon(view: AdminView) {
-  switch (view) {
-    case "all":
-      return <BarChart3 size={18} />;
-    case "institutional":
-      return <Building2 size={18} />;
-    case "applications":
-      return <BriefcaseBusiness size={18} />;
-    case "waitlist":
-      return <Users size={18} />;
-    case "followups":
-      return <ClipboardList size={18} />;
-    default:
-      return <BarChart3 size={18} />;
-  }
-}
-
-function topLabel(items: CountItem[]) {
-  return [...items].sort((left, right) => right.count - left.count)[0]?.label || "";
-}
-
-function humanizeKey(value: string) {
-  return value
-    .replace(/[_-]+/g, " ")
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function panelIdFor(title: string) {
-  return `admin-panel-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
-}
-
-async function downloadElementPng(elementId: string, title: string) {
-  const source = document.getElementById(elementId);
-  if (!source) return;
-
-  const clone = source.cloneNode(true) as HTMLElement;
-  clone.querySelectorAll(".no-export").forEach((node) => node.remove());
-  clone.style.margin = "0";
-  clone.style.width = `${source.getBoundingClientRect().width}px`;
-
-  const width = Math.ceil(source.getBoundingClientRect().width);
-  const height = Math.ceil(source.getBoundingClientRect().height);
-  const styles = Array.from(document.styleSheets)
-    .map((sheet) => {
-      try {
-        return Array.from(sheet.cssRules).map((rule) => rule.cssText).join("\n");
-      } catch {
-        return "";
-      }
-    })
-    .join("\n");
-  const markup = new XMLSerializer().serializeToString(clone);
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-      <foreignObject width="100%" height="100%">
-        <div xmlns="http://www.w3.org/1999/xhtml">
-          <style>${styles}</style>
-          ${markup}
-        </div>
-      </foreignObject>
-    </svg>`;
-
-  const image = new Image();
-  const svgUrl = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
-  await new Promise<void>((resolve, reject) => {
-    image.onload = () => resolve();
-    image.onerror = () => reject(new Error("Could not render chart image."));
-    image.src = svgUrl;
-  });
-
-  const canvas = document.createElement("canvas");
-  canvas.width = width * 2;
-  canvas.height = height * 2;
-  const context = canvas.getContext("2d");
-  if (!context) return;
-  context.scale(2, 2);
-  context.drawImage(image, 0, 0);
-  URL.revokeObjectURL(svgUrl);
-
-  const pngUrl = canvas.toDataURL("image/png");
-  const link = document.createElement("a");
-  link.href = pngUrl;
-  link.download = `${panelIdFor(title)}-${new Date().toISOString().slice(0, 10)}.png`;
-  link.click();
-}
-
-function scoreClass(score: number) {
-  if (score < 65) return "score-low";
-  if (score < 85) return "score-mid";
-  return "score-high";
-}
-
-function percent(count: number, total: number) {
-  return total ? Math.round((count / total) * 100) : 0;
-}
-
-function formatCurrency(value: number) {
-  if (!value) return "Pending";
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0
-  }).format(value);
-}
-
-function formatDuration(seconds: number) {
-  if (!seconds) return "0s";
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  if (!minutes) return `${remainingSeconds}s`;
-  return `${minutes}m ${remainingSeconds}s`;
-}
-
-function mergeCountItems(...groups: CountItem[][]) {
-  const counts = new Map<string, number>();
-  groups.flat().forEach((item) => {
-    if (!item.label) return;
-    counts.set(item.label, (counts.get(item.label) || 0) + item.count);
-  });
-  return [...counts.entries()]
-    .map(([label, count]) => ({ label, count }))
-    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))
-    .slice(0, 12);
-}
-
-function initials(value: string) {
-  return value.replace(/^Candidate\s+/i, "").slice(0, 2).toUpperCase() || "FV";
-}
-
-function interestLabels(signup: {
-  interviewInterest?: boolean;
-  betaInterest?: boolean;
-  pilotInterest?: boolean;
-  budgetInterest?: boolean;
-}) {
-  return [
-    signup.interviewInterest && "Interview",
-    signup.betaInterest && "Beta",
-    signup.pilotInterest && "Pilot",
-    signup.budgetInterest && "Budget"
-  ].filter(Boolean) as string[];
-}
-
-function formatDate(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "Unknown" : date.toLocaleDateString();
-}
-
-function formatDateTime(value: string) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? "Unknown"
-    : date.toLocaleString([], { dateStyle: "short", timeStyle: "short" });
-}
-
-function getStoredTheme() {
-  const saved = localStorage.getItem("sagittaiq_admin_theme");
-  if (saved === "dark" || saved === "light") return saved;
-  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
+function initials(value: string) { return value.trim().split(/\s+/).filter(Boolean).slice(0,2).map((part) => part[0]).join("").toUpperCase() || "?"; }
+function formatDate(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? "Not provided" : date.toLocaleDateString(); }
+function formatDateTime(value: string) { const date = new Date(value); return Number.isNaN(date.getTime()) ? "Not provided" : date.toLocaleString([], { dateStyle: "short", timeStyle: "short" }); }
+function getStoredTheme() { const saved = localStorage.getItem("sagittaiq_admin_theme"); return saved === "dark" ? "dark" : "light"; }

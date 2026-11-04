@@ -11,6 +11,7 @@ jobs:
     timeout-minutes: 15
     env:
       WRANGLER_SEND_METRICS: 'false'
+      SAGITTAIQ_TEST_ADMIN_CODE: 'ci-admin-synthetic-only'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,6 +22,8 @@ jobs:
       - run: npm run test:coverage
       - run: npm run build
       - run: npm run pages:check
+      - name: Configure synthetic local admin integration tests
+        run: node -e "require('fs').writeFileSync('.dev.vars', 'ADMIN_ACCESS_CODE=ci-admin-synthetic-only\nAPPLICATION_SYNC_SALT=ci-synthetic-only\n')"
       - run: npm run db:migrate
       - name: Verify migration reruns are safe
         run: npm run db:migrate
