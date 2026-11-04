@@ -1,4 +1,6 @@
 import { tableColumns } from "./ids.js";
+import { buildSignupGroups, matchResponse } from "../lib/contact-cohort.js";
+import { validateFormPayload } from "../lib/form-payload.js";
 
 const PERSONAL_DOMAINS = new Set([
   "gmail.com",
@@ -20,9 +22,15 @@ export async function onRequestPost({ request, env }) {
 
   try {
     const body = await request.json();
+    validateFormPayload(body);
     const email = normalizeEmail(body.email);
     if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) throw new Error("Enter a valid email address.");
     const phone = clean(body.phone, 80);
+    const identity = { email, leadId: clean(body.leadId, 80), candidateId: clean(body.candidateId, 80), contactId: clean(body.contactId, 80) };
+    if (!Object.values(identity).some(Boolean)) throw new Error('Enter your email or a reference ID so this response can be identified.');
+    for (const field of ['leadId', 'candidateId', 'contactId']) {
+      if (identity[field] && !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,79}$/.test(identity[field])) throw new Error('Check your reference IDs, or use your email instead.');
+    }
     const salaryCurrency = clean(body.salaryCurrency, 20).toUpperCase();
     if (salaryCurrency && !/^[A-Z]{3}$/.test(salaryCurrency)) throw new Error('Enter a 3-letter salary currency code, such as USD or EUR.');
     const emailDomain = domainFromEmail(email);
@@ -32,26 +40,40 @@ export async function onRequestPost({ request, env }) {
     if (!["email", "phone", "response_details_json"].every((column) => columns.has(column))) {
       return json({ error: "Contact storage is not ready. Apply migration 0019_waitlist_contact_details.sql before accepting follow-ups." }, 503);
     }
+    const signupColumns = await tableColumns(env.DB, 'waitlist_signups');
+    const identitySelect = [['lead_id','leadId'],['candidate_id','candidateId'],['contact_id','contactId'],['email','email'],['email_hash','legacySignupHash']]
+      .map(([column, alias]) => `${signupColumns.has(column) ? column : "''"} AS ${alias}`).join(', ');
+    const savedSignups = await env.DB.prepare(`SELECT id, ${identitySelect} FROM waitlist_signups`).all();
+    if (matchResponse(identity, buildSignupGroups(savedSignups.results || [])).status === 'needs_review') {
+      throw new Error('The supplied contact references do not agree. Check your email and reference IDs before submitting.');
+    }
     const responseDetails = {
+      formVersion: clean(body.formVersion, 80) || 'legacy-client',
+      originalAnswers: body,
+      ...identity,
       email,
       phone,
       currentStatus: clean(body.currentStatus, 160),
-      applicationCount: clampInteger(body.applicationCount, 0, 999),
-      interviewCount: clampInteger(body.interviewCount, 0, 999),
-      offerCount: clampInteger(body.offerCount, 0, 999),
+      applicationCount: strictCount(body.applicationCount, 'Application count'),
+      interviewCount: strictCount(body.interviewCount, 'Interview count'),
+      offerCount: strictCount(body.offerCount, 'Offer count'),
       placementStatus: clean(body.placementStatus, 120),
       currentRole: clean(body.currentRole, 180),
       currentIndustry: clean(body.currentIndustry, 120),
+      currentIndustryOther: clean(body.currentIndustryOther, 240),
       salaryRange: clean(body.salaryRange, 120),
       employer: clean(body.employer, 180),
       jobTitle: clean(body.jobTitle, 180),
-      salaryAmount: clampOptionalInteger(body.salaryAmount, 0, 10000000),
+      salaryAmount: strictSalary(body.salaryAmount),
+      salaryValueOriginal: clean(body.salaryAmount, 80),
       salaryCurrency,
-      salaryPeriod: clean(body.salaryPeriod, 80) || "Annual",
+      salaryPeriod: clean(body.salaryPeriod, 80),
       outcomeDate: clean(body.outcomeDate, 40),
       jobLocation: clean(body.jobLocation, 180),
       dataSource: clean(body.dataSource, 120) || "Self-reported follow-up",
-      verificationStatus: clean(body.verificationStatus, 120) || "Self-reported",
+      verificationStatus: "Self-reported",
+      verificationClaim: clean(body.verificationStatus, 120) || "Self-reported",
+      verificationEvidenceStatus: 'Unverified self-report',
       supportNeeded: clean(body.supportNeeded, 1200),
       notes: clean(body.notes, 1600),
       source: clean(body.source, 120) || "public_follow_up"
@@ -77,21 +99,21 @@ export async function onRequestPost({ request, env }) {
           emailDomain,
           emailDomainType,
           clean(body.currentStatus, 160),
-          clampInteger(body.applicationCount, 0, 999),
-          clampInteger(body.interviewCount, 0, 999),
-          clampInteger(body.offerCount, 0, 999),
+          responseDetails.applicationCount ?? 0,
+          responseDetails.interviewCount ?? 0,
+          responseDetails.offerCount ?? 0,
           clean(body.placementStatus, 120),
           clean(body.currentRole, 180),
           clean(body.currentIndustry, 120),
           clean(body.salaryRange, 120),
           clean(body.employer, 180),
           clean(body.jobTitle, 180),
-          clampOptionalInteger(body.salaryAmount, 0, 10000000),
-          clean(body.salaryPeriod, 80) || "Annual",
+          responseDetails.salaryAmount,
+          responseDetails.salaryPeriod,
           clean(body.outcomeDate, 40),
           clean(body.jobLocation, 180),
           clean(body.dataSource, 120) || "Self-reported follow-up",
-          clean(body.verificationStatus, 120) || "Self-reported",
+          responseDetails.verificationStatus,
           clean(body.supportNeeded, 1200),
           clean(body.notes, 1600),
           clean(body.source, 120) || "public_follow_up",
@@ -122,9 +144,9 @@ export async function onRequestPost({ request, env }) {
         emailDomain,
         emailDomainType,
         clean(body.currentStatus, 160),
-        clampInteger(body.applicationCount, 0, 999),
-        clampInteger(body.interviewCount, 0, 999),
-        clampInteger(body.offerCount, 0, 999),
+        responseDetails.applicationCount ?? 0,
+        responseDetails.interviewCount ?? 0,
+        responseDetails.offerCount ?? 0,
         clean(body.placementStatus, 120),
         clean(body.currentRole, 180),
         clean(body.currentIndustry, 120),
@@ -186,17 +208,23 @@ function clean(value, maxLength) {
   return next;
 }
 
-function clampInteger(value, min, max) {
-  const number = Number.parseInt(String(value || 0), 10);
-  if (Number.isNaN(number)) return min;
-  return Math.min(max, Math.max(min, number));
+function strictCount(value, label) {
+  if (value === undefined || value === null || String(value).trim() === '') return null;
+  const text = String(value).trim();
+  if (!/^\d+$/.test(text) || !Number.isSafeInteger(Number(text)) || Number(text) > 999) {
+    throw new Error(`${label} must be a whole number from 0 to 999, or left blank if unknown.`);
+  }
+  return Number(text);
 }
 
-function clampOptionalInteger(value, min, max) {
+function strictSalary(value) {
   if (value === null || value === undefined || String(value).trim() === "") return null;
-  const number = Number.parseInt(String(value).replace(/[$,]/g, ""), 10);
-  if (Number.isNaN(number)) return null;
-  return Math.min(max, Math.max(min, number));
+  const text = String(value).trim();
+  const number = Number(text);
+  if (!/^(?:\d+(?:\.\d{1,2})?|\.\d{1,2})$/.test(text) || !Number.isFinite(number) || number < 0 || number > 10000000) {
+    throw new Error('Salary amount must be a number from 0 to 10000000 with up to two decimal places, or left blank.');
+  }
+  return number;
 }
 
 function json(payload, status = 200) {

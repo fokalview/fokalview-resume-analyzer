@@ -1,4 +1,5 @@
 import { nextPlatformId, tableColumns } from "./ids.js";
+import { validateFormPayload } from "../lib/form-payload.js";
 
 const PERSONAL_DOMAINS = new Set([
   "gmail.com",
@@ -27,13 +28,14 @@ export async function onRequestPost({ request, env }) {
 
   try {
     const body = await request.json();
+    validateFormPayload(body);
     const columns = await tableColumns(env.DB, "waitlist_signups");
     if (!["email", "phone", "intake_details_json"].every((column) => columns.has(column))) {
       return json({ error: "Contact storage is not ready. Apply migration 0019_waitlist_contact_details.sql before accepting signups." }, 503);
     }
     const record = await normalizeSignup(body, request, env);
     const { id, leadId, contactId, organizationId, candidateId, emailHash, ...intakeDetails } = record;
-    record.intakeDetails = intakeDetails;
+    record.intakeDetails = { ...intakeDetails, formVersion: clean(body.formVersion, 80) || 'legacy-client', originalAnswers: body };
     const now = new Date().toISOString();
 
     if (columns.has("school_name") && columns.has("program_name")) {
@@ -68,6 +70,7 @@ export async function onRequestOptions() {
 }
 
 async function normalizeSignup(body, request, env) {
+  body = normalizeActiveBranch(body);
   const userType = clean(body.userType, 80) || "Institution / Program Leader";
   const organization = clean(body.organization, 180);
   if (ORGANIZATION_USER_TYPES.has(userType) && !organization) {
@@ -119,16 +122,16 @@ async function normalizeSignup(body, request, env) {
     pilotInterest: body.pilotInterest === true,
     budgetInterest: body.budgetInterest === true,
     userType,
-    referralSource: clean(body.referralSource, 80) || "Direct",
+    referralSource: clean(body.referralSource, 80),
     buyingAuthority: clean(body.buyingAuthority, 80),
     timeline: clean(body.timeline, 80),
     branchStatus: branchStatus(body),
     targetRole: clean(body.targetRole, 180),
     targetIndustry: clean(body.targetIndustry, 120),
     experienceLevel: clean(body.experienceLevel, 80),
-    programName: clean(body.degreeProgram || body.programName || body.programType, 180),
+    programName: clean(userType === 'Student' ? (body.degreeProgram || body.programName) : (body.programName || body.programType), 180),
     majorField: clean(body.majorField, 180),
-    schoolName: clean(body.schoolName || body.organization, 180),
+    schoolName: clean(body.schoolName || (userType === 'Student' ? body.organization : ''), 180),
     gpa,
     certifications: clean(body.certifications, 1200),
     degreeLevel: clean(body.degreeLevel || body.studentType, 120),
@@ -593,6 +596,30 @@ function scoreLead(body) {
   };
 }
 
+function normalizeActiveBranch(input) {
+  const body = { ...input };
+  const branch = String(body.userType || 'Institution / Program Leader');
+  const people = ['Individual Job Seeker', 'Student'];
+  const organizations = [...ORGANIZATION_USER_TYPES];
+  const sharedOrg = ['Career Counselor / Advisor','Institution / Program Leader','Workforce / Gov / Nonprofit'];
+  const fields = [
+    [['currentStatus','experienceLevel','currentIncomeRange','individualChallenges','individualTools','individualChallengesOther','individualToolsOther'], ['Individual Job Seeker']],
+    [['studentType','degreeProgram','majorField','schoolName','gpa','certifications','degreeLevel','expectedGraduationYear','domesticInternational','careerStage','studentChallenges','studentTools','studentChallengesOther','studentToolsOther'], ['Student']],
+    [['targetRole','targetIndustry','targetIndustryOther','minimumSalary','targetSalary','dreamSalary','salaryExpectationCurrency','salaryExpectationPeriod'], people],
+    [['organizationType','organizationTypeOther','populationServed','currentProcess'], sharedOrg],
+    [['operationalChallenges','operationalChallengesOther','reportingWish'], sharedOrg],
+    [['primaryPopulation','primaryPopulationOther'], ['Career Counselor / Advisor','Workforce / Gov / Nonprofit']],
+    [['geographicReach','advisingStaffCount'], ['Institution / Program Leader']],
+    [['programType','fundingSource'], ['Workforce / Gov / Nonprofit']],
+    [['companySize','hiringVolume','rolesHiringFor','skillsHardToFind','employerPainPoints','employerInterestTypes','employerPainPointsOther','employerInterestTypesOther'], ['Employer / Hiring Partner']],
+    [['buyingAuthority','timeline','pilotInterestLevel','pilotInterest','budgetInterest'], organizations]
+  ];
+  for (const [names, branches] of fields) if (!branches.includes(branch)) {
+    for (const name of names) body[name] = Array.isArray(body[name]) ? [] : typeof body[name] === 'boolean' ? false : '';
+  }
+  return body;
+}
+
 function branchStatus(body) {
   const userType = clean(body.userType, 80);
   if (userType === "Individual Job Seeker") return clean(body.currentStatus, 120);
@@ -614,10 +641,12 @@ function buildBranchProfile(body, location) {
     minimumSalary: clean(body.minimumSalary, 120),
     targetSalary: clean(body.targetSalary, 120),
     dreamSalary: clean(body.dreamSalary, 120),
+    salaryExpectationCurrency: clean(body.salaryExpectationCurrency, 20),
+    salaryExpectationPeriod: clean(body.salaryExpectationPeriod, 80),
     studentType: clean(body.studentType, 120),
     degreeProgram: clean(body.degreeProgram, 180),
     majorField: clean(body.majorField, 180),
-    schoolName: clean(body.schoolName || body.organization, 180),
+    schoolName: clean(body.schoolName || (userType === 'Student' ? body.organization : ''), 180),
     gpa: cleanGpa(body.gpa),
     certifications: clean(body.certifications, 1200),
     degreeLevel: clean(body.degreeLevel, 120),
@@ -673,9 +702,19 @@ function deriveLocation(body, countryFromEdge) {
 
 function deriveWorkforceRegion(country, state) {
   const normalizedCountry = String(country || "").trim().toUpperCase();
-  const normalizedState = String(state || "").trim().toUpperCase();
+  let normalizedState = String(state || "").trim().toUpperCase();
   if (!normalizedState) return "";
   if (!["US", "USA", "UNITED STATES"].includes(normalizedCountry)) return normalizedState;
+  const stateCodes = {
+    ALABAMA:'AL', ALASKA:'AK', ARIZONA:'AZ', ARKANSAS:'AR', CALIFORNIA:'CA', COLORADO:'CO', CONNECTICUT:'CT', DELAWARE:'DE',
+    'DISTRICT OF COLUMBIA':'DC', FLORIDA:'FL', GEORGIA:'GA', HAWAII:'HI', IDAHO:'ID', ILLINOIS:'IL', INDIANA:'IN', IOWA:'IA',
+    KANSAS:'KS', KENTUCKY:'KY', LOUISIANA:'LA', MAINE:'ME', MARYLAND:'MD', MASSACHUSETTS:'MA', MICHIGAN:'MI', MINNESOTA:'MN',
+    MISSISSIPPI:'MS', MISSOURI:'MO', MONTANA:'MT', NEBRASKA:'NE', NEVADA:'NV', 'NEW HAMPSHIRE':'NH', 'NEW JERSEY':'NJ',
+    'NEW MEXICO':'NM', 'NEW YORK':'NY', 'NORTH CAROLINA':'NC', 'NORTH DAKOTA':'ND', OHIO:'OH', OKLAHOMA:'OK', OREGON:'OR',
+    PENNSYLVANIA:'PA', 'RHODE ISLAND':'RI', 'SOUTH CAROLINA':'SC', 'SOUTH DAKOTA':'SD', TENNESSEE:'TN', TEXAS:'TX', UTAH:'UT',
+    VERMONT:'VT', VIRGINIA:'VA', WASHINGTON:'WA', 'WEST VIRGINIA':'WV', WISCONSIN:'WI', WYOMING:'WY'
+  };
+  normalizedState = stateCodes[normalizedState] || normalizedState;
   const regions = {
     Northeast: ["CT", "ME", "MA", "NH", "RI", "VT", "NJ", "NY", "PA"],
     Midwest: ["IL", "IN", "MI", "OH", "WI", "IA", "KS", "MN", "MO", "NE", "ND", "SD"],

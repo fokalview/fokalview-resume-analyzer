@@ -1,0 +1,129 @@
+/* Content-first refinements: shared data views retain every existing section. */
+.contact-admin { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 16px; line-height: 1.5; }
+.contact-admin .workspace-frame { max-width: 1500px; }
+.contact-admin .workspace-body { min-width: 0; padding-top: 32px; }
+.contact-admin .workspace-topbar { gap: 20px; padding-block: 18px; }
+.contact-admin .workspace-brand strong { font-size: 19px; letter-spacing: -.03em; }
+.contact-admin .workspace-brand strong > span, .contact-admin .workspace-session, .contact-admin .workspace-release { font-size: 12px; }
+.contact-admin .workspace-nav { gap: 8px; padding-block: 16px; }
+.contact-admin .workspace-nav > a { min-height: 44px; padding: 10px 14px; font-size: 14px; border: 1px solid transparent; border-radius: 10px; }
+.contact-admin .workspace-nav > a[aria-current="page"] { border-color: var(--border); box-shadow: 0 1px 4px #142c2108; }
+.contact-admin .workspace-nav small, .contact-admin .workspace-segment button > span { font-size: 12px; }
+.contact-admin .workspace-heading { align-items: start; margin-bottom: 24px; }
+.contact-admin .workspace-heading h1 { font-size: clamp(1.75rem, 2.5vw, 2.1rem); line-height: 1.15; letter-spacing: -.035em; }
+.contact-admin .workspace-heading > div > p:last-child { max-width: 68ch; font-size: 15px; line-height: 1.6; }
+.contact-admin .workspace-eyebrow { font-size: 12px; letter-spacing: .045em; }
+.contact-admin .workspace-sync, .contact-admin .workspace-label, .contact-admin .workspace-footer { font-size: 12px; }
+.contact-admin .workspace-quiet, .contact-admin .workspace-primary, .contact-admin .workspace-view-button, .contact-admin .download-chart-button { min-height: 44px; font-size: 14px !important; line-height: 1.4; }
+.contact-admin .workspace-icon-button { min-width: 44px; min-height: 44px; }
+.contact-admin :is(button, a, input, select, textarea, summary, [tabindex="0"]):focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }
+.contact-admin button:active:not(:disabled) { filter: brightness(.96); }
+.contact-admin .workspace-records, .contact-admin .chart-panel, .contact-admin .restored-panel { border-radius: 16px; box-shadow: 0 2px 12px #172c2107; }
+.contact-admin .workspace-search { min-height: 46px; border-radius: 10px; }
+.contact-admin .workspace-search input { min-height: 44px; font-size: 16px; }
+.contact-admin .workspace-search button { width: 44px; min-height: 44px; }
+.contact-admin .workspace-filters { flex-wrap: wrap; }
+.contact-admin .workspace-filters select { max-width: 220px; min-height: 44px; font-size: 14px; border-radius: 9px; }
+.contact-admin .workspace-more-filters { flex-basis: 100%; margin: 0; }
+.contact-admin .workspace-more-filters > summary { padding-block: 8px; font-size: 14px; color: var(--text-muted); cursor: pointer; }
+.contact-admin .workspace-more-filters .workspace-filters { margin-block: 8px 0; }
+.contact-admin .workspace-more-filters label { display: grid; gap: 6px; font-size: 12px; }
+.contact-admin .workspace-list-summary, .contact-admin .workspace-legacy-note, .contact-admin .workspace-pagination { font-size: 13px; }
+.contact-admin .workspace-list-summary { align-items: start; }
+.contact-admin .workspace-contact { gap: 24px; padding: 24px; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(170px, .65fr); }
+.contact-admin .contact-avatar { width: 40px; height: 40px; flex-basis: 40px; font-size: 13px; }
+.contact-admin .contact-identity h2, .contact-admin .contact-identity h3 { margin: 0; font-size: 16px; line-height: 1.4; letter-spacing: -.015em; }
+.contact-admin .contact-identity p, .contact-admin .contact-links > span, .contact-admin .contact-context small, .contact-admin .contact-next-step small { font-size: 13px; line-height: 1.5; }
+.contact-admin .contact-links, .contact-admin .contact-context p { font-size: 14px; }
+.contact-admin .contact-context p { -webkit-line-clamp: 3; }
+.contact-admin .workspace-status { font-size: 12px; min-height: 28px; border-radius: 7px; }
+.contact-admin .workspace-segment { gap: 6px; border-radius: 11px; }
+.contact-admin .workspace-segment button { min-height: 44px; padding: 10px 12px; font-size: 14px !important; border-radius: 8px; }
+.contact-admin .workspace-report-metrics { gap: 16px; }
+.contact-admin .workspace-report-metrics > article { padding: 20px; gap: 8px; border-radius: 14px; align-content: start; }
+.contact-admin .workspace-report-metrics strong { font-size: clamp(1.7rem, 2.6vw, 2.2rem); line-height: 1.15; font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
+.contact-admin .workspace-report-metrics span { font-size: 14px; }
+.contact-admin .workspace-report-metrics small { font-size: 13px; line-height: 1.55; }
+.contact-admin .workspace-report-grid { gap: 20px; align-items: start; }
+.contact-admin .report-source-note, .contact-admin .workspace-report-link p { font-size: 13px; line-height: 1.6; }
+.contact-admin .restored-section-heading, .contact-admin .chart-panel h2, .contact-admin .restored-panel h2 { font-size: 19px; letter-spacing: -.02em; line-height: 1.35; }
+.contact-admin .panel-heading { gap: 12px; flex-wrap: wrap; }
+.contact-admin .restored-chart-controls { flex-wrap: wrap; gap: 8px; }
+.contact-admin .restored-chart-controls select { max-width: 100%; min-height: 44px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 14px; padding: 7px 9px; }
+.contact-admin .workspace-chart dt, .contact-admin .workspace-chart dd { font-size: 14px; line-height: 1.5; }
+.contact-admin .workspace-chart dd { font-variant-numeric: tabular-nums; }
+.contact-admin .workspace-chart small { font-size: 12px; }
+.contact-admin .workspace-fields dt { font-size: 13px; line-height: 1.5; }
+.contact-admin .workspace-fields dd { font-size: 15px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.contact-admin .workspace-reference summary { font-size: 14px; min-height: 44px; padding-block: 10px; }
+.contact-admin .workspace-drawer { width: min(780px, 100%); }
+.contact-admin .workspace-drawer-header h2 { font-size: 24px; line-height: 1.2; letter-spacing: -.025em; }
+.contact-admin .workspace-drawer-body { padding: 24px; }
+.contact-admin .grouped-record-details h3 { font-size: 18px; letter-spacing: -.015em; }
+.contact-admin .outreach-editor input, .contact-admin .outreach-editor select, .contact-admin .outreach-editor textarea { min-height: 44px; font-size: 16px; }
+.contact-admin .outreach-editor label > small { font-size: 12px; font-weight: 400; line-height: 1.5; color: var(--text-muted); }
+.clarity-list-controls { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 0 16px 16px; }
+.clarity-list-controls > label { display: grid; gap: 6px; font-size: 12px; color: var(--text-muted); }
+.clarity-list-controls select { min-height: 44px; padding: 8px 12px; font-size: 14px; color: var(--text); border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+.clarity-response-filter { display: grid; gap: 6px; font-size: 12px; color: var(--text-muted); }
+.clarity-response-filter select { min-height: 44px; padding: 8px 12px; font-size: 14px; color: var(--text); border: 1px solid var(--border); border-radius: 8px; background: var(--surface); max-width: 100%; }
+.clarity-list-controls .workspace-segment { margin: 0; }
+.clarity-queue { margin: 0 0 20px; }
+.clarity-queue-filters { display: flex; gap: 10px; flex-wrap: wrap; }
+.clarity-queue-filters button { display: flex; align-items: center; gap: 20px; padding: 12px 16px; min-height: 48px; border: 1px solid var(--border); border-radius: 12px; color: var(--text-muted); background: var(--surface); cursor: pointer; }
+.clarity-queue-filters button[aria-pressed="true"] { border-color: var(--brand); color: var(--brand); background: color-mix(in srgb, var(--brand), var(--surface) 94%); }
+.clarity-queue-filters strong { font-size: 20px; font-variant-numeric: tabular-nums; }
+.clarity-queue p, .clarity-quality > div > p { font-size: 13px; line-height: 1.6; color: var(--text-muted); }
+.clarity-quality { display: grid; gap: 16px; margin: 0 0 12px; }
+.clarity-quality h2 { margin: 0; font-size: 22px; letter-spacing: -.025em; }
+.clarity-quality > div > p { margin-bottom: 0; }
+.clarity-quality .workspace-report-sources { margin: 0; }
+.clarity-evidence { display: block; padding: 10px 12px; margin-top: 10px; border-left: 3px solid var(--brand); border-radius: 0 6px 6px 0; background: var(--surface-soft); font-size: 13px; line-height: 1.5; color: var(--text-muted); }
+.clarity-chart-context, .clarity-chart-method, .clarity-chart-scope { font-size: 12px; line-height: 1.6; color: var(--text-muted); overflow-wrap: anywhere; }
+.clarity-chart-context { margin-top: 10px; }
+.clarity-chart-scope { font-weight: 600; }
+.clarity-chart-table { margin-top: 16px; border-top: 1px solid var(--border); }
+.clarity-chart-table summary { min-height: 44px; padding: 12px 0; font-size: 14px; color: var(--brand); cursor: pointer; }
+.contact-admin .restored-table-scroll { max-width: 100%; }
+.contact-admin table { color: var(--text); font-size: 14px; }
+.contact-admin table caption { padding: 12px; text-align: left; font-size: 13px; color: var(--text-muted); }
+.contact-admin table th, .contact-admin table td { padding: 12px; vertical-align: top; }
+.clarity-contact-table { margin: 0; }
+.clarity-contact-table table { min-width: 1050px; width: 100%; border-collapse: collapse; }
+.clarity-contact-table td, .clarity-contact-table th { border-bottom: 1px solid var(--border); text-align: left; min-width: 120px; max-width: 280px; overflow-wrap: anywhere; }
+.clarity-contact-table thead { background: var(--surface-soft); }
+.clarity-contact-table td small { display: block; margin-top: 6px; font-size: 12px; color: var(--text-muted); }
+.clarity-contact-table .contact-links { font-weight: 400; margin-top: 8px; }
+@media (max-width: 900px) {
+ .contact-admin .workspace-contact { grid-template-columns: minmax(0,1fr) minmax(160px,.6fr); }
+ .contact-admin .contact-context { grid-column: 1; }
+ .contact-admin .contact-next-step { grid-column: 2; grid-row: 1 / span 2; }
+ .contact-admin .workspace-report-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+ .contact-admin .workspace-report-grid { grid-template-columns: minmax(0,1fr); }
+}
+@media (max-width: 600px) {
+ .contact-admin .workspace-frame { padding-inline: 16px; }
+ .contact-admin .workspace-topbar { padding: 16px; flex-wrap: wrap; }
+ .contact-admin .workspace-toolbar { margin-left: 0; flex-wrap: wrap; }
+ .contact-admin .workspace-heading { gap: 12px; flex-direction: column; }
+ .contact-admin .workspace-contact { padding: 20px 16px; grid-template-columns: minmax(0,1fr); gap: 16px; }
+ .contact-admin .contact-next-step, .contact-admin .contact-context { grid-column: 1; grid-row: auto; }
+ .contact-admin .contact-next-step { grid-template-columns: repeat(2,minmax(0,1fr)); align-items: center; width: 100%; }
+ .contact-admin .contact-next-step .workspace-view-button { grid-column: 1/-1; }
+ .contact-admin .workspace-nav { gap: 4px; }
+ .contact-admin .workspace-nav > a { min-height: 44px; padding: 8px 10px; font-size: 13px; }
+ .contact-admin .workspace-list-summary { flex-direction: column; gap: 4px; }
+ .contact-admin .workspace-report-metrics { gap: 10px; }
+ .contact-admin .workspace-report-metrics > article { padding: 14px; }
+ .contact-admin .workspace-drawer-body { padding: 20px 16px; }
+ .contact-admin .workspace-filters select { max-width: 100%; width: 100%; font-size: 16px; }
+ .contact-admin .workspace-filters label { flex: 1 1 140px; min-width: 0; }
+ .clarity-list-controls { align-items: stretch; }
+ .clarity-list-controls > label { width: 100%; }
+ .clarity-queue-filters button { flex: 1 1 130px; justify-content: space-between; font-size: 14px; }
+ .contact-admin .workspace-pagination { flex-wrap: wrap; }
+ .contact-admin .workspace-pagination > div { flex-wrap: wrap; }
+}
+@media (max-width: 360px) { .contact-admin .workspace-report-metrics { grid-template-columns: minmax(0,1fr); } }
+@media (prefers-reduced-motion: reduce) { .contact-admin *, .contact-admin *::before, .contact-admin *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }
+@media (prefers-contrast: more) { .contact-admin .workspace-label, .contact-admin .report-source-note, .contact-admin small { color: var(--text); } }

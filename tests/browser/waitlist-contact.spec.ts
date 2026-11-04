@@ -26,8 +26,8 @@ test('waitlist contact details survive public signup, protected admin views and 
   await expect(page.getByRole('textbox', { name: 'Phone number (include country code)', exact: true })).toHaveCount(0);
   await page.getByRole('textbox', { name: 'Full name', exact: true }).fill(name);
   await page.getByRole('textbox', { name: 'Email', exact: true }).fill(email.toUpperCase());
-  await page.getByRole('textbox', { name: 'Country', exact: true }).fill('United States');
-  await page.getByRole('textbox', { name: 'State / province', exact: true }).fill('Massachusetts');
+  await page.getByRole('combobox', { name: 'Country', exact: true }).fill('United States');
+  await page.getByRole('combobox', { name: 'State / province', exact: true }).fill('Massachusetts');
   await page.getByRole('textbox', { name: 'City', exact: true }).fill('Worcester');
   await page.getByRole('textbox', { name: 'ZIP / postal code', exact: true }).fill('01609');
   await page.getByRole('combobox', { name: 'Preferred contact', exact: true }).selectOption('Phone');

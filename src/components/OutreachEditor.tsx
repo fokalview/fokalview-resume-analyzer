@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import './OutreachEditor.css';
 
 export type OutreachPlan = {
@@ -9,7 +9,8 @@ const statuses = ['New', 'Contacted', 'Awaiting reply', 'Meeting scheduled', 'Pi
 const blank = (leadId: string): OutreachPlan => ({ leadId, revision: 0, status: 'New', owner: '', notes: '', lastContactDate: '', nextFollowUpDate: '', updatedAt: null });
 const calendarDate = (value: string) => value ? new Date(`${value}T12:00:00`).toLocaleDateString() : 'Not set';
 
-export function OutreachEditor({ leadId, adminCode, onSaved }: { leadId: string; adminCode: string; onSaved?: (plan: OutreachPlan) => void }) {
+export function OutreachEditor({ leadId, adminCode, ownerSuggestions = [], onSaved }: { leadId: string; adminCode: string; ownerSuggestions?: string[]; onSaved?: (plan: OutreachPlan) => void }) {
+  const ownerListId = useId();
   const [plan, setPlan] = useState<OutreachPlan>(blank(leadId));
   const [history, setHistory] = useState<OutreachPlan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,7 +63,7 @@ export function OutreachEditor({ leadId, adminCode, onSaved }: { leadId: string;
           <legend className="sr-only">Edit follow-up plan</legend>
           <div className="outreach-fields">
             <label>Contact status<select value={plan.status} onChange={event => edit('status', event.target.value)}>{statuses.map(status => <option key={status}>{status}</option>)}</select></label>
-            <label>Assigned owner<input value={plan.owner} maxLength={120} onChange={event => edit('owner', event.target.value)} placeholder="Team member name" /></label>
+            <label><span id={`${ownerListId}-label`}>Assigned owner</span><input value={plan.owner} list={ownerListId} maxLength={120} onChange={event => edit('owner', event.target.value)} placeholder="Unassigned — choose or enter a name" aria-labelledby={`${ownerListId}-label`} aria-describedby={`${ownerListId}-help`} /><datalist id={ownerListId}>{[...new Set(ownerSuggestions)].sort((left,right) => left.localeCompare(right)).map(owner => <option key={owner} value={owner} />)}</datalist><small id={`${ownerListId}-help`}>Choose a saved name or enter another. Leave empty for Unassigned; this does not create an account.</small></label>
             <label>Last contact date<input type="date" value={plan.lastContactDate} onChange={event => edit('lastContactDate', event.target.value)} /></label>
             <label>Next follow-up date<input type="date" value={plan.nextFollowUpDate} onChange={event => edit('nextFollowUpDate', event.target.value)} /></label>
           </div>

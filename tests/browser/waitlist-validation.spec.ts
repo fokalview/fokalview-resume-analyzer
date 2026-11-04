@@ -19,7 +19,7 @@ async function fillCommonFields(page: Page, userType: string) {
     ['Full name', person.name], ['Email', person.email], ['Country', 'United States'],
     ['State / province', 'Massachusetts'], ['City', 'Worcester'], ['ZIP / postal code', '01609'],
     ['What are you trying to improve?', 'Keep clear records for career advising follow-up.']
-  ]) await page.getByRole('textbox', { name, exact: true }).fill(value);
+  ]) await page.getByRole(['Country', 'State / province'].includes(name) ? 'combobox' : 'textbox', { name, exact: true }).fill(value);
   await page.getByRole('combobox', { name: 'Preferred contact', exact: true }).selectOption('Email');
   return person;
 }
