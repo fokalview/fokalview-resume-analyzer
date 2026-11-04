@@ -17,6 +17,29 @@ Each contact also links to its complete matched survey history, including when
 searching by a name that does not appear in the survey itself. Survey rows show
 the matched contact's name when a saved identity provides that link.
 
+Signup validation now checks the required organization/company name in every
+organization branch. An optional student GPA must be a decimal on the labeled
+0–4 scale; invalid input is rejected without silently changing or dropping it.
+All provided LinkedIn links are validated, regardless of preferred contact
+method, and common `linkedin.com/...` links are normalized to HTTPS. Switching
+away from the student branch preserves the local GPA draft without submitting
+an inactive field.
+
+## Complete dashboard information
+
+The contact workspace also keeps the earlier operational and institutional
+reporting visible. Overview, Institutional reporting, and Main application sit
+alongside Waitlist, Follow-ups, and Reports. Session engagement, usage trends,
+academic distributions, lead scores, funnels, skill gaps, source breakdowns,
+readiness, and retention information remain available. Country and email-domain
+breakdowns are explicitly labeled as resume-record cohorts.
+
+The restoration changes presentation only. The existing admin authentication
+and access code are unchanged. All original summary properties and record
+details remain in the API; no signup, survey, resume, or application records
+are deleted or rewritten. Historical outcome responses remain available while
+aggregate reporting uses the corrected definitions below.
+
 Main lists show contacts before reporting charts. Local pagination changes the
 visible page, not export completeness. Search and filters identify their scope.
 The summary retrieves complete source datasets rather than silently limiting

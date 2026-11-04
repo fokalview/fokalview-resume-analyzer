@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
+  Activity,
   ArrowRight,
   ArrowUpRight,
   BarChart3,
+  BriefcaseBusiness,
+  Building2,
   Download,
   LockKeyhole,
   LogOut,
@@ -105,6 +108,7 @@ type AdminSummary = {
   systemInfo: { rawResumeRecords: number; rawResumeRetentionRate: number };
   usageByDay: UsageDay[];
   careerLevels: Record<string, number>;
+  targetRoles?: CountItem[];
   topSkills: CountItem[];
   topTools: CountItem[];
   commonSkillGaps: Record<string, CountItem[]>;
@@ -407,7 +411,7 @@ export default function AdminDashboard() {
       </header>
       <div className="workspace-frame">
         <nav className="workspace-nav" aria-label="Admin workspace sections">
-          {WORKSPACE_VIEWS.map((item) => <a key={item.id} aria-label={item.label} href={`?view=${item.id}`} aria-current={view === item.id ? "page" : undefined} onClick={(event) => { if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return; event.preventDefault(); navigate(item.id); }}>{item.icon}<span>{item.label}</span>{summary && item.id !== "reports" && <small>{item.id === "waitlist" ? totalContacts : totalFollowups}</small>}</a>)}
+          {WORKSPACE_VIEWS.map((item) => <a key={item.id} aria-label={item.label} href={`?view=${item.id}`} aria-current={view === item.id ? "page" : undefined} onClick={(event) => { if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return; event.preventDefault(); navigate(item.id); }}>{item.icon}<span>{item.label}</span>{summary && (item.id === "waitlist" || item.id === "followups") && <small>{item.id === "waitlist" ? totalContacts : totalFollowups}</small>}</a>)}
         </nav>
         <div id="admin-workspace-content" className="workspace-body">
           {error && <div className="workspace-alert" role="alert"><strong>{summary ? "Refresh failed. Your previous results are still shown." : "The workspace could not be loaded."}</strong><span>{error}</span><button type="button" onClick={() => setRefreshVersion((value) => value + 1)}>Try again</button></div>}
@@ -415,10 +419,10 @@ export default function AdminDashboard() {
           {!summary && !error && <div className="workspace-loading" role="status"><RefreshCw size={20} className="spin" /><h1>Opening your workspace</h1><p>Loading contacts and reports…</p></div>}
           {summary && <>
             <div className="workspace-heading">
-              <div><p className="workspace-eyebrow">{view === "reports" ? "Understand your pipeline" : "People, context, next steps"}</p><h1>{view === "waitlist" ? "Waitlist contacts" : view === "followups" ? "Follow-ups" : "Reports"}</h1><p>{view === "waitlist" ? "Everything you need for a thoughtful follow-up, in one place." : view === "followups" ? "Review progress updates and the people waiting for an intake conversation." : "Clear summaries of signups, career progress, and application activity."}</p></div>
+              <div><p className="workspace-eyebrow">{view === "waitlist" || view === "followups" ? "People, context, next steps" : "Your complete workforce intelligence"}</p><h1>{WORKSPACE_HEADINGS[view].title}</h1><p>{WORKSPACE_HEADINGS[view].description}</p></div>
               <div className="workspace-sync" role="status">{isLoading ? "Refreshing…" : dataIsStale ? "Showing previous results" : `Updated ${formatDateTime(summary.meta.lastLoadedAt)}`}</div>
             </div>
-            {view !== "reports" && <>
+            {(view === "waitlist" || view === "followups") && <>
               {view === "followups" && <div className="workspace-segment" aria-label="Follow-up list"><button type="button" aria-pressed={followupMode === "responses"} onClick={() => { setFollowupMode("responses"); setPage(1); }}>Progress responses <span>{followups.length}</span></button><button type="button" aria-pressed={followupMode === "pending"} onClick={() => { setFollowupMode("pending"); setPage(1); }}>Needs intake <span>{pending.length}</span></button></div>}
               <section className="workspace-records" aria-label={view === "waitlist" ? "Waitlist contact list" : "Follow-up list"}>
                 <div className="workspace-record-tools">
@@ -443,6 +447,16 @@ export default function AdminDashboard() {
               </section>
             </>}
             {view === "reports" && <WorkspaceReports summary={summary} onNavigate={navigate} outreach={outreach} outreachReady={outreachReady} outreachError={outreachError} />}
+            {view === "overview" && <OperationsOverview summary={summary} onNavigate={navigate} onContact={openContact} onFollowUp={setSelectedFollowUp} outreach={outreach} outreachReady={outreachReady} />}
+            {view === "institutional" && <>
+              <InstitutionalProfile summary={summary} />
+              <WorkspaceReports summary={summary} onNavigate={navigate} outreach={outreach} outreachReady={outreachReady} outreachError={outreachError} fixedReport="outcomes" />
+            </>}
+            {view === "applications" && <>
+              <WorkspaceReports summary={summary} onNavigate={navigate} outreach={outreach} outreachReady={outreachReady} outreachError={outreachError} fixedReport="activity" />
+              <EngagementReports summary={summary} />
+              <SystemMetadata summary={summary} />
+            </>}
           </>}
         </div>
         <footer className="workspace-footer"><span>SagittaIQ · Private admin workspace</span><a href="/waitlist" target="_blank" rel="noreferrer">Open signup page <ArrowUpRight size={13} /></a></footer>
@@ -459,19 +473,30 @@ export default function AdminDashboard() {
   );
 }
 
-type WorkspaceView = "waitlist" | "followups" | "reports";
+type WorkspaceView = "waitlist" | "followups" | "reports" | "overview" | "institutional" | "applications";
 type OutreachState = { leadId: string; status: string; nextFollowUpDate?: string; [key: string]: unknown };
 const PAGE_SIZE = 20;
 const OUTREACH_STATUSES = ["New", "Contacted", "Awaiting reply", "Meeting scheduled", "Pilot discussion", "Closed"];
 const WORKSPACE_VIEWS: Array<{ id: WorkspaceView; label: string; icon: ReactNode }> = [
   { id: "waitlist", label: "Waitlist", icon: <Users size={17} /> },
   { id: "followups", label: "Follow-ups", icon: <MessageSquare size={17} /> },
+  { id: "overview", label: "Overview", icon: <Activity size={17} /> },
+  { id: "institutional", label: "Institutional reporting", icon: <Building2 size={17} /> },
+  { id: "applications", label: "Main application", icon: <BriefcaseBusiness size={17} /> },
   { id: "reports", label: "Reports", icon: <BarChart3 size={17} /> }
 ];
+const WORKSPACE_HEADINGS: Record<WorkspaceView, { title: string; description: string }> = {
+  waitlist: { title: "Waitlist contacts", description: "Everything you need for a thoughtful follow-up, in one place." },
+  followups: { title: "Follow-ups", description: "Review progress updates and the people waiting for an intake conversation." },
+  overview: { title: "Overview", description: "Platform health, advisor actions, recent activity, and the signals behind your next decision." },
+  institutional: { title: "Institutional reporting", description: "Student and program profiles, reporting coverage, and respondent-supplied career outcomes." },
+  applications: { title: "Main application", description: "Every saved analysis, workforce readiness, skill gaps, opportunities, and product engagement." },
+  reports: { title: "Reports", description: "Clear summaries of signups, career progress, and application activity." }
+};
 function readWorkspaceView(): WorkspaceView {
   const requested = new URLSearchParams(window.location.search).get("view");
-  if (requested === "followups") return "followups";
-  if (["reports", "all", "institutional", "applications"].includes(requested || "")) return "reports";
+  if (requested === "all") return "overview";
+  if (WORKSPACE_VIEWS.some((item) => item.id === requested)) return requested as WorkspaceView;
   return "waitlist";
 }
 function RecordPager({ page, pages, total, onPage }: { page: number; pages: number; total: number; onPage: (page: number) => void }) {
@@ -528,14 +553,15 @@ function GroupedRecordDetails({ record, followup = false }: { record: Record<str
   })}{Object.values(snapshots).some((value) => value && typeof value === "object") && <details className="workspace-reference"><summary>Original saved answers</summary><p className="report-source-note">Complete saved submissions, including repeated fields, for reference.</p><dl className="workspace-fields">{Object.entries(flattenRecord(Object.fromEntries(Object.entries(snapshots).filter(([, value]) => value && typeof value === "object")))).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{displayValue(value)}</dd></div>)}</dl></details>}</div>;
 }
 
-function WorkspaceReports({ summary, onNavigate, outreach, outreachReady, outreachError }: { summary: AdminSummary; onNavigate: (view: WorkspaceView) => void; outreach: Record<string, OutreachState>; outreachReady: boolean; outreachError: string }) {
-  const [report, setReport] = useState<"waitlist" | "outcomes" | "activity">("waitlist");
+function WorkspaceReports({ summary, onNavigate, outreach, outreachReady, outreachError, fixedReport }: { summary: AdminSummary; onNavigate: (view: WorkspaceView) => void; outreach: Record<string, OutreachState>; outreachReady: boolean; outreachError: string; fixedReport?: "outcomes" | "activity" }) {
+  const [selectedReport, setReport] = useState<"waitlist" | "outcomes" | "activity">("waitlist");
+  const report = fixedReport || selectedReport;
   const [reportError, setReportError] = useState("");
   const sections: Array<{ id: typeof report; label: string }> = [{ id: "waitlist", label: "Waitlist insights" }, { id: "outcomes", label: "Career outcomes" }, { id: "activity", label: "Application activity" }];
   const exportSummary = { ...summary, recentWaitlistSignups: summary.recentWaitlistSignups.map((item) => ({ ...item, outreach: outreach[item.id] || (outreachReady ? { status: "New" } : { dataStatus: "Unavailable" }), outreachDataStatus: outreachError ? "Previously loaded; refresh failed" : outreachReady ? "Current" : "Unavailable" })) };
   return <div className="workspace-reports">
     <div className="workspace-report-tools">
-      <div className="workspace-segment" aria-label="Report category">{sections.map((item) => <button type="button" key={item.id} aria-pressed={report === item.id} onClick={() => setReport(item.id)}>{item.label}</button>)}</div>
+      {fixedReport ? <h2 className="restored-section-heading">{fixedReport === "outcomes" ? "Career outcomes" : "Candidate readiness and opportunity activity"}</h2> : <div className="workspace-segment" aria-label="Report category">{sections.map((item) => <button type="button" key={item.id} aria-pressed={report === item.id} onClick={() => setReport(item.id)}>{item.label}</button>)}</div>}
       <button type="button" className="workspace-quiet" onClick={() => { try { exportResearchBundle(exportSummary); } catch { setReportError("The report download could not be created. Please try again."); } }}><Download size={15} />Export report data</button>
     </div>
     {reportError && <p role="alert" className="workspace-alert">{reportError}</p>}
@@ -547,6 +573,8 @@ function WorkspaceReports({ summary, onNavigate, outreach, outreachReady, outrea
         <Metric label="Discovery call interest" value={summary.totals.interviewVolunteers} note="Signups that requested an introduction" />
         <Metric label="Pilot interest" value={summary.totals.pilotProspects} note="Signups interested in a pilot" />
         <Metric label="Email addresses available" value={summary.recentWaitlistSignups.filter((item) => item.email).length} note="Records with readable contact information" />
+        <Metric label="Average lead score" value={summary.totals.waitlistSignups ? summary.totals.averageLeadScore ?? 0 : "Not available"} note="Rules-based prioritization across signup records, out of 100" />
+        <Metric label="Budget/procurement interest" value={summary.totals.budgetQualified} note="Self-reported interest, not validated budget qualification" />
       </div>
       <div className="workspace-report-link"><p>Ready to turn these signals into conversations?</p><button type="button" onClick={() => onNavigate("waitlist")}>Open waitlist contacts <ArrowRight size={16} /></button></div>
       <div className="workspace-report-grid">
@@ -556,6 +584,10 @@ function WorkspaceReports({ summary, onNavigate, outreach, outreachReady, outrea
         <ChartPanel title="Schools" items={summary.waitlistSchools || []} /><ChartPanel title="Programs" items={summary.waitlistPrograms || []} />
         <ChartPanel title="Fields of study" items={summary.waitlistMajors || []} /><ChartPanel title="Current processes" items={summary.waitlistCurrentProcesses || []} />
         <ChartPanel title="Lead priority" items={toCountItems(summary.waitlistLeadPriorities || {})} /><ChartPanel title="Profile status" items={summary.waitlistBranchStatuses || []} />
+        <ChartPanel title="Lead score bands" items={toCountItems(summary.waitlistLeadScoreBands || {})} showZeroRows /><ChartPanel title="Signup sources" items={summary.waitlistSources || []} />
+        <FunnelReport title="Waitlist pipeline" items={summary.waitlistFunnel || []} note="Each count is a signup attribute; rates use all signup records. Categories can overlap and are not sequential conversion steps." />
+        <FunnelReport title="Follow-up outcome funnel" items={summary.followUpFunnel || []} note="Latest response per identifiable respondent. Rates use all respondents; applications, interviews, offers, and placements can overlap." />
+        <ConversionReport items={summary.conversionMetrics || []} />
       </div>
     </>}
     {report === "outcomes" && <>
@@ -568,6 +600,9 @@ function WorkspaceReports({ summary, onNavigate, outreach, outreachReady, outrea
         <Metric label="Interviews reported" value={summary.totals.followUpInterviews || 0} note="Latest update per identifiable respondent" />
         <Metric label="Offers reported" value={summary.totals.followUpOffers || 0} note="Latest update per identifiable respondent" />
         <Metric label="Unlinked responses" value={summary.totals.unlinkedFollowUpResponses || 0} note="Excluded from respondent-level totals and rates" />
+        <Metric label="Pending intake interviews" value={summary.totals.pendingIntakeFollowUps || 0} note="Intake volunteers without a linked survey response" />
+        <Metric label="Completed follow-ups" value={summary.totals.completedFollowUps || 0} note="Saved response history, including repeated updates" />
+        <Metric label="Salary responses" value={summary.totals.salaryResponses || 0} note="Latest identifiable respondent records with a supplied amount, including zero" />
       </div>
       <div className="workspace-report-link"><p>Read the full responses and support requests behind these numbers.</p><button type="button" onClick={() => onNavigate("followups")}>Open follow-ups <ArrowRight size={16} /></button></div>
       <div className="workspace-report-grid">
@@ -575,6 +610,8 @@ function WorkspaceReports({ summary, onNavigate, outreach, outreachReady, outrea
         <ChartPanel title="Employers" items={summary.followUpEmployers || []} /><ChartPanel title="Job titles" items={summary.followUpJobTitles || []} />
         <ChartPanel title="Industries" items={summary.followUpIndustries || []} /><ChartPanel title="Salary ranges" items={summary.followUpSalaryRanges || []} />
         <ChartPanel title="Reported verification status" items={summary.followUpVerificationStatuses || []} />
+        <FunnelReport title="Follow-up outcome funnel" items={summary.followUpFunnel || []} note="Latest response per identifiable respondent. Rates use all respondents; these are overlapping outcome groups." />
+        <ConversionReport items={summary.conversionMetrics || []} />
         {summary.salaryByPeriod?.map((item) => <section className="workspace-salary-report" key={`${item.period}-${item.currency || "unknown"}`}><h2>{item.period || "Unspecified period"} compensation · {item.currency || "Currency not recorded"}</h2><dl><div><dt>Responses</dt><dd>{item.count}</dd></div><div><dt>Median amount</dt><dd>{item.median?.toLocaleString() ?? "Not comparable"}</dd></div><div><dt>Average amount</dt><dd>{item.average?.toLocaleString() ?? "Not comparable"}</dd></div></dl><p>Grouped by currency and pay period. Missing currency or period prevents averaging; no currency conversion or annualization is applied.</p></section>)}
       </div>
     </>}
@@ -582,16 +619,153 @@ function WorkspaceReports({ summary, onNavigate, outreach, outreachReady, outrea
       <div className="workspace-report-metrics">
         <Metric label="Resume analyses" value={summary.totals.resumeRecords} note="Saved analysis records" /><Metric label="Applications captured" value={summary.totals.applicationCaptures} note="Saved opportunity records" />
         <Metric label="Tracked users" value={summary.totals.uniqueUsers} note="Distinct users in saved activity" /><Metric label="Average readiness" value={summary.totals.resumeRecords ? `${summary.totals.averageReadinessScore}%` : "Not available"} note="Across saved resume analyses" />
+        <Metric label="Strong-match threshold" value={`${summary.meta.readinessThreshold}%`} note="Configured readiness reference, not a hiring guarantee" /><Metric label="Readiness distance" value={summary.totals.resumeRecords ? `${summary.totals.readinessDelta > 0 ? "+" : ""}${summary.totals.readinessDelta} pts` : "Not available"} note="Average readiness minus the strong-match threshold" />
       </div>
       <AnalysisRecords records={summary.recentResumeRecords} />
       <div className="workspace-report-grid">
         <ChartPanel title="Readiness bands" items={toCountItems(summary.readinessBands || {})} /><ChartPanel title="Application status" items={toCountItems(summary.applicationStatuses || {})} />
         <ChartPanel title="Application sources" items={summary.applicationSources || []} /><ChartPanel title="Opportunity employers" items={summary.applicationEmployers || []} />
-        <ChartPanel title="Top skills" items={summary.topSkills || []} /><ChartPanel title="Top tools" items={summary.topTools || []} />
+        <ChartPanel title="Top skills" items={summary.topSkills || []} sortable /><ChartPanel title="Top tools" items={summary.topTools || []} sortable />
+        <ChartPanel title="Career levels" items={toCountItems(summary.careerLevels || {})} showZeroRows /><ChartPanel title="Target roles" items={summary.targetRoles || []} />
+        <ChartPanel title="Opportunity job titles" items={summary.applicationTitles || []} /><ChartPanel title="Resume cohort countries" items={summary.countries || []} />
+        <ChartPanel title="Resume cohort email domains" items={summary.emailDomains || []} /><ChartPanel title="Resume cohort email domain types" items={toCountItems(summary.emailDomainTypes || {})} />
+        {Object.entries(summary.commonSkillGaps || {}).map(([group, items]) => <ChartPanel key={group} title={`Skill gaps: ${humanize(group)}`} items={items} sortable />)}
       </div>
+      <p className="report-source-note">Skills, readiness, countries, and email domains describe saved resume analyses. Skill-gap percentages use {summary.totals.resumeRecords} saved analyses as their denominator. Top-category reports reflect the categories returned by the source; individual reports remain available above.</p>
     </>}
   </div>;
 }
+function OperationsOverview({ summary, onNavigate, onContact, onFollowUp, outreach, outreachReady }: {
+  summary: AdminSummary;
+  onNavigate: (view: WorkspaceView) => void;
+  onContact: (record: AdminSummary["recentWaitlistSignups"][number]) => void;
+  onFollowUp: (record: FollowUpRecord) => void;
+  outreach: Record<string, OutreachState>;
+  outreachReady: boolean;
+}) {
+  const [analysis, setAnalysis] = useState<AdminSummary["recentResumeRecords"][number] | null>(null);
+  const leading = (items: CountItem[] = []) => [...items].sort((left, right) => right.count - left.count)[0];
+  const gap = leading(Object.values(summary.commonSkillGaps || {}).flat());
+  const industry = leading(summary.waitlistTargetIndustries);
+  const process = leading(summary.waitlistCurrentProcesses);
+  const region = leading(summary.waitlistWorkforceRegions);
+  const priority = leading(toCountItems(summary.waitlistLeadPriorities || {}));
+  const missingFollowUps = Math.max(0, (summary.totals.uniqueWaitlistContacts || 0) - (summary.totals.waitlistContactsWithFollowUp || 0));
+  const lead = [...summary.recentWaitlistSignups]
+    .filter((record) => (record.leadScore || 0) >= 75 || record.pilotInterest || record.budgetInterest)
+    .filter((record) => !outreachReady || outreach[record.id]?.status !== "Closed")
+    .sort((left, right) => (right.leadScore || 0) - (left.leadScore || 0))[0];
+  const candidate = [...summary.recentResumeRecords].filter((record) => record.score < summary.meta.readinessThreshold).sort((left, right) => left.score - right.score)[0];
+  const queue: Array<{ title: string; detail: string; action: string; open: () => void }> = [];
+  if (lead) queue.push({ title: `Review ${lead.name || "priority contact"}`, detail: `${lead.leadScore ?? 0}/100 lead score · ${lead.recommendedAction || "Confirm their goals and pilot or procurement interest."}`, action: "View contact", open: () => onContact(lead) });
+  if (candidate) queue.push({ title: "Review readiness support", detail: `${candidate.candidateId}: ${candidate.score}% for ${candidate.targetRole || "their target role"}. Review the saved gaps and feedback.`, action: "View analysis", open: () => setAnalysis(candidate) });
+  if ((summary.totals.pendingIntakeFollowUps || 0) > 0) queue.push({ title: `${summary.totals.pendingIntakeFollowUps} pending intake interviews`, detail: "These contacts volunteered for an introduction and have no linked response yet.", action: "Open follow-ups", open: () => onNavigate("followups") });
+  if (missingFollowUps) queue.push({ title: `${missingFollowUps} contacts without outcome updates`, detail: "Distinct waitlist identities without a matched response. Review their contact details and follow-up plan.", action: "Review contacts", open: () => onNavigate("waitlist") });
+  if (process) queue.push({ title: `Explore ${process.label}`, detail: `${process.count} signup records report this current process. Review their goals and reporting requests.`, action: "Open pipeline report", open: () => onNavigate("reports") });
+  const activity = [
+    ...summary.recentResumeRecords.map((record) => ({ title: `${record.currentTitle || record.candidateId || "Candidate"} saved an analysis`, detail: `${record.score}% readiness · ${record.targetRole || "Target role not provided"}`, date: record.capturedAt, action: "View analysis", open: () => setAnalysis(record) })),
+    ...summary.recentWaitlistSignups.map((record) => ({ title: `${record.name || "Contact"} joined the waitlist`, detail: [record.userType, record.organization, record.targetIndustry].filter(Boolean).join(" · "), date: record.createdAt, action: "View contact", open: () => onContact(record) })),
+    ...(summary.recentFollowUps || []).map((record) => ({ title: `${record.matchedContactName || record.email || "Contact"} submitted a follow-up`, detail: [record.currentStatus, record.placementStatus, record.employer].filter(Boolean).join(" · "), date: record.submittedAt || "", action: "View response", open: () => onFollowUp(record) }))
+  ].sort((left, right) => (Date.parse(right.date) || 0) - (Date.parse(left.date) || 0)).slice(0, 8);
+  return <div className="restored-reports">
+    <section aria-labelledby="platform-health-title"><h2 id="platform-health-title" className="restored-section-heading">Platform health</h2><div className="workspace-report-metrics">
+      <Metric label="Tracked users" value={summary.totals.uniqueUsers} note="Distinct users in saved activity" />
+      <Metric label="Career records" value={summary.totals.resumeRecords} note="Saved resume analyses" />
+      <Metric label="Opportunities tracked" value={summary.totals.applicationCaptures} note="Saved applications and opportunities" />
+      <Metric label="Discovery pipeline" value={summary.totals.waitlistSignups} note="Signup records, including repeat signups" />
+      <Metric label="Average readiness" value={summary.totals.resumeRecords ? `${summary.totals.averageReadinessScore}%` : "Not available"} note={`Strong-match reference: ${summary.meta.readinessThreshold}%`} />
+      <Metric label="Readiness distance" value={summary.totals.resumeRecords ? `${summary.totals.readinessDelta > 0 ? "+" : ""}${summary.totals.readinessDelta} pts` : "Not available"} note="Average readiness minus the configured threshold" />
+      <Metric label="Offers / placements" value={`${summary.totals.followUpOffers || 0} / ${summary.totals.followUpPlacements || 0}`} note="Reported offer count / distinct placed respondents; latest response each" />
+      <Metric label="Follow-up coverage" value={`${summary.totals.waitlistContactsWithFollowUp || 0} / ${summary.totals.uniqueWaitlistContacts || 0}`} note="Distinct waitlist contacts with matched responses / all waitlist contacts" />
+    </div></section>
+    <div className="workspace-report-grid">
+      <section className="restored-panel"><h2>Advisor action queue</h2><p className="report-source-note">Suggestions from the saved data. Review context before taking action.</p><div className="restored-action-list">{queue.map((item) => <article key={item.title}><h3>{item.title}</h3><p>{item.detail}</p><button type="button" className="workspace-view-button" onClick={item.open}>{item.action} <ArrowRight size={14} /></button></article>)}{!queue.length && <p>No priority suggestions in the current data.</p>}</div></section>
+      <section className="restored-panel"><h2>Recent user activity</h2><p className="report-source-note">Latest eight saved analyses, signups, and progress updates. Full histories remain in their sections.</p><div className="restored-action-list">{activity.map((item, index) => <article key={`${item.title}-${index}`}><h3>{item.title}</h3><p>{item.detail || "Saved record"}</p><time dateTime={item.date || undefined}>{formatDateTime(item.date)}</time><button type="button" className="workspace-view-button" onClick={item.open}>{item.action} <ArrowUpRight size={14} /></button></article>)}{!activity.length && <p>No saved activity yet.</p>}</div></section>
+      <section className="restored-panel"><h2>Reporting shortcuts</h2><div className="restored-shortcuts">
+        <button type="button" onClick={() => onNavigate("applications")}><strong>Readiness report</strong><span>{summary.totals.resumeRecords} analyses · {summary.totals.resumeRecords ? `${summary.totals.averageReadinessScore}% average readiness` : "Readiness not available"}</span><ArrowRight size={16} /></button>
+        <button type="button" onClick={() => onNavigate("reports")}><strong>Pipeline report</strong><span>{summary.totals.waitlistSignups} signups · {summary.totals.interviewVolunteers} discovery volunteers</span><ArrowRight size={16} /></button>
+        <button type="button" onClick={() => onNavigate("institutional")}><strong>Outcome report</strong><span>{summary.totals.followUpRespondents || 0} respondents · {summary.totals.followUpPlacements || 0} reported placements</span><ArrowRight size={16} /></button>
+        <button type="button" onClick={() => onNavigate("institutional")}><strong>Market report</strong><span>Programs, employers, job titles, and regional demand</span><ArrowRight size={16} /></button>
+      </div></section>
+      <section className="restored-panel"><h2>User signals</h2><dl className="restored-signal-list">
+        <div><dt>Leading lead priority</dt><dd>{priority ? `${priority.label} · ${priority.count} signup records` : "Not available"}</dd></div>
+        <div><dt>Top readiness gap</dt><dd>{gap ? `${gap.label} · ${gap.count} analysis records` : "Not available"}</dd></div>
+        <div><dt>Demand segment</dt><dd>{industry ? `${industry.label} · ${industry.count} signup records` : "Not available"}</dd></div>
+        <div><dt>Current process</dt><dd>{process ? `${process.label} · ${process.count} signup records` : "Not available"}</dd></div>
+        <div><dt>Regional signal</dt><dd>{region ? `${region.label} · ${region.count} signup records` : "Not available"}</dd></div>
+        <div><dt>Outcome activity</dt><dd>{summary.totals.followUpInterviews || 0} interviews and {summary.totals.followUpOffers || 0} offers reported across {summary.totals.followUpRespondents || 0} identifiable respondents, using their latest updates.</dd></div>
+      </dl></section>
+    </div>
+    <section className="restored-panel"><h2>Decision signals</h2><p className="report-source-note">Rules-based suggestions from current records. Outcome and verification labels are respondent-supplied.</p><div className="restored-decision-grid">{(summary.decisionSignals || []).map((item) => <article key={item.label} data-severity={item.severity}><h3>{item.label}</h3><strong>{item.value} {item.unit}</strong><p>{item.detail}</p><p>{item.action}</p><button type="button" className="workspace-view-button" onClick={() => onNavigate(/readiness|skill|resume/i.test(item.label) ? "applications" : /outcome|salary|follow|placement/i.test(item.label) ? "institutional" : "reports")}>Review supporting report <ArrowRight size={14} /></button></article>)}</div>{!summary.decisionSignals?.length && <p>No decision signals available yet.</p>}</section>
+    <EngagementReports summary={summary} />
+    <SystemMetadata summary={summary} />
+    {analysis && <RecordDrawer title={analysis.targetRole || analysis.currentTitle || "Resume analysis"} label="Analysis details" onClose={() => setAnalysis(null)}><dl className="workspace-fields">{Object.entries(flattenRecord(analysis)).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{displayValue(value)}</dd></div>)}</dl></RecordDrawer>}
+  </div>;
+}
+
+function InstitutionalProfile({ summary }: { summary: AdminSummary }) {
+  return <section className="restored-reports" aria-labelledby="student-program-profile-title">
+    <div><h2 className="restored-section-heading" id="student-program-profile-title">Student and program profile</h2><p className="report-source-note">Submitted signup details. Missing values stay separate from zero GPA or a negative answer; these are not verified academic records.</p></div>
+    <div className="workspace-report-grid">
+      <ChartPanel title="Schools" items={summary.waitlistSchools || []} /><ChartPanel title="Programs" items={summary.waitlistPrograms || []} />
+      <ChartPanel title="Majors / fields" items={summary.waitlistMajors || []} /><ChartPanel title="GPA bands" items={toCountItems(summary.waitlistGpaBands || {})} showZeroRows />
+      <ChartPanel title="Certifications" items={summary.waitlistCertifications || []} /><ChartPanel title="Degree levels" items={summary.waitlistDegreeLevels || []} />
+      <ChartPanel title="Class years" items={summary.waitlistClassYears || []} /><ChartPanel title="Domestic / international" items={summary.waitlistDomesticInternational || []} />
+      <ChartPanel title="Student statuses" items={summary.waitlistStudentStatuses || []} /><ChartPanel title="Seeking statuses" items={summary.waitlistSeekingStatuses || []} />
+      <ChartPanel title="Target industries" items={summary.waitlistTargetIndustries || []} /><ChartPanel title="Workforce regions" items={summary.waitlistWorkforceRegions || []} />
+      <ChartPanel title="Captured opportunity employers" items={summary.applicationEmployers || []} /><ChartPanel title="Captured opportunity job titles" items={summary.applicationTitles || []} />
+      <ChartPanel title="Resume cohort countries" items={summary.countries || []} /><ChartPanel title="Resume cohort email domain types" items={toCountItems(summary.emailDomainTypes || {})} />
+    </div>
+    <p className="report-source-note">Opportunity counts describe saved applications. Countries and email domains describe the resume-analysis cohort. Career outcomes below describe identifiable follow-up respondents; these cohorts are not combined.</p>
+  </section>;
+}
+
+function EngagementReports({ summary }: { summary: AdminSummary }) {
+  const days = summary.usageByDay || [];
+  const max = Math.max(1, ...days.flatMap((day) => [day.resumes, day.applications]));
+  return <section className="restored-reports" aria-labelledby="session-engagement-title">
+    <h2 id="session-engagement-title" className="restored-section-heading">Session engagement</h2><div className="workspace-report-metrics">
+      <Metric label="Sessions" value={summary.totals.sessions || 0} note="Tracked user visits" />
+      <Metric label="Average session duration" value={formatDuration(summary.totals.averageSessionSeconds || 0)} note="Average tracked engagement time" />
+      <Metric label="Engaged minutes" value={summary.totals.totalSessionMinutes || 0} note="Total tracked session time" />
+      <Metric label="Event types" value={Object.keys(summary.userEventTypes || {}).length} note="Distinct behavior signals captured" />
+    </div>
+    <section className="restored-panel"><div className="panel-heading"><h2>Usage trends</h2><div className="restored-chart-controls"><button type="button" className="workspace-quiet" disabled={!days.length} onClick={() => exportCsv("usage-trends", days)}><Download size={14} />Export usage data</button><ChartImageButton title="Usage trends" items={days.flatMap((day) => [{ label: `${day.date} · Analyses`, count: day.resumes }, { label: `${day.date} · Applications`, count: day.applications }, { label: `${day.date} · Unique users`, count: day.uniqueUsers }])} /></div></div><p className="report-source-note">{days.length ? `${days.length} reported daily buckets · ${days[0].date} to ${days[days.length - 1].date}.` : "No daily usage available."} Counts represent saved analyses, application captures, and distinct saved identities with either activity on each date.</p>
+      {days.length > 0 && <><div className="restored-usage-chart" aria-hidden="true">{days.map((day) => <div key={day.date} title={`${day.date}: ${day.resumes} analyses, ${day.applications} applications`}><div><i style={{ height: `${day.resumes / max * 100}%` }} /><b style={{ height: `${day.applications / max * 100}%` }} /></div><span>{day.date.slice(5)}</span></div>)}</div><p className="restored-chart-legend"><span>Analyses</span><span>Applications</span></p><div className="restored-table-scroll" tabIndex={0} role="region" aria-label="Daily usage data"><table><caption>Daily usage counts</caption><thead><tr><th scope="col">Date</th><th scope="col">Analyses</th><th scope="col">Applications</th><th scope="col">Unique users</th></tr></thead><tbody>{days.map((day) => <tr key={day.date}><th scope="row">{day.date}</th><td>{day.resumes}</td><td>{day.applications}</td><td>{day.uniqueUsers}</td></tr>)}</tbody></table></div></>}
+    </section>
+    <div className="workspace-report-grid"><ChartPanel title="Session sources" items={summary.sessionSources || []} /><ChartPanel title="Session pages" items={summary.sessionPages || []} /><ChartPanel title="Session campaigns" items={summary.sessionCampaigns || []} /><ChartPanel title="User event types" items={toCountItems(summary.userEventTypes || {})} /></div>
+  </section>;
+}
+
+function SystemMetadata({ summary }: { summary: AdminSummary }) {
+  const metadata = {
+    scope: summary.meta.recordScope || "All matching records",
+    searchQuery: summary.meta.query || "No search filter",
+    refreshedAt: formatDateTime(summary.meta.lastLoadedAt),
+    reportingMethod: summary.meta.reportingMethod,
+    readinessThreshold: summary.meta.readinessThreshold,
+    waitlistRecordsReturned: summary.meta.waitlistRecordsReturned ?? summary.recentWaitlistSignups.length,
+    followupRecordsReturned: summary.meta.followupRecordsReturned ?? summary.recentFollowUps?.length ?? 0,
+    dataSources: summary.meta.sources || {},
+    allRecordsAcrossSearch: summary.globalTotals || {},
+    build: import.meta.env.VITE_APP_BUILD || "local-preview"
+  };
+  return <section className="restored-panel"><h2>System metadata</h2><p className="report-source-note">Source status and retention details for the loaded data. The retained count describes stored raw resumes; it does not specify a retention duration.</p><div className="workspace-report-metrics">
+    <Metric label="Raw resumes retained" value={summary.systemInfo.rawResumeRecords} note={`${summary.totals.rawResumeRecords} retained records in the current matching cohort`} /><Metric label="Raw resume retention rate" value={`${summary.systemInfo.rawResumeRetentionRate}%`} note={`Retained raw resumes / ${summary.totals.resumeRecords} saved analyses`} />
+  </div><dl className="workspace-fields restored-metadata">{Object.entries(flattenRecord(metadata)).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{displayValue(value)}</dd></div>)}</dl></section>;
+}
+
+function FunnelReport({ title, items, note }: { title: string; items: FunnelItem[]; note: string }) {
+  return <section className="restored-panel"><div className="panel-heading"><h2>{title}</h2><div className="restored-chart-controls"><button type="button" className="workspace-quiet" disabled={!items.length} onClick={() => exportCsv(title.toLowerCase().replaceAll(" ", "-"), items)}><Download size={14} />Export data</button><ChartImageButton title={title} items={items.map((item) => ({ ...item, label: `${item.label} (${item.rate}% of base)` }))} /></div></div><p className="report-source-note">{note}</p><dl className="restored-funnel">{items.map((item) => <div key={item.label}><dt>{item.label}</dt><dd><strong>{item.count}</strong><span>{item.rate}% of base</span></dd><span aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, item.rate))}%` }} /></span></div>)}</dl>{!items.length && <p>No funnel data available.</p>}</section>;
+}
+
+function ConversionReport({ items }: { items: ConversionMetric[] }) {
+  return <section className="restored-panel"><div className="panel-heading"><h2>Conversion metrics</h2><ChartImageButton title="Conversion metrics (percent)" items={items.map((item) => ({ label: `${item.label}: ${item.detail}`, count: item.value }))} /></div><p className="report-source-note">Interest percentages use signup records. Coverage uses distinct waitlist contacts; outcome percentages use identifiable respondents and their latest response.</p><dl className="restored-conversions">{items.map((item) => <div key={item.label}><dt>{item.label}</dt><dd><strong>{item.value}%</strong><span>{item.detail}</span></dd></div>)}</dl>{!items.length && <p>No conversion data available.</p>}</section>;
+}
+
+function humanize(value: string) { return value.replace(/[_-]+/g, " ").replace(/([a-z])([A-Z])/g, "$1 $2").replace(/\b\w/g, (letter) => letter.toUpperCase()); }
+function formatDuration(seconds: number) { return seconds < 60 ? `${Math.round(seconds)} sec` : `${Math.floor(seconds / 60)} min ${Math.round(seconds % 60)} sec`; }
+
 function AnalysisRecords({ records }: { records: AdminSummary["recentResumeRecords"] }) {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
@@ -622,16 +796,62 @@ function ContactLinks({ contact }: { contact: ContactDetails }) {
 function Metric({ label, value, note }: { label: string; value: number | string; note?: string }) {
   return <article><strong>{value}</strong><span>{label}</span>{note && <small>{note}</small>}</article>;
 }
-function ChartPanel({ title, items }: { title: string; items: CountItem[] }) {
+function ChartPanel({ title, items, sortable = false, showZeroRows = false }: { title: string; items: CountItem[]; sortable?: boolean; showZeroRows?: boolean }) {
   const [expanded, setExpanded] = useState(false);
-  const records = items.filter((item) => item.count > 0);
+  const [sort, setSort] = useState("Most common");
+  const [imageError, setImageError] = useState("");
+  const records = items.filter((item) => showZeroRows || item.count > 0).sort((left, right) => sortable ? sort === "Alphabetical" ? left.label.localeCompare(right.label) : sort === "Least common" ? left.count - right.count : right.count - left.count : 0);
   const visible = expanded ? records : records.slice(0, 10);
   const max = Math.max(...records.map((item) => item.count), 1);
   return <section className="chart-panel">
-    <div className="panel-heading"><h2>{title}</h2><button className="download-chart-button" type="button" disabled={!records.length} onClick={() => exportCsv(title.toLowerCase().replace(/[^a-z0-9]+/g, "-"), records)} aria-label={`Export ${title} data`}><Download size={13} />Export data</button></div>
-    {records.length ? <dl className="workspace-chart" aria-label={title}>{visible.map((item) => <div key={item.label}><dt>{item.label}</dt><dd>{item.count}</dd><span aria-hidden="true"><i style={{ width: `${Math.max(2, item.count / max * 100)}%` }} /></span></div>)}</dl> : <p className="report-source-note">No data available for this category.</p>}
+    <div className="panel-heading"><h2>{title}</h2><div className="restored-chart-controls">{sortable && <select aria-label={`Sort ${title}`} value={sort} onChange={(event) => setSort(event.target.value)}>{["Most common", "Least common", "Alphabetical"].map((value) => <option key={value}>{value}</option>)}</select>}<button className="download-chart-button" type="button" disabled={!records.length} onClick={() => exportCsv(title.toLowerCase().replace(/[^a-z0-9]+/g, "-"), records)} aria-label={`Export ${title} data`}><Download size={13} />CSV</button><button className="download-chart-button" type="button" disabled={!records.length} onClick={() => { setImageError(""); try { downloadChartPng(title, records); } catch { setImageError("The chart image could not be created. Please try the CSV export."); } }} aria-label={`Download ${title} PNG`}>PNG</button></div></div>
+    {imageError && <p role="alert" className="workspace-alert">{imageError}</p>}
+    {records.length ? <dl className="workspace-chart" aria-label={title}>{visible.map((item) => <div key={item.label}><dt>{item.label}</dt><dd>{item.count}{item.percentAffected !== undefined && <small> · {item.percentAffected}% affected</small>}</dd><span aria-hidden="true"><i style={{ width: `${item.count > 0 ? Math.max(2, item.count / max * 100) : 0}%` }} /></span></div>)}</dl> : <p className="report-source-note">No data available for this category.</p>}
     {records.length > 10 && <button type="button" className="workspace-view-button" onClick={() => setExpanded((value) => !value)}>{expanded ? "Show top 10" : `Show all ${records.length}`}</button>}
   </section>;
+}
+function ChartImageButton({ title, items }: { title: string; items: CountItem[] }) {
+  const [error, setError] = useState("");
+  return <><button type="button" className="workspace-quiet" disabled={!items.length} aria-label={`Download ${title} PNG`} onClick={() => { setError(""); try { downloadChartPng(title, items); } catch { setError("The chart image could not be created. Please try again."); } }}>PNG</button>{error && <p role="alert" className="workspace-alert">{error}</p>}</>;
+}
+function downloadChartPng(title: string, items: CountItem[]) {
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Image export unavailable");
+  canvas.width = 1200;
+  const wrap = (value: string, width: number) => {
+    const lines: string[] = [];
+    let line = "";
+    for (const character of value) {
+      if (context.measureText(line + character).width > width && line) { lines.push(line); line = ""; }
+      line += character;
+    }
+    if (line) lines.push(line);
+    return lines;
+  };
+  context.font = "22px Arial";
+  const rows = items.map((item) => ({ ...item, lines: wrap(item.label, 850) }));
+  context.font = "bold 28px Arial";
+  const titleLines = wrap(title, 1080);
+  canvas.height = 140 + titleLines.length * 32 + rows.reduce((height, row) => height + row.lines.length * 28 + 44, 0);
+  context.fillStyle = "#ffffff"; context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "#173d35"; context.font = "bold 28px Arial";
+  titleLines.forEach((line, index) => context.fillText(line, 48, 55 + index * 32));
+  let y = 70 + titleLines.length * 32;
+  context.fillStyle = "#52665f"; context.font = "16px Arial";
+  context.fillText(`SagittaIQ · ${items.length} categories · Exported ${new Date().toLocaleString()}`, 48, y); y += 42;
+  const max = Math.max(1, ...items.map((item) => item.count));
+  for (const row of rows) {
+    context.fillStyle = "#243b34"; context.font = "22px Arial";
+    row.lines.forEach((line) => { context.fillText(line, 48, y); y += 28; });
+    context.textAlign = "right"; context.font = "bold 22px Arial";
+    context.fillText(`${row.count}${row.percentAffected !== undefined ? ` · ${row.percentAffected}%` : ""}`, 1152, y - 28); context.textAlign = "left";
+    context.fillStyle = "#e5eee9"; context.fillRect(48, y - 7, 1104, 12);
+    context.fillStyle = "#12675d"; context.fillRect(48, y - 7, row.count / max * 1104, 12); y += 44;
+  }
+  const link = document.createElement("a");
+  link.download = `sagittaiq-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.png`;
+  link.href = canvas.toDataURL("image/png"); link.click();
 }
 function toCountItems(record: Record<string, number>) { return Object.entries(record).map(([label, count]) => ({ label, count })); }
 function exportResearchBundle(summary: AdminSummary) {
