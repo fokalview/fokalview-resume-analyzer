@@ -1,4 +1,4 @@
-import { useId, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   ArrowRight,
   BarChart3,
@@ -12,6 +12,10 @@ import {
 } from "lucide-react";
 import { ProductBrand } from "../components/BrandFamily";
 import PublicSiteMenu from "../components/PublicSiteMenu";
+import { SearchableSelect } from "../components/SearchableSelect";
+import { FormErrorSummary } from "../components/FormErrorSummary";
+import { COUNTRY_SUGGESTIONS, CURRENCY_SUGGESTIONS, regionSuggestions } from "../lib/formSuggestions";
+import "../public-form-clarity.css";
 
 const USER_TYPES = [
   "Individual Job Seeker",
@@ -95,7 +99,7 @@ const INITIAL_FORM = {
   linkedinUrl: "",
   preferredContactMethod: "Email",
   biggestChallenge: "",
-  referralSource: "LinkedIn",
+  referralSource: "",
   organization: "",
   organizationType: "",
   role: "",
@@ -141,33 +145,64 @@ const INITIAL_FORM = {
   operationalChallenges: [] as string[],
   employerPainPoints: [] as string[],
   employerInterestTypes: [] as string[],
-  interviewInterest: true,
-  betaInterest: true,
+  interviewInterest: false,
+  betaInterest: false,
   pilotInterest: false,
   budgetInterest: false,
-  resumeAnalysisInterest: true,
-  applicationTrackerInterest: true,
-  productUpdatesInterest: true,
-  feedbackInterest: true
+  resumeAnalysisInterest: false,
+  applicationTrackerInterest: false,
+  productUpdatesInterest: false,
+  feedbackInterest: false,
+  referralSourceOther: "", targetIndustryOther: "", organizationTypeOther: "",
+  individualChallengesOther: "", individualToolsOther: "", studentChallengesOther: "", studentToolsOther: "",
+  operationalChallengesOther: "", employerPainPointsOther: "", employerInterestTypesOther: "", primaryPopulationOther: "",
+  salaryExpectationCurrency: "", salaryExpectationPeriod: ""
 };
 
 type WaitlistForm = typeof INITIAL_FORM;
 type WaitlistErrors = Partial<Record<keyof WaitlistForm, string>>;
+const SHARED_FIELDS = ["name", "email", "phone", "country", "state", "city", "zipPostal", "linkedinUrl", "preferredContactMethod", "biggestChallenge", "referralSource", "referralSourceOther", "interviewInterest", "betaInterest", "resumeAnalysisInterest", "applicationTrackerInterest", "productUpdatesInterest", "feedbackInterest"] as const;
 
 export default function WaitlistScreen() {
   const [form, setForm] = useState<WaitlistForm>(INITIAL_FORM);
+  const branchDrafts = useRef<Record<string, WaitlistForm>>({});
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<WaitlistErrors>({});
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [showApproval, setShowApproval] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorAttempt, setErrorAttempt] = useState(0);
+  const approval = useRef<HTMLElement>(null);
+  const submitButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!showApproval) return;
+    const panel = approval.current;
+    const focusable = panel?.querySelectorAll<HTMLElement>('button, a[href]');
+    focusable?.[0]?.focus();
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") { event.preventDefault(); setShowApproval(false); }
+      if (event.key === "Tab" && focusable?.length) {
+        const first = focusable[0], last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
+    }
+    panel?.addEventListener("keydown", handleKey);
+    return () => { panel?.removeEventListener("keydown", handleKey); submitButton.current?.focus(); };
+  }, [showApproval]);
 
   const isOrganization = !["Individual Job Seeker", "Student"].includes(form.userType);
   const branchTitle = useMemo(() => branchHeading(form.userType), [form.userType]);
 
   function setField<K extends keyof WaitlistForm>(key: K, value: WaitlistForm[K]) {
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => {
+      if (key !== "userType") return { ...current, [key]: value };
+      branchDrafts.current[current.userType] = { ...current };
+      const next = { ...(branchDrafts.current[String(value)] || INITIAL_FORM), userType: String(value) };
+      for (const shared of SHARED_FIELDS) Object.assign(next, { [shared]: current[shared] });
+      return next;
+    });
     setFieldErrors((current) => key === "userType" ? {} : { ...current, [key]: "" });
   }
 
@@ -181,6 +216,7 @@ export default function WaitlistScreen() {
     setFieldErrors(nextFieldErrors);
     if (Object.keys(nextFieldErrors).length) {
       setError("Please fix the highlighted fields before submitting.");
+      setErrorAttempt(value => value + 1);
       return;
     }
 
@@ -192,9 +228,10 @@ export default function WaitlistScreen() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
+          branchDrafts: { ...branchDrafts.current, [form.userType]: form },
           linkedinUrl: normalizeLinkedInUrl(form.linkedinUrl),
-          // Keep the student draft locally, but do not submit an inactive GPA.
-          gpa: form.userType === "Student" ? form.gpa.trim() : "",
+          // Backend preserves the original draft and projects only the selected branch.
+          formVersion: "2026-11-04-clarity",
           source: "public_waitlist"
         })
       });
@@ -203,16 +240,18 @@ export default function WaitlistScreen() {
       setStatus("Your waitlist request has been received for early-access review.");
       setShowApproval(true);
       setForm(INITIAL_FORM);
+      branchDrafts.current = {};
       setFieldErrors({});
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Could not join waitlist.");
+      setErrorAttempt(value => value + 1);
     } finally {
       setIsSubmitting(false);
     }
   }
 
   return (
-    <main className="waitlist-shell" data-theme={theme}>
+    <main className="waitlist-shell public-form-clarity" data-theme={theme}>
       <a className="skip-link" href="#waitlist-form">Skip to waitlist form</a>
       <PublicSiteMenu />
       <button className="theme-toggle" type="button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
@@ -229,6 +268,7 @@ export default function WaitlistScreen() {
               Analytics powered by actual resume and application data, not assumptions. Built for
               individuals, career teams, workforce partners, and employers who need actionable insight.
             </p>
+            <a className="public-form-jump" href="#waitlist-form">Join the early-access waitlist <ArrowRight size={16} /></a>
             <div className="waitlist-tags">
               <span>Resume scoring</span>
               <span>Cohort analytics</span>
@@ -263,7 +303,7 @@ export default function WaitlistScreen() {
             <div className="waitlist-stats" aria-label="Early access stats">
               <span><strong>Beta</strong><small>cohort forming</small></span>
               <span><strong>Free</strong><small>pilot access</small></span>
-              <span><strong>3x</strong><small>faster reporting</small></span>
+              <span><strong>Clear</strong><small>career reporting</small></span>
             </div>
           </div>
         </div>
@@ -288,6 +328,8 @@ export default function WaitlistScreen() {
         </section>
 
         <form id="waitlist-form" className="waitlist-form" onSubmit={submit} aria-label="SagittaIQ waitlist signup" aria-busy={isSubmitting} noValidate>
+          <div className="form-introduction"><h2>Your early-access request</h2><p>Choose your profile, share your contact details, then select the support you want. Fields marked * are required. Other questions are optional.</p></div>
+          <FormErrorSummary formId="waitlist-form" message={error} attempt={errorAttempt} />
           <div className="form-section-title">
             <span>Start here</span>
           </div>
@@ -301,7 +343,7 @@ export default function WaitlistScreen() {
           </label>
           <div className="branch-note" aria-live="polite">
             <strong>{branchTitle}</strong>
-            <span>The next questions adjust to keep this short and relevant.</span>
+            <span>The next questions adjust to your profile. Switching profiles keeps your drafts; only your selected profile is used for reporting.</span>
           </div>
 
           <div className="form-section-title">
@@ -309,24 +351,26 @@ export default function WaitlistScreen() {
           </div>
           <TextField label="Full name" value={form.name} onChange={(value) => setField("name", value)} required error={fieldErrors.name} />
           <TextField label="Email" value={form.email} onChange={(value) => setField("email", value)} type="email" required error={fieldErrors.email} />
-          <TextField label="Country" value={form.country} onChange={(value) => setField("country", value)} required error={fieldErrors.country} />
-          <TextField label="State / province" value={form.state} onChange={(value) => setField("state", value)} required error={fieldErrors.state} />
+          <SearchableSelect label="Country" value={form.country} onChange={(value) => setField("country", value)} options={COUNTRY_SUGGESTIONS} autoComplete="country-name" required error={fieldErrors.country} help="Search countries and territories, or enter your location as written." />
+          <SearchableSelect label="State / province" value={form.state} onChange={(value) => setField("state", value)} options={regionSuggestions(form.country)} autoComplete="address-level1" required error={fieldErrors.state} help="US and Canadian suggestions are available. Elsewhere, enter your region; enter Not applicable if your address has no state or province. Check this value when changing country." />
           <TextField label="City" value={form.city} onChange={(value) => setField("city", value)} required={isOrganization} error={fieldErrors.city} />
           <TextField
             label="ZIP / postal code"
             value={form.zipPostal}
             onChange={(value) => setField("zipPostal", value)}
-            required={isOrganization}
+            help="Optional. Leave blank if your address does not use a postal code."
             error={fieldErrors.zipPostal}
           />
           <label>
             <span>Referral source</span>
             <select value={form.referralSource} onChange={(event) => setField("referralSource", event.target.value)}>
+              <option value="">Select if known</option>
               {REFERRAL_SOURCES.map((item) => (
                 <option key={item}>{item}</option>
               ))}
             </select>
           </label>
+          {form.referralSource === "Other" && <TextField label="Other referral source" value={form.referralSourceOther} onChange={value => setField("referralSourceOther", value)} />}
           <label>
             <span>Preferred contact</span>
             <select
@@ -367,9 +411,11 @@ export default function WaitlistScreen() {
           {form.userType === "Workforce / Gov / Nonprofit" && <WorkforceBranch form={form} setField={setField} errors={fieldErrors} />}
           {form.userType === "Employer / Hiring Partner" && <EmployerBranch form={form} setField={setField} errors={fieldErrors} />}
 
+          <OtherDetails form={form} setField={setField} errors={fieldErrors} />
           <div className="form-section-title">
             <span>Engagement interest</span>
           </div>
+          <p className="wide-field field-help">Choose only the options you want. Leaving an option unchecked will not prevent you from joining the waitlist.</p>
           <section className="waitlist-options">
             <Toggle
               label="Early beta access"
@@ -429,10 +475,9 @@ export default function WaitlistScreen() {
             SagittaIQ stores your name, email address, contact details, and answers so our team can review your request
             and follow up using your preferred contact method. Your responses are available to authorized administrators.
           </p>
-          {error && <p className="error-message" role="alert">{error}</p>}
           {status && <p className="success-message" role="status" aria-live="polite">{status}</p>}
 
-          <button className="primary-button waitlist-submit" disabled={isSubmitting}>
+          <button ref={submitButton} className="primary-button waitlist-submit" disabled={isSubmitting}>
             {isSubmitting ? "Submitting..." : "Request access"}
             <ArrowRight size={18} />
           </button>
@@ -443,6 +488,7 @@ export default function WaitlistScreen() {
         <div className="waitlist-modal-backdrop" role="presentation">
           <section
             className="waitlist-modal"
+            ref={approval}
             role="dialog"
             aria-modal="true"
             aria-labelledby="waitlist-approval-title"
@@ -716,7 +762,7 @@ function OrganizationFields({ form, setField, errors = {}, title }: BranchProps 
     <>
       <div className="form-section-title"><span>{title}</span></div>
       <TextField label="Organization name" value={form.organization} onChange={(value) => setField("organization", value)} required error={errors.organization} />
-      <SelectField label="Organization type" value={form.organizationType} onChange={(value) => setField("organizationType", value)} options={[
+      <SearchableSelect label="Organization type" value={form.organizationType} onChange={(value) => setField("organizationType", value)} options={[
         "University",
         "Community College",
         "High School",
@@ -762,7 +808,8 @@ function TextField({
   className = "",
   placeholder = "",
   required = false,
-  error = ""
+  error = "",
+  help = ""
 }: {
   label: string;
   value: string;
@@ -772,12 +819,13 @@ function TextField({
   placeholder?: string;
   required?: boolean;
   error?: string;
+  help?: string;
 }) {
   const inputId = useId();
   const errorId = useId();
   return (
     <label className={`${className} ${error ? "field-error" : ""}`.trim()} htmlFor={inputId}>
-      <span>
+      <span id={`${inputId}-label`}>
         {label}
         {required && <span className="required-mark" aria-hidden="true"> *</span>}
       </span>
@@ -787,11 +835,15 @@ function TextField({
         onChange={(event) => onChange(event.target.value)}
         type={type}
         placeholder={placeholder}
+        autoComplete={fieldAutocomplete(label)}
+        inputMode={/GPA/i.test(label) ? "decimal" : /graduation year/i.test(label) ? "numeric" : type === "email" ? "email" : type === "tel" ? "tel" : undefined}
         required={required}
         aria-required={required || undefined}
         aria-invalid={Boolean(error)}
-        aria-describedby={error ? errorId : undefined}
+        aria-labelledby={`${inputId}-label`}
+        aria-describedby={[help ? `${inputId}-help` : "", error ? errorId : ""].filter(Boolean).join(" ") || undefined}
       />
+      {help && <small id={`${inputId}-help`} className="field-help">{help}</small>}
       {error && <small id={errorId} className="field-error-text">{error}</small>}
     </label>
   );
@@ -818,7 +870,7 @@ function TextArea({
   const errorId = useId();
   return (
     <label className={`${className} ${error ? "field-error" : ""}`.trim()} htmlFor={inputId}>
-      <span>
+      <span id={`${inputId}-label`}>
         {label}
         {required && <span className="required-mark" aria-hidden="true"> *</span>}
       </span>
@@ -827,9 +879,11 @@ function TextArea({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
+        autoComplete={fieldAutocomplete(label)}
         required={required}
         aria-required={required || undefined}
         aria-invalid={Boolean(error)}
+        aria-labelledby={`${inputId}-label`}
         aria-describedby={error ? errorId : undefined}
       />
       {error && <small id={errorId} className="field-error-text">{error}</small>}
@@ -882,7 +936,7 @@ function CheckboxGroup({
             type="checkbox"
             checked={values.includes(item)}
             onChange={(event) =>
-              onChange(event.target.checked ? [...values, item] : values.filter((value) => value !== item))
+              onChange(event.target.checked ? item === "None" ? ["None"] : [...values.filter(value => value !== "None"), item] : values.filter((value) => value !== item))
             }
           />
           <span>{item}</span>
@@ -962,9 +1016,9 @@ function validateWaitlist(form: WaitlistForm, isOrganization: boolean) {
   if (form.userType === "Student" && gpa && (!/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(gpa) || !Number.isFinite(Number(gpa)) || Number(gpa) < 0 || Number(gpa) > 4)) {
     errors.gpa = "Enter a GPA from 0 to 4, or leave it blank.";
   }
+  if (!isOrganization && form.salaryExpectationCurrency.trim() && !/^[A-Za-z]{3}$/.test(form.salaryExpectationCurrency.trim())) errors.salaryExpectationCurrency = "Enter a three-letter currency code, or leave it blank.";
   if (!form.state.trim()) errors.state = "Enter your state or province.";
   if (isOrganization && !form.city.trim()) errors.city = "Enter the city for this organization.";
-  if (isOrganization && !form.zipPostal.trim()) errors.zipPostal = "Enter a ZIP or postal code.";
   if (!form.biggestChallenge.trim()) errors.biggestChallenge = "Share what you are trying to improve.";
   return errors;
 }
@@ -1002,4 +1056,39 @@ function operationalChallengeOptions() {
     "Data visibility",
     "Other"
   ];
+}
+
+function OtherDetails({ form, setField, errors = {} }: BranchProps) {
+  const personal = ["Individual Job Seeker", "Student"].includes(form.userType);
+  const pairs: Array<[keyof WaitlistForm, keyof WaitlistForm, string, boolean]> = [
+    ["targetIndustry", "targetIndustryOther", "Other target industry", personal],
+    ["organizationType", "organizationTypeOther", "Other organization type", !personal && form.userType !== "Employer / Hiring Partner"],
+    ["individualChallenges", "individualChallengesOther", "Other job-search challenge", form.userType === "Individual Job Seeker"],
+    ["individualTools", "individualToolsOther", "Other job-search tools", form.userType === "Individual Job Seeker"],
+    ["studentChallenges", "studentChallengesOther", "Other student challenge", form.userType === "Student"],
+    ["studentTools", "studentToolsOther", "Other student tools", form.userType === "Student"],
+    ["operationalChallenges", "operationalChallengesOther", "Other operational challenge", !personal && form.userType !== "Employer / Hiring Partner"],
+    ["employerPainPoints", "employerPainPointsOther", "Other hiring pain point", form.userType === "Employer / Hiring Partner"],
+    ["primaryPopulation", "primaryPopulationOther", "Other population served", !personal && form.userType !== "Employer / Hiring Partner"]
+  ];
+  return <>
+    {pairs.filter(([key, , , relevant]) => relevant && (Array.isArray(form[key]) ? (form[key] as string[]).includes("Other") : form[key] === "Other")).map(([key, detail, label]) => <TextField key={key} label={label} value={String(form[detail])} onChange={value => setField(detail, value)} />)}
+    {personal && <><div className="form-section-title"><span>Salary expectation units (optional)</span></div>
+      <p className="wide-field field-help">These units apply to the minimum, target and dream salary you entered. Keep any ranges or context in those fields. Leave the units blank if you are unsure.</p>
+      <SearchableSelect label="Salary expectation currency" error={errors.salaryExpectationCurrency} value={form.salaryExpectationCurrency} onChange={value => setField("salaryExpectationCurrency", value.toUpperCase())} options={CURRENCY_SUGGESTIONS} help="Common currency suggestions; other three-letter codes are accepted." placeholder="USD, EUR, GBP…" />
+      <SelectField label="Salary expectation period" value={form.salaryExpectationPeriod} onChange={value => setField("salaryExpectationPeriod", value)} options={["Annual", "Hourly", "Monthly", "Stipend", "Other"]} />
+    </>}
+  </>;
+}
+
+function fieldAutocomplete(label: string) {
+  if (label === "Full name") return "name";
+  if (label === "Email") return "email";
+  if (label.startsWith("Phone")) return "tel";
+  if (label === "City") return "address-level2";
+  if (label === "ZIP / postal code") return "postal-code";
+  if (/^(Organization|Company) name$/.test(label) || label === "School / institution") return "organization";
+  if (label === "Role / title") return "organization-title";
+  if (label === "LinkedIn profile") return "url";
+  return undefined;
 }

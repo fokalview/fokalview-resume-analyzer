@@ -104,7 +104,7 @@ test.describe('original admin reporting remains alongside contact tools', () => 
     await expect(nav(page, 'Institutional reporting')).toHaveAttribute('aria-current', 'page');
     await headings(page, ['Student and program profile', 'GPA bands', 'Certifications', 'Degree levels', 'Class years', 'Domestic / international', 'Student statuses', 'Seeking statuses']);
     for (const [title, value] of [['GPA bands', '3.50-4.00'], ['Certifications', 'CAPM'], ['Degree levels', "Master's"], ['Class years', '2028'], ['Domestic / international', 'International'], ['Student statuses', 'Full-time student'], ['Seeking statuses', 'Actively seeking']]) {
-      await expect(panel(page, title).getByText(value, { exact: true })).toBeVisible();
+      await expect(panel(page, title).getByLabel(title, { exact: true }).getByText(value, { exact: true })).toBeVisible();
     }
     await assertNoHorizontalOverflow(page);
     await capturePreview(page, testInfo, 'ADMIN_INSTITUTIONAL_PREVIEW_PATH', 'admin-institutional-preview.png');
@@ -126,7 +126,7 @@ test.describe('original admin reporting remains alongside contact tools', () => 
     await expect(nav(page, 'Main application')).toHaveAttribute('aria-current', 'page');
     await headings(page, ['Saved analyses', 'Career levels', 'Top skills', 'Top tools', 'Skill gaps: Technical Skills', 'Skill gaps: Domain Knowledge', 'Skill gaps: Soft Skills', 'Resume cohort countries', 'Resume cohort email domains', 'Resume cohort email domain types', 'Opportunity job titles', 'Session sources', 'Session pages', 'Session campaigns', 'User event types']);
     for (const [title, value] of [['Career levels', 'Senior'], ['Top skills', 'SQL'], ['Top tools', 'Tableau'], ['Skill gaps: Technical Skills', 'python'], ['Resume cohort countries', 'Canada'], ['Resume cohort email domains', 'parity.example.test'], ['Resume cohort email domain types', 'institutional'], ['Session sources', 'synthetic_parity_source'], ['Session pages', '/synthetic-parity'], ['Session campaigns', 'synthetic-parity-campaign'], ['User event types', 'session_completed']]) {
-      await expect(panel(page, title).getByText(value, { exact: true })).toBeVisible();
+      await expect(panel(page, title).getByLabel(title, { exact: true }).getByText(value, { exact: true })).toBeVisible();
     }
     await page.getByLabel('Search analyses', { exact: true }).fill(targetRole);
     const saved = page.getByRole('region', { name: 'Saved analyses', exact: true });
@@ -147,8 +147,8 @@ test.describe('original admin reporting remains alongside contact tools', () => 
     await unlockWorkspace(page, '/admin?view=reports');
     await headings(page, ['Lead score bands', 'Signup sources', 'Waitlist pipeline', 'Follow-up outcome funnel', 'Conversion metrics']);
     await expect(page.getByText('Average lead score', { exact: true })).toBeVisible();
-    await expect(panel(page, 'Signup sources').getByText('synthetic_parity_signup', { exact: true })).toBeVisible();
-    await expect(panel(page, 'Referral sources').getByText('Conference', { exact: true })).toBeVisible();
+    await expect(panel(page, 'Signup sources').getByLabel('Signup sources', { exact: true }).getByText('synthetic_parity_signup', { exact: true })).toBeVisible();
+    await expect(panel(page, 'Referral sources').getByLabel('Referral sources', { exact: true }).getByText('Conference', { exact: true })).toBeVisible();
     await assertNoHorizontalOverflow(page);
     const pngPending = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Download Signup sources PNG', exact: true }).click();
@@ -177,9 +177,9 @@ test.describe('original admin reporting remains alongside contact tools', () => 
     const skills = panel(page, 'Top skills');
     await skills.getByRole('combobox', { name: 'Sort Top skills', exact: true }).selectOption('Alphabetical');
     await skills.getByRole('button', { name: /^Show all \d+$/ }).click();
-    await expect(skills.getByText('Synthetic skill 11', { exact: true })).toBeVisible();
+    await expect(skills.getByLabel('Top skills', { exact: true }).getByText('Synthetic skill 11', { exact: true })).toBeVisible();
     await expect(skills.getByRole('button', { name: 'Show top 10', exact: true })).toBeVisible();
-    const labels = await skills.locator('dt').allTextContents();
+    const labels = await skills.getByLabel('Top skills', { exact: true }).locator('dt').allTextContents();
     expect(labels).toEqual([...labels].sort((left, right) => left.localeCompare(right)));
     await assertNoHorizontalOverflow(page);
     await nav(page, 'Waitlist').click();

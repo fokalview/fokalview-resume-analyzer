@@ -1,4 +1,24 @@
 import { tableColumns } from "../ids.js";
+import { buildContactCohort } from "../../lib/contact-cohort.js";
+
+// Preserve observed legacy columns without assigning new reporting semantics.
+const RETAINED_COLUMNS = {
+  users: ['first_seen_at','last_active_at','source','campaign','pilot_cohort','activation_status','resume_analysis_count','opportunities_saved_count','applications_tracked_count','reports_downloaded_count'],
+  resume_records: ['source_campaign','job_search_stage','readiness_band','report_downloaded_at'],
+  application_captures: ['applied_at','interview_at','offer_at','accepted_at','rejected_at','last_status_change_at','salary_range','offer_amount'],
+  waitlist_signups: ['campaign','referral_channel','handshake_post_id','job_search_stage','urgency_level','intended_use','pilot_cohort','activation_status','first_analysis_completed_at','last_active_at']
+};
+
+function retainedSelect(columns, table, prefix = '') {
+  const available = RETAINED_COLUMNS[table].filter(column => columns.has(column));
+  return available.length ? `json_object(${available.flatMap(column => [`'${column}'`, `${prefix}${column}`]).join(',')})` : "'{}'";
+}
+
+function applicationDetailSelect(columns) {
+  const fields = ['location','salary','notes','url','data_category','consent_version','updated_at','synced_at','latest_readiness_score','latest_analysis_json','analysis_history_json','analysis_count','last_analyzed_at','job_description','job_qualifications_json'];
+  const available = fields.filter(column => columns.has(column));
+  return available.length ? `json_object(${available.flatMap(column => [`'${column}'`, `a.${column}`]).join(',')})` : "'{}'";
+}
 
 export async function onRequestGet({ request, env }) {
   const auth = requireAdminAccess(request, env);
@@ -25,17 +45,17 @@ async function buildSummary(request, env) {
   ]);
   const hasUserMetadata =
     userColumns.has("email_domain") && userColumns.has("email_domain_type") && userColumns.has("country");
-  const userSelect = hasUserMetadata
+  const userSelect = `${retainedSelect(userColumns, 'users', 'u.')} AS userRetainedFieldsJson, ` + (hasUserMetadata
     ? `u.email_domain AS emailDomain, u.email_domain_type AS emailDomainType, u.country AS country,
        ${userColumns.has("candidate_id") ? "u.candidate_id" : "''"} AS candidateId`
-    : "'' AS emailDomain, '' AS emailDomainType, '' AS country, '' AS candidateId";
+    : "'' AS emailDomain, '' AS emailDomainType, '' AS country, '' AS candidateId");
   const userJoin = "LEFT JOIN users u ON u.id = r.user_id";
   const appUserJoin = "LEFT JOIN users u ON u.id = a.user_id";
   const reportIdSelect = resumeColumns.has("report_id") ? "r.report_id AS reportId," : "'' AS reportId,";
   const applicationIdSelect = applicationColumns.has("application_id")
     ? "a.application_id AS applicationId,"
     : "'' AS applicationId,";
-  const waitlistContactSelect = `${contactSelect(waitlistColumns, "legacySignupHash")},
+  const waitlistContactSelect = `${retainedSelect(waitlistColumns, 'waitlist_signups')} AS retainedFieldsJson, ${contactSelect(waitlistColumns, "legacySignupHash")},
     ${waitlistColumns.has("intake_details_json") ? "intake_details_json" : "NULL"} AS intakeDetailsJson,
     linkedin_url AS linkedinUrl, biggest_challenge AS biggestChallenge,
     current_tools AS currentTools, desired_features AS desiredFeatures, updated_at AS updatedAt,`;
@@ -109,7 +129,7 @@ async function buildSummary(request, env) {
   const sourceNames = ["resumes", "applications", "waitlist", "followups", "events"];
   const sourceResults = await Promise.allSettled([
     env.DB.prepare(
-      `SELECT ${reportIdSelect} r.id AS recordId, r.user_id AS userId, r.client_hash AS clientHash, r.target_role AS targetRole, r.profile_json AS profileJson,
+      `SELECT ${retainedSelect(resumeColumns, 'resume_records', 'r.')} AS retainedFieldsJson, ${reportIdSelect} r.id AS recordId, r.user_id AS userId, r.client_hash AS clientHash, r.target_role AS targetRole, r.profile_json AS profileJson,
         r.analysis_json AS analysisJson, r.raw_resume_retained AS rawResumeRetained, r.raw_resume_text AS rawResumeText,
         r.captured_at AS capturedAt, ${userSelect}
        FROM resume_records r
@@ -117,7 +137,7 @@ async function buildSummary(request, env) {
        ORDER BY r.captured_at DESC`
     ).all(),
     env.DB.prepare(
-      `SELECT ${applicationIdSelect} a.user_id AS userId, a.client_hash AS clientHash, a.title, a.company, a.status, a.source, a.captured_at AS capturedAt,
+      `SELECT ${applicationDetailSelect(applicationColumns)} AS captureDetailsJson, ${retainedSelect(applicationColumns, 'application_captures', 'a.')} AS retainedFieldsJson, a.id AS recordId, ${applicationIdSelect} a.user_id AS userId, a.client_hash AS clientHash, a.title, a.company, a.status, a.source, a.captured_at AS capturedAt,
         ${userSelect}
        FROM application_captures a
        ${appUserJoin}
@@ -200,7 +220,17 @@ async function buildSummary(request, env) {
       query: query.trim(),
       recordScope: "All matching records",
       sources,
-      reportingMethod: "Outcome totals use the latest response per saved contact identity; response history is retained. Coverage counts distinct waitlist identities with a matched follow-up. Records without usable identity are excluded from respondent rates.",
+      categoryScope: 'All categories',
+      timeRange: 'All recorded dates',
+      sessionMeasurement: { measuredSessions: sessionMetrics.measuredSessions, unmeasuredSessions: sessionMetrics.unmeasuredSessions, definition: 'Mean of sessions with a positive recorded duration. Zero or missing duration is excluded; it does not establish zero engagement.' },
+      dataQuality: {
+        ambiguousFollowUpResponses: selectedGroups.filter(group => group.identityMatchStatus === 'needs_review').reduce((count, group) => count + group.responses.length, 0),
+        missingSignupEmail: waitlist.filter(item => !item.email).length,
+        missingSignupSnapshots: waitlist.filter(item => !item.intakeDetailsJson).length,
+        publicVerificationClaims: followups.filter(item => !['', 'Self-reported', 'Unknown'].includes(item.verificationClaim || item.verificationStatus || '')).length,
+        followUpsWithMissingCounts: followups.filter(item => [item.applicationCount,item.interviewCount,item.offerCount].some(value => value == null)).length
+      },
+      reportingMethod: "Outcome totals use the latest unambiguous response per exact saved identity; public answers are self-reported, not verified ownership or attestation. Ambiguous responses remain visible but are excluded from outcomes and coverage. Coverage is matched waitlist contacts, not invitation response rate. Counts sum known values; blank counts remain unknown. All categories and response history are retained.",
       waitlistRecordsReturned: waitlist.length,
       followupRecordsReturned: followups.length
     },
@@ -238,6 +268,8 @@ async function buildSummary(request, env) {
       salarySummaryCurrency: salaryStats.currency,
       salarySummaryPeriod: salaryStats.period,
       sessions: sessionMetrics.sessions,
+      measuredSessions: sessionMetrics.measuredSessions,
+      unmeasuredSessions: sessionMetrics.unmeasuredSessions,
       averageSessionSeconds: sessionMetrics.averageSessionSeconds,
       totalSessionMinutes: sessionMetrics.totalSessionMinutes,
       uniqueUsers,
@@ -264,7 +296,7 @@ async function buildSummary(request, env) {
     waitlistOrganizationTypes: topCounts(waitlist.map((item) => item.organizationType).filter(Boolean), 12),
     waitlistSources: topCounts(waitlist.map((item) => item.source).filter(Boolean), 12),
     waitlistUserTypes: topCounts(waitlist.map((item) => item.userType).filter(Boolean), 12),
-    waitlistReferralSources: topCounts(waitlist.map((item) => item.referralSource).filter(Boolean), 12),
+    waitlistReferralSources: topCounts(waitlist.map((item) => item.referralSource || 'Not provided'), 12),
     waitlistLeadPriorities: countBy(waitlist.map((item) => item.leadPriority).filter(Boolean)),
     waitlistBranchStatuses: topCounts(waitlist.map((item) => item.branchStatus).filter(Boolean), 12),
     waitlistTargetIndustries: topCounts(waitlist.map((item) => item.targetIndustry).filter(Boolean), 12),
@@ -276,14 +308,14 @@ async function buildSummary(request, env) {
     followUpSalaryRanges: topCounts(latestFollowups.map((item) => item.salaryRange).filter(Boolean), 12),
     followUpEmployers: topCounts(latestFollowups.map((item) => item.employer).filter(Boolean), 12),
     followUpJobTitles: topCounts(latestFollowups.map((item) => item.jobTitle || item.currentRole).filter(Boolean), 12),
-    followUpVerificationStatuses: topCounts(latestFollowups.map((item) => item.verificationStatus).filter(Boolean), 12),
+    followUpVerificationStatuses: topCounts(latestFollowups.map((item) => item.verificationClaim || item.verificationStatus).filter(Boolean), 12),
     sessionSources: topCounts(sessionMetrics.sources, 12),
     sessionPages: topCounts(sessionMetrics.pages, 12),
     sessionCampaigns: topCounts(sessionMetrics.campaigns, 12),
     userEventTypes: countBy(events.map((item) => item.eventType).filter(Boolean)),
     waitlistPrograms: topCounts(waitlist.map((item) => item.programName).filter(Boolean), 12),
     waitlistMajors: topCounts(waitlist.map((item) => item.majorField).filter(Boolean), 12),
-    waitlistSchools: topCounts(waitlist.map((item) => item.schoolName || item.organization).filter(Boolean), 12),
+    waitlistSchools: topCounts(waitlist.map(reportingSchool).filter(Boolean), 12),
     waitlistGpaBands: buildGpaBands(waitlist),
     waitlistCertifications: topCounts(waitlist.flatMap((item) => splitDelimited(item.certifications)), 12),
     waitlistDegreeLevels: topCounts(waitlist.map((item) => item.degreeLevel).filter(Boolean), 12),
@@ -312,6 +344,8 @@ async function buildSummary(request, env) {
       "85-100": resumes.filter((item) => item.analysis.score >= 85).length
     },
     recentResumeRecords: resumes.map((item) => ({
+      retainedFields: item.retainedFields,
+      userRetainedFields: item.userRetainedFields,
       id: item.reportId || item.recordId,
       analysis: item.analysis,
       profile: item.profile,
@@ -331,6 +365,7 @@ async function buildSummary(request, env) {
       rawResumeRetained: item.rawResumeRetained
     })),
     recentWaitlistSignups: waitlist.map((item) => ({
+      retainedFields: parseJsonObject(item.retainedFieldsJson),
       id: item.id,
       linkedFollowUpIds: (signupGroups.get(item)?.responses || []).map((response) => response.id),
       linkedFollowUps: (signupGroups.get(item)?.responses || []).map((response) => serializedFollowups.get(response)),
@@ -386,7 +421,7 @@ async function buildSummary(request, env) {
       populationServed: item.populationServed,
       reportingWish: item.reportingWish,
       branchProfile: parseJsonObject(item.branchProfileJson),
-      scoreBreakdown: parseJsonObject(item.scoreBreakdownJson),
+      scoreBreakdown: parseScoreBreakdown(item.scoreBreakdownJson),
       leadScore: Number(item.leadScore || 0),
       leadPriority: item.leadPriority,
       recommendedAction: item.recommendedAction,
@@ -418,6 +453,7 @@ async function buildSummary(request, env) {
       recommendedAction: item.recommendedAction,
       createdAt: item.createdAt
     })),
+    applicationRecords: applications.map(item => ({ id: item.applicationId || item.recordId, title: item.title, company: item.company, status: item.status, source: item.source, capturedAt: item.capturedAt, candidateId: item.candidateId || '', captureDetails: parseJsonObject(item.captureDetailsJson), retainedFields: parseJsonObject(item.retainedFieldsJson), userRetainedFields: parseJsonObject(item.userRetainedFieldsJson) })),
     completedFollowUps: followUpQueues.completed.map((item) => serializedFollowups.get(item)),
     recentFollowUps: followups.map((item) => serializedFollowups.get(item))
   });
@@ -452,6 +488,9 @@ function requireAdminAccess(request, env) {
 
 function serializeFollowUp(item, group) {
   return {
+    identityMatchStatus: group?.identityMatchStatus || 'unmatched',
+    verificationClaim: item.verificationClaim || item.verificationStatus || '',
+    verificationEvidenceStatus: 'Unverified self-report',
     matchedContactName: group?.signups.find((signup) => signup.name)?.name || "",
     matchedSignupIds: (group?.signups || []).map((signup) => signup.id),
     salaryCurrency: item.salaryCurrency || "",
@@ -466,9 +505,9 @@ function serializeFollowUp(item, group) {
       emailDomain: item.emailDomain,
       emailDomainType: item.emailDomainType,
       currentStatus: item.currentStatus,
-      applicationCount: Number(item.applicationCount || 0),
-      interviewCount: Number(item.interviewCount || 0),
-      offerCount: Number(item.offerCount || 0),
+      applicationCount: item.applicationCount == null ? null : Number(item.applicationCount),
+      interviewCount: item.interviewCount == null ? null : Number(item.interviewCount),
+      offerCount: item.offerCount == null ? null : Number(item.offerCount),
       placementStatus: item.placementStatus,
       currentRole: item.currentRole,
       currentIndustry: item.currentIndustry,
@@ -508,12 +547,17 @@ function hydrateDetails(row, key) {
     if ((value !== null && value !== undefined && value !== "") || !(name in result)) result[name] = value;
   }
   if (!result.branchProfileJson && details.branchProfile) result.branchProfileJson = JSON.stringify(details.branchProfile);
+  for (const field of ['applicationCount','interviewCount','offerCount']) {
+    if (Object.hasOwn(details, field) && details[field] === null) result[field] = null;
+  }
   return result;
 }
 
 function parseResumeRow(row) {
   try {
     const parsed = {
+      retainedFields: parseJsonObject(row.retainedFieldsJson),
+      userRetainedFields: parseJsonObject(row.userRetainedFieldsJson),
       recordId: row.recordId,
       clientHash: row.clientHash,
       userId: row.userId,
@@ -543,6 +587,19 @@ function parseJsonObject(value) {
   } catch {
     return {};
   }
+}
+
+function parseScoreBreakdown(value) {
+  try { const parsed = JSON.parse(value || '[]'); return parsed && typeof parsed === 'object' ? parsed : []; }
+  catch { return []; }
+}
+
+function reportingSchool(item) {
+  const academic = item.userType === 'Student' || ['Career Counselor / Advisor','Institution / Program Leader'].includes(item.userType) && /school|college|university|higher education/i.test(item.organizationType || '');
+  if (academic) return item.schoolName || item.organization || '';
+  // Historical non-academic school/organization aliases cannot be disambiguated.
+  // Keep their original answers in detail/export; never count an employer as a school.
+  return item.schoolName && item.schoolName !== item.organization ? item.schoolName : '';
 }
 
 function filterResumes(resumes, query) {
@@ -770,6 +827,8 @@ function buildSessionMetrics(events) {
 
   return {
     sessions: sessions.size,
+    measuredSessions: completedDurations.length,
+    unmeasuredSessions: sessions.size - completedDurations.length,
     averageSessionSeconds: completedDurations.length ? Math.round(totalSeconds / completedDurations.length) : 0,
     totalSessionMinutes: Math.round(totalSeconds / 60),
     sources: [...sessions.values()].map((item) => item.source).filter(Boolean),
@@ -859,52 +918,6 @@ function buildFollowUpQueues(waitlist, followups, respondedSignups) {
     pendingCount: allPending.length,
     completedCount: followups.length
   };
-}
-
-function recordMatchKeys(item) {
-  return [
-    item.leadId && `lead:${item.leadId}`,
-    item.candidateId && `candidate:${item.candidateId}`,
-    item.contactId && `contact:${item.contactId}`,
-    item.email && `email:${String(item.email).trim().toLowerCase()}`,
-    item.legacySignupHash && `signup-hash:${item.legacySignupHash}`,
-    item.legacyFollowupHash && `followup-hash:${item.legacyFollowupHash}`
-  ].filter(Boolean);
-}
-
-// Link only exact saved identities. Signup and follow-up hashes use different
-// salt contexts, so each remains a separate namespace and never guesses a link.
-function buildContactCohort(waitlist, followups) {
-  const records = [...waitlist, ...followups];
-  const parents = records.map((_, index) => index);
-  const firstForKey = new Map();
-  function root(index) {
-    while (parents[index] !== index) {
-      parents[index] = parents[parents[index]];
-      index = parents[index];
-    }
-    return index;
-  }
-  records.forEach((record, index) => {
-    for (const key of recordMatchKeys(record)) {
-      if (firstForKey.has(key)) parents[root(index)] = root(firstForKey.get(key));
-      else firstForKey.set(key, index);
-    }
-  });
-  const byIdentity = new Map();
-  records.forEach((record, index) => {
-    const key = root(index);
-    const group = byIdentity.get(key) || { signups: [], responses: [], identifiable: false };
-    group[index < waitlist.length ? "signups" : "responses"].push(record);
-    group.identifiable ||= recordMatchKeys(record).length > 0;
-    byIdentity.set(key, group);
-  });
-  const groups = [...byIdentity.values()];
-  for (const group of groups) {
-    group.responses.sort((left, right) => String(right.submittedAt || "").localeCompare(String(left.submittedAt || "")) || String(right.id || "").localeCompare(String(left.id || "")));
-    group.latestResponse = group.responses[0] || null;
-  }
-  return { groups };
 }
 
 function isPlaced(item) {
@@ -1007,7 +1020,11 @@ function buildConversionMetrics(waitlist, respondents, coverage) {
     { label: "Follow-up coverage", value: percentNumber(coverage.responded, coverage.contacts), detail: `${coverage.responded} of ${coverage.contacts} distinct waitlist contacts have matched responses` },
     { label: "Respondents with offers", value: percentNumber(respondents.filter(hasOffer).length, respondents.length), detail: `${respondents.filter(hasOffer).length} of ${respondents.length} distinct respondents; latest response each` },
     { label: "Respondents placed", value: percentNumber(respondents.filter(isPlaced).length, respondents.length), detail: `${respondents.filter(isPlaced).length} of ${respondents.length} distinct respondents; latest response each` }
-  ];
+  ].map((metric, index) => {
+    const denominator = [waitlist.length, waitlist.length, waitlist.length, coverage.contacts, respondents.length, respondents.length][index];
+    return { ...metric, denominator, dataStatus: denominator ? 'available' : 'no-data',
+      ...(denominator ? {} : { detail: 'Not available: no eligible records in this search cohort.' }) };
+  });
 }
 
 function gapCategory(label) {
@@ -1045,8 +1062,13 @@ function buildDecisionSignals({
   sessionMetrics
 }) {
   const belowThreshold = resumes.filter((item) => Number(item.analysis?.score || 0) < readinessThreshold).length;
-  const interviewConversion = percentNumber(followUpTotals.interviews, followUpTotals.applications);
-  const offerConversion = percentNumber(followUpTotals.offers, followUpTotals.interviews);
+  const hasCounts = (item, fields) => fields.every(field => item[field] != null && Number.isFinite(Number(item[field])));
+  const interviewReports = followups.filter(item => hasCounts(item, ['applicationCount','interviewCount']));
+  const offerReports = followups.filter(item => hasCounts(item, ['interviewCount','offerCount']));
+  const interviewActivity = buildFollowUpTotals(interviewReports);
+  const offerActivity = buildFollowUpTotals(offerReports);
+  const interviewConversion = percentNumber(interviewActivity.interviews, interviewActivity.applications);
+  const offerConversion = percentNumber(offerActivity.offers, offerActivity.interviews);
   const followUpCoverage = percentNumber(coverage.responded, coverage.contacts);
   const pilotConversion = percentNumber(waitlist.filter((item) => item.pilotInterest).length, waitlist.length);
   const inactiveApplications = applications.filter((item) => {
@@ -1068,17 +1090,17 @@ function buildDecisionSignals({
     {
       label: "Application momentum",
       value: inactiveApplications,
-      unit: "stale opportunities",
+      unit: "open over 14 days",
       severity: inactiveApplications ? "attention" : "positive",
       detail: `${inactiveApplications} tracked opportunities have no terminal status and are older than 14 days.`,
-      action: inactiveApplications ? "Prompt participants to update status or schedule follow-up." : "No stale opportunity records detected."
+      action: inactiveApplications ? "Review these older open opportunities; creation age does not measure inactivity." : "No open opportunities older than 14 days detected."
     },
     {
       label: "Interview activity rate",
       value: interviewConversion,
       unit: "per 100 applications",
       severity: interviewConversion >= 20 ? "positive" : interviewConversion ? "attention" : "neutral",
-      detail: `${followUpTotals.interviews} cumulative interviews and ${followUpTotals.applications} applications across latest respondent reports; not a probability or attributed outcome.`,
+      detail: `${interviewActivity.interviews} cumulative interviews and ${interviewActivity.applications} applications across ${interviewReports.length} latest reports with both counts; ${followups.length - interviewReports.length} incomplete reports excluded. This is not a probability or attributed outcome.`,
       action: interviewConversion >= 20 ? "Identify which roles and resumes drive this conversion." : "Review targeting, tailoring, and application quality."
     },
     {
@@ -1086,7 +1108,7 @@ function buildDecisionSignals({
       value: offerConversion,
       unit: "per 100 interviews",
       severity: offerConversion >= 20 ? "positive" : offerConversion ? "attention" : "neutral",
-      detail: `${followUpTotals.offers} cumulative offers and ${followUpTotals.interviews} interviews across latest respondent reports; not a probability or attributed outcome.`,
+      detail: `${offerActivity.offers} cumulative offers and ${offerActivity.interviews} interviews across ${offerReports.length} latest reports with both counts; ${followups.length - offerReports.length} incomplete reports excluded. This is not a probability or attributed outcome.`,
       action: offerConversion >= 20 ? "Document successful interview-preparation patterns." : "Strengthen interview preparation and outcome follow-up."
     },
     {
@@ -1110,10 +1132,14 @@ function buildDecisionSignals({
       value: sessionMetrics.averageSessionSeconds,
       unit: "sec avg",
       severity: sessionMetrics.averageSessionSeconds >= 120 ? "positive" : "neutral",
-      detail: `${sessionMetrics.sessions} sessions generated ${sessionMetrics.totalSessionMinutes} total engaged minutes.`,
+      detail: `${sessionMetrics.measuredSessions} of ${sessionMetrics.sessions} sessions have positive recorded duration and generated ${sessionMetrics.totalSessionMinutes} recorded minutes. The mean excludes ${sessionMetrics.unmeasuredSessions} sessions without a positive measurement.`,
       action: "Compare engagement by campaign and page before changing acquisition strategy."
     }
-  ];
+  ].map((signal, index) => {
+    const denominator = [resumes.length, applications.length, interviewActivity.applications, offerActivity.interviews, coverage.contacts, waitlist.length, sessionMetrics.measuredSessions][index];
+    return { ...signal, denominator, dataStatus: denominator ? 'available' : 'no-data',
+      ...(denominator ? {} : { severity: 'neutral', detail: `Not enough recorded information to calculate ${signal.label.toLowerCase()}.`, action: 'Collect the relevant records before drawing a conclusion.' }) };
+  });
 }
 
 function average(values) {
@@ -1134,11 +1160,10 @@ function countBy(values) {
   }, {});
 }
 
-function topCounts(values, limit) {
+function topCounts(values) {
   return Object.entries(countBy(values))
     .map(([label, count]) => ({ label, count }))
-    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label))
-    .slice(0, limit);
+    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label));
 }
 
 function splitDelimited(value) {
