@@ -1,5 +1,6 @@
 import { FormEvent, useState } from "react";
 import {
+  ArrowRight,
   BriefcaseBusiness,
   CheckCircle2,
   ChevronLeft,
@@ -110,6 +111,10 @@ export default function WelcomeScreen({ theme, onToggleTheme }: Props) {
         <p>
           Find your strengths, identify gaps, and track your next opportunity.
         </p>
+        <div className="welcome-waitlist">
+          <a className="primary-button" href="/waitlist">Join the waitlist <ArrowRight size={18} aria-hidden="true" /></a>
+          <p>Get in line for early access. No access code needed.</p>
+        </div>
         </div>
         <div className="welcome-access">
         <div className="welcome-entry"><h2>Welcome back</h2><p>Already accepted your invitation?</p><a className="primary-button" href="/api/auth/login">Sign in to SagittaIQ</a></div>

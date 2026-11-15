@@ -177,7 +177,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 12px;
   border: 1px solid rgba(216, 224, 232, 0.54);
   border-radius: 8px;
@@ -202,6 +202,10 @@ body {
 .public-menu-popover {
   display: grid;
   width: min(390px, calc(100vw - 36px));
+  max-height: calc(100vh - 90px);
+  max-height: calc(100dvh - 90px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   gap: 16px;
   margin-top: 10px;
   padding: 16px;
@@ -221,6 +225,7 @@ body {
   display: grid;
   gap: 3px;
   padding: 11px 12px;
+  min-height: 44px;
   border-radius: 8px;
   color: var(--text);
   text-decoration: none;
@@ -235,6 +240,11 @@ body {
   color: var(--text-muted);
   font-size: 0.76rem;
   line-height: 1.4;
+}
+
+.public-menu-popover .public-menu-waitlist {
+  border: 1px solid var(--brand);
+  background: var(--surface-soft);
 }
 
 .public-menu-popover .public-menu-access {
@@ -5181,6 +5191,9 @@ button {
 .welcome-entry { padding: 20px; border: 1px solid var(--border); border-radius: 10px; margin: 24px 0; }
 .welcome-entry h2 { margin: 0; }
 .welcome-entry .primary-button { display: inline-flex; text-decoration: none; min-height: 44px; }
+.welcome-waitlist { display: grid; justify-items: start; gap: 10px; margin-top: 24px; }
+.welcome-waitlist .primary-button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 48px; text-decoration: none; }
+.welcome-waitlist p { margin: 0; font-size: 0.9rem; line-height: 1.5; }
 .welcome-shell[data-theme="dark"] .eyebrow,
 .welcome-shell[data-theme="dark"] .product-brand em { color: #5eead4; }
 .welcome-shell[data-theme="dark"] .welcome-entry { border-color: #526477; }
@@ -5208,6 +5221,7 @@ button {
   .beta-process-dots { order: 3; width: 100%; }
   .welcome-entry { padding: 16px; }
   .welcome-entry .primary-button { width: 100%; justify-content: center; }
+  .welcome-waitlist .primary-button { width: 100%; }
 }
 
 .experience-header h1 { margin: 0; font-size: clamp(1.7rem, 3vw, 2.75rem); line-height: 1.15; overflow-wrap: anywhere; }
