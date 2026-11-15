@@ -30,7 +30,7 @@ export default function PublicInfoPage({ page }: { page: PublicPage }) {
         {page === "data-and-privacy" && <DataPrivacyPage />}
         {page === "product-family" && <ProductFamilyPage />}
       </article>
-      <footer className="public-cta"><h2>Take your next career step.</h2><a className="primary-button" href="/api/auth/login">Sign in</a> <a className="secondary-action" href="/">Join the private beta</a></footer>
+      <footer className="public-cta"><h2>Take your next career step.</h2><a className="primary-button" href="/api/auth/login">Sign in</a> <a className="secondary-action" href="/waitlist">Join the waitlist</a></footer>
     </main>
   );
 }
